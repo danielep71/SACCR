@@ -75,7 +75,8 @@ signature. Omit sections that are empty.
 - Every numeric input states its valid domain, for example `notionalAmount >= 0`
   or `0 < correlation <= 1`, and the facade rejects values outside it.
 - The exact day-count, maturity and supervisory parameter conventions are part
-  of the methodology (#8) and are cited in `REFERENCE`.
+  of the [methodology](methodology/README.md) and are cited in `REFERENCE` by
+  source ID and locator, for example `CRR Article 275(1)`.
 
 ### Errors
 
@@ -118,21 +119,27 @@ Any procedure that changes Excel application state owns restoring it.
    cleanup. Restoring is best effort: a failure inside cleanup must never
    replace the original error.
 
-```vb
-Public Sub RunCalculation()
-'==============================================================================
-'                              RUN CALCULATION
-'------------------------------------------------------------------------------
-' PURPOSE         Recalculate all netting sets on the input sheet.
-' STATE OWNERSHIP Changes ScreenUpdating and Calculation; restores both.
-' ERROR POLICY    Restores state, then re-raises the original error unchanged.
-'==============================================================================
-    Dim savedScreen        As Boolean   'ScreenUpdating before this run
-    Dim savedCalculation   As Long      'Calculation mode before this run
-    Dim errNumber          As Long      'Primary error, preserved across cleanup
-    Dim errSource          As String    'Primary error source
-    Dim errDescription     As String    'Primary error description
+The example returns cleanup status separately, so callers retain it even when
+an operation error is re-raised. Each restoration has its own error handler;
+both are attempted. A cleanup-only failure raises a named error, never success.
+The illustrative cleanup error constant must be allocated once in the project's
+error catalogue before this pattern is used in production.
 
+```vb
+Public Sub RunCalculation(ByRef cleanupSucceeded As Boolean, _
+                          ByRef cleanupDetails As String)
+    Const ERR_CLEANUP As Long = vbObjectError + 2048
+    Dim savedScreen As Boolean
+    Dim savedCalculation As Long
+    Dim errNumber As Long
+    Dim errSource As String
+    Dim errDescription As String
+    Dim calculationError As String
+    Dim screenError As String
+
+        cleanupSucceeded = True
+        cleanupDetails = vbNullString
+        'Capture all state before changing anything. Capture errors propagate.
         savedScreen = Application.ScreenUpdating
         savedCalculation = Application.Calculation
         On Error GoTo HandleError
@@ -142,11 +149,20 @@ Public Sub RunCalculation()
         '... work ...
 
 CleanUp:
-        On Error Resume Next
-        Application.Calculation = savedCalculation
-        Application.ScreenUpdating = savedScreen
+        'Disable the operation handler before cleanup or re-raising errors.
         On Error GoTo 0
+        calculationError = RestoreCalculation(savedCalculation)
+        screenError = RestoreScreenUpdating(savedScreen)
+        cleanupDetails = calculationError
+        If Len(screenError) > 0 Then
+            If Len(cleanupDetails) > 0 Then cleanupDetails = cleanupDetails & "; "
+            cleanupDetails = cleanupDetails & screenError
+        End If
+        cleanupSucceeded = (Len(cleanupDetails) = 0)
         If errNumber <> 0 Then Err.Raise errNumber, errSource, errDescription
+        If Not cleanupSucceeded Then
+            Err.Raise ERR_CLEANUP, "SACCR.RunCalculation", cleanupDetails
+        End If
         Exit Sub
 
 HandleError:
@@ -154,8 +170,31 @@ HandleError:
         errSource = Err.Source
         errDescription = Err.Description
         Resume CleanUp
-
 End Sub
+
+Private Function RestoreCalculation(ByVal savedValue As Long) As String
+        On Error GoTo Failed
+        Application.Calculation = savedValue
+        If Application.Calculation <> savedValue Then
+            RestoreCalculation = "Calculation: restored value does not match"
+        End If
+        Exit Function
+Failed:
+        RestoreCalculation = "Calculation: " & CStr(Err.Number) & " / " & _
+                             Err.Source & " / " & Err.Description
+End Function
+
+Private Function RestoreScreenUpdating(ByVal savedValue As Boolean) As String
+        On Error GoTo Failed
+        Application.ScreenUpdating = savedValue
+        If Application.ScreenUpdating <> savedValue Then
+            RestoreScreenUpdating = "ScreenUpdating: restored value does not match"
+        End If
+        Exit Function
+Failed:
+        RestoreScreenUpdating = "ScreenUpdating: " & CStr(Err.Number) & " / " & _
+                                Err.Source & " / " & Err.Description
+End Function
 ```
 
 Core procedures never change Excel state, so they need none of this.

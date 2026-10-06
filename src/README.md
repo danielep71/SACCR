@@ -12,7 +12,9 @@ workbook is built. Layout, visibility and dependency rules are defined in
 | `workbook/` | Exported `ThisWorkbook` and sheet modules; host glue only. |
 | `forms/` | UserForms with `.frm` beside `.frx`, only if one is ever needed. |
 
-No source exists yet. Each subdirectory is created with its first real
+The only source so far is the setup scaffold that the regression harness tests:
+`core/CoreScaffold.bas` and `modules/SaccrScaffold.bas`. It is replaced by the
+SA-CCR engine. Each other subdirectory is created with its first real
 component.
 
 Do not place tests, examples, workbooks or generated output here.

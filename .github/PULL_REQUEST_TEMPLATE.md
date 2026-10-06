@@ -1,5 +1,5 @@
 <!--
-Target branch: the active release branch (release/0.0.1), never main unless the
+Target branch: the active release branch (release/1.0.0), never main unless the
 owner asked for an integration. Synthetic data only. Delete guidance comments.
 -->
 

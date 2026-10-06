@@ -77,7 +77,7 @@ Subdirectories are created with their first real file, never empty.
 | --- | --- |
 | `tests/modules/` | Regression modules and the harness entry point (#7) |
 | `tests/fixtures/` | Synthetic inputs: trades, netting sets, collateral terms |
-| `tests/expected/` | Reviewed expected values with their independent source (#8) |
+| `tests/expected/` | Expected values per regime with their provenance ([test cases](methodology/TEST_CASES.md)) |
 | `examples/modules/` | Example modules calling the public facade |
 
 `tools/check_source.py` enforces the placement rules below on every run of
@@ -115,7 +115,7 @@ A VBA `Public` declaration is not automatically supported API.
 - **Never supported:** test and example modules. They are not part of the
   workbook.
 
-The manifest is empty until the first facade module is added.
+The manifest currently lists only the setup scaffold, `SaccrScaffold`.
 
 ## 🚦 Placement rules
 

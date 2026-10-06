@@ -14,14 +14,19 @@ pull request's whole range.
 
 | Gate | Checks |
 | --- | --- |
-| `tool-tests` | Negative fixtures for the source gate (`test_tooling.py`) |
+| `tool-tests` | Fixtures for the source gate and public-API roles (`test_tooling.py`), regression cases from reviews (`test_review_regressions.py`) and synthetic Excel evidence records (`test_excel_evidence.py`) |
 | `check_committed_whitespace-fixtures` | Self-test of the whitespace gate |
-| `check_source` | Every tracked text file is stored with LF in Git (CRLF, mixed or lone-CR blobs declared as text fail); VBA components sit only in the locations defined in `docs/REPOSITORY_STRUCTURE.md`, and modules in `src/core/` declare `Option Private Module`; exported VBA (`.bas`, `.cls`, `.frm`) checks out as CRLF, decodes as cp1252, has `Option Explicit` and a `VB_Name` equal to its filename and unique in the project; each `.frm` references a tracked `.frx` large enough for its offset; `CHANGELOG.md` starts with `## [Unreleased]`, uses `## [X.Y.Z] - YYYY-MM-DD` release headings with real calendar dates and has a link reference for each |
+| `check_source` | Every tracked text file is stored with LF in Git (CRLF, mixed or lone-CR blobs declared as text fail); VBA components sit only in the locations defined in `docs/REPOSITORY_STRUCTURE.md`, and modules in `src/core/` declare `Option Private Module`; exported VBA (`.bas`, `.cls`, `.frm`) checks out as CRLF, decodes as cp1252, has `Option Explicit` and a `VB_Name` equal to its filename and unique in the project; each `.frm` references a tracked `.frx` large enough for its offset; `CHANGELOG.md` starts with `## [Unreleased]`, uses `## [X.Y.Z] - YYYY-MM-DD` release headings with real calendar dates and has a link reference for each; once a release exists, `VERSION` holds the newest one |
 | `check_committed_whitespace` | `git diff --check` on staged and unstaged changes (local) or on the committed range (`--ci`) |
 | `check_vba_jumps` | Every `GoTo`, `GoSub`, `Resume` and `On Error GoTo` target is a label in the same procedure |
 | `check_vba_conditionals` | `#If`/`#ElseIf`/`#Else`/`#End If` are balanced and use only `VBA6`, `VBA7`, `Win32`, `Win64`; `Declare` in reachable 64-bit branches is `PtrSafe`; no `#Const` |
 | `check_vba_public_api` | Every `Public` declaration in `src/modules/` is listed, with its exact signature, in `docs/PUBLIC_API.txt`, and nothing else is; no implicit public procedures; one identifier per public `Const` or variable; no name collisions |
 | `*-fixtures` | Each VBA checker and the whitespace gate run their own positive and negative self-tests first |
+
+`check_excel_evidence.py` is not a gate: it validates a manual Excel evidence
+bundle against a candidate commit, and `--inventory` prints the source digests a
+record needs. Its synthetic tests, `test_excel_evidence.py`, run in `tool-tests`.
+See [`docs/EXCEL_EVIDENCE.md`](../docs/EXCEL_EVIDENCE.md).
 
 These are static checks only. None of them compiles VBA, opens Excel, runs a
 test harness or validates any SA-CCR number, and a pass is never evidence that
@@ -31,13 +36,15 @@ the workbook works in Excel.
 
 `check_vba_jumps.py`, `check_vba_conditionals.py` and `check_vba_public_api.py`
 come from EXCEL-VBA-PROJECT-TEMPLATE at commit
-`b903fe44ef6a032c4689870b83745afa1c22490d`. The first two are unchanged. The
+`b903fe44ef6a032c4689870b83745afa1c22490d`. SACCR now evaluates jumps per reachable compilation environment and checks
+`PtrSafe` in the declaration modifier position. The
 public-API checker takes each component's role from its folder, as defined in
 [`docs/REPOSITORY_STRUCTURE.md`](../docs/REPOSITORY_STRUCTURE.md): `src/modules/`
 is public; the other `src/` folders are internal; `tests/` and `examples/` are
 test and example. The template instead reads a component registry from
 `.github/repository-profile.json`, which SACCR does not use. `test_tooling.py`
-adds fixtures for that role mapping.
+adds fixtures for that role mapping. `test_review_regressions.py` covers the
+post-merge findings, including colon-separated public declarations.
 
 ### Direct-call validation: evaluated, not adopted yet
 
@@ -48,15 +55,16 @@ targets. It reports anything it cannot resolve (calls through `Object` or
 repository runs it as advisory only, because it needs a per-project manifest of
 VBA projects and its value grows with the number of modules.
 
-SACCR has no VBA yet, so there is nothing for it to resolve. It should be
-adopted, advisory first, once the engine spans several core modules and a facade.
+SACCR's only VBA so far is a three-module scaffold and harness, so there is
+little for it to resolve. It should be adopted, advisory first, once the engine
+spans several core modules and a facade.
 Until then the VBA compiler in Excel is the call-resolution check.
 
 ## GitHub Actions
 
 `.github/workflows/static-checks.yml` runs the same command with `--ci` on
 pull requests targeting `main` or `release/**`, pushes to those branches, and
-manual dispatch. It is installed on both `main` and `release/0.0.1`.
+manual dispatch. It is installed on both `main` and the active release branch.
 The job is named **Repository integrity**.
 
 Pull requests pass their base SHA through `--base` to check the complete
@@ -100,8 +108,7 @@ mypy
 `.github/dependabot.yml` asks Dependabot for weekly version updates of the
 GitHub Actions pinned in the workflows. They are opened against the active
 release branch (`target-branch`) and labelled `ci` and `P3`. Dependabot reads
-this file from the default branch, so it takes effect after the next integration
-into `main`. Update `target-branch` whenever a new release branch is opened.
+this file from the default branch; PR #24 integrated it into `main`. Update `target-branch` whenever a new release branch is opened.
 
 Review each update pull request like any other:
 

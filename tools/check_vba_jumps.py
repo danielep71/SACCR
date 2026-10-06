@@ -13,6 +13,7 @@ from typing import Any
 from _gatelib import git_bytes as git
 from _gatelib import parse_report_args as parse_args
 from _gatelib import run_gate
+from check_vba_conditionals import reachable_sources
 
 VBA_SUFFIXES = {".bas", ".cls", ".frm"}
 TOOL_NAME = "Procedure-scoped VBA jumps"
@@ -173,7 +174,7 @@ def _unresolved_jump_findings(path: str, procedures: list[dict[str, Any]]) -> li
     return findings
 
 
-def analyze_component(path: str, text: str) -> list[dict[str, Any]]:
+def _analyze_active_component(path: str, text: str) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     procedures: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
@@ -240,6 +241,23 @@ def analyze_component(path: str, text: str) -> list[dict[str, Any]]:
         )
 
     findings.extend(_unresolved_jump_findings(path, procedures))
+    return findings
+
+
+def analyze_component(path: str, text: str) -> list[dict[str, Any]]:
+    """Resolve labels only against code active in the same compilation environment."""
+    sources, findings = reachable_sources(path, text)
+    grouped: dict[tuple[Any, ...], dict[str, Any]] = {}
+    for environment, source in sources.items():
+        for finding in _analyze_active_component(path, source):
+            identity = tuple(finding.get(key) for key in
+                             ("path", "procedure", "line", "target", "message"))
+            if identity not in grouped:
+                grouped[identity] = {**finding, "environments": []}
+            grouped[identity]["environments"].append(environment)
+    for finding in grouped.values():
+        finding["message"] += " [" + ", ".join(finding["environments"]) + "]"
+        findings.append(finding)
     return findings
 
 

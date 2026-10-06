@@ -91,8 +91,9 @@ Use only the categories needed by a release.
 
 ## [Unreleased]
 
-> Not yet released. All development and setup work takes place on `release/0.0.1`
-> until milestone v0.0.1 closes; changes to `main` require an explicit owner instruction.
+> Not yet released. Development takes place on the active release branch,
+> `release/1.0.0`; changes to `main` require an explicit owner instruction.
+> Repository setup (milestone v0.0.1) closed without a release.
 
 ### Added
 
@@ -149,11 +150,54 @@ Use only the categories needed by a release.
   checksum-verified actionlint. Dependabot proposes weekly GitHub Actions
   updates to the release branch for manual review; nothing merges
   automatically.
+- A deterministic VBA regression harness, `tests/modules/TestHarness.bas`, run
+  with `TestHarness.RunTests`. It supports exact, tolerance and expected-error
+  assertions with stable case names, refuses to report `PASS` unless all
+  expected cases and assertions ran, verifies Excel settings are unchanged, and
+  prints a machine-readable `RESULT=` line. `RunTestsWithInjectedFailure`
+  demonstrates the failure path. It exercises a neutral scaffold
+  (`CoreScaffold`, `SaccrScaffold`) that the SA-CCR engine will replace.
+
+### Fixed
+
+- VBA jump checks resolve labels separately in each reachable compilation
+  environment; mutually exclusive labels cannot hide missing targets or create
+  false duplicates (PRs #21 and #24).
+- Public API checks inspect colon-separated statements without splitting strings
+  or named arguments; the conditional checker requires `PtrSafe` in the actual
+  declaration modifier position (PRs #21 and #24).
+- The cleanup example reports restoration failures separately from the primary
+  error and attempts both restorations. Metadata triage includes closed issues
+  and documents the maintainer blank-issue bypass (PRs #18 and #19).
+
+- Excel evidence bound to an exact commit:
+  [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) gives the manual
+  Windows/Excel procedure and record format, and
+  `tools/check_excel_evidence.py` checks a record against the candidate's
+  source digests, `.github/excel-evidence-policy.json`, the default references
+  and the retained harness log, including failed reports. It
+  reports import, compile, test, cleanup, incomplete and unavailable outcomes
+  separately and never runs Excel.
+
+- Methodology basis and numerical test-case format: the EU CRR is the baseline
+  regime and Basel CRE52 is also supported, as recorded differences.
+  [`docs/methodology/`](docs/methodology/README.md) holds the source register,
+  assumptions, open decisions and traceability table;
+  [`TEST_CASES.md`](docs/methodology/TEST_CASES.md) defines fixture and
+  expected-result files, reference classes (published, independent,
+  illustrative), tolerances, case categories and the completeness policy, with
+  one clearly illustrative case. No SA-CCR formula is implemented.
+
+- Versioning conventions in [`RELEASING.md`](RELEASING.md#versioning): a root
+  `VERSION` file is created when the first release is prepared, and
+  `python tools/check.py` then requires it to match the newest dated changelog
+  release. Release branches are `release/X.Y.Z`; tags are annotated `vX.Y.Z`.
+  Development continues on `release/1.0.0`.
 
 ### Known limitations
 
-- The repository contains no VBA source yet, so the VBA checks have nothing to
-  inspect. No check compiles VBA or runs Excel.
+- The only VBA is the neutral scaffold and the regression harness; there is no
+  SA-CCR calculation yet. No automated check compiles VBA or runs Excel.
 
 ---
 

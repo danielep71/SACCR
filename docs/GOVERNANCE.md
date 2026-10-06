@@ -1,16 +1,18 @@
 # Repository governance
 
-Owner and maintainer: **@danielep71**. Setup milestone: **v0.0.1**.
+Owner and maintainer: **@danielep71**. Active release branch: **`release/1.0.0`**.
+Setup milestone v0.0.1 is closed; its baseline is recorded in
+[issue #13](https://github.com/danielep71/SACCR/issues/13).
 This policy implements the owner's working-branch decision of 2026-10-06 and
 the scope of [issue #2](https://github.com/danielep71/SACCR/issues/2).
 
-## Branch policy during setup
+## Branch policy
 
 | Branch | Purpose and allowed work |
 | --- | --- |
-| `release/0.0.1` | Active integration branch for all development and setup until milestone v0.0.1 closes. |
-| `main` | Default branch. Receives `release/0.0.1` only through an owner-requested PR merged with a merge commit; last integrated by PR #14 (`ff71489`). Nothing is committed to main directly. |
-| Short-lived task branches | Every change: branch from release/0.0.1, open the PR against release/0.0.1 and squash-merge it. Use a descriptive name such as `fix/<issue>-<slug>`, `docs/<slug>` or `chore/<slug>`. |
+| `release/1.0.0` | Active integration branch for all development, opened from `main` at the v0.0.1 closeout. |
+| `main` | Default branch. Receives the active release branch only through an owner-requested PR merged with a merge commit. Nothing is committed to main directly. |
+| Short-lived task branches | Every change: branch from the active release branch, open the PR against it and squash-merge it. Use a descriptive name such as `fix/<issue>-<slug>`, `docs/<slug>` or `chore/<slug>`. |
 | Other `release/*` branches | Reserved for explicitly agreed future milestones; do not infer a new development target from a version number. |
 
 The default branch remains `main`; this does not make it the active development
@@ -64,7 +66,7 @@ the issue. Never rewrite shared history to conceal the failed candidate.
 
 Every issue must have assignee **danielep71**, at least one priority label
 **P1/P2/P3**, and a reference milestone; use one clear priority unless a
-documented reason requires otherwise. Current setup work belongs to v0.0.1.
+documented reason requires otherwise. Each issue belongs to the milestone of the release branch it targets.
 Include objective, acceptance checklist, dependencies and required evidence.
 
 ### What is automatic and what is not
@@ -76,19 +78,23 @@ Include objective, acceptance checklist, dependencies and required evidence.
 | Priority | Each form sets a default (`P2`, or `P3` for documentation); triage confirms or changes it |
 | Milestone | **Manual.** GitHub issue forms cannot set a milestone |
 
-Forms apply only to issues opened in the web interface; blank issues are
-disabled there. Issues created through the API, the CLI or another tool bypass
-the forms and get no metadata automatically. Nothing blocks an issue that lacks
+Forms apply to web issues created through a form. `blank_issues_enabled: false`
+hides ordinary blank issues, but users with Write, Maintain or Admin access
+can still use the **Maintainers only** blank-issue option. Those issues, and
+issues created through the API, CLI or another tool, bypass the forms and get
+no metadata automatically. Nothing blocks an issue that lacks
 metadata: this is a **manual rule backed by the check below**, not enforcement.
 
 ### Triage check
 
-Run these three searches when an issue is opened and before closing a
-milestone. Each must return no results.
+Run these state-independent searches at issue triage and before milestone
+closeout. Each must return no results. Closed issues are included because the
+metadata rule applies to every issue, not only ongoing work. Keep the missing-
+milestone search repository-wide: filtering by milestone would hide orphans.
 
-- [Open issues without a milestone](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20is%3Aopen%20no%3Amilestone)
-- [Open issues without an assignee](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20is%3Aopen%20no%3Aassignee)
-- [Open issues without a priority label](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20is%3Aopen%20-label%3AP1%20-label%3AP2%20-label%3AP3)
+- [Issues without a milestone](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20no%3Amilestone)
+- [Issues without an assignee](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20no%3Aassignee)
+- [Issues without a priority label](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20-label%3AP1%20-label%3AP2%20-label%3AP3)
 
 The issue forms and the pull-request template are read by GitHub from the
 default branch, so a change to them takes effect after the next integration
@@ -112,13 +118,14 @@ historical, not a current blocker. Availability and activation are distinct.
 | Control | Observed state and working response |
 | --- | --- |
 | Repository visibility | Private. Preserve it; public visibility is not a workaround for missing features. |
-| Branch rulesets | Configured by the owner on 2026-10-06. The repository's Settings → Rules page is authoritative for which branches and rules apply; keep following the review checklist for what rulesets cannot check. |
+| Branch rulesets | Configured by the owner on 2026-10-06. `main`: pull request required, merge commits only, conversations resolved, **Repository integrity** required and up to date, no force pushes or deletion; repository admins may bypass only through a pull request. Release branches: pull request required, squash only, **Repository integrity** required; deletion is not restricted, so automatic head-branch deletion removes a release branch when it is merged into main. Settings → Rules is authoritative; keep following the review checklist for what rulesets cannot check. |
+| Tag ruleset | `v*` tags: updates, deletions and force pushes blocked, so a published tag cannot move. Added by the owner at the v0.0.1 closeout. |
 | Automatic head-branch deletion | Enabled by the owner on 2026-10-06. Merged PR branches are deleted automatically. |
-| Wiki | Pro enables Wiki for private personal repositories, but SACCR's Wiki remains disabled in this baseline. Keep authoritative documentation in versioned docs/. |
+| Wiki | Enabled on 2026-10-06, private with the repository and editable by collaborators only; no pages published. Authoritative documentation stays in versioned docs/. |
 | Advanced code/secret scanning | Not offered in the current repository security settings. Do not claim CodeQL, secret scanning or push protection are active. Review code and credentials manually; this is not equivalent automated coverage. |
 | Dependency graph and Dependabot alerts | Enabled. Review alerts rather than assuming a clean dependency graph proves application security. |
 | Low-impact development-dependency alert auto-dismissal | Disabled by explicit owner decision. Keep those alerts visible. |
-| Automatic Dependabot updates | Weekly update PRs for GitHub Actions, aimed at the active release branch, from `.github/dependabot.yml` once it is on `main`. Every update is reviewed and merged manually; see [tools/README.md](../tools/README.md#dependency-updates). Alerts and update PRs are separate features. |
+| Automatic Dependabot updates | Weekly update PRs for GitHub Actions, aimed at the active release branch, from `.github/dependabot.yml`; Dependabot reads it from `main`. Every update is reviewed and merged manually; see [tools/README.md](../tools/README.md#dependency-updates). Alerts and update PRs are separate features. |
 | Repository integrity CI | Runs on main/release pushes and PRs, read-only token and full-SHA action pins. Also lints the Python tooling (Ruff, strict mypy) and the workflows (actionlint). Reports are retained for 30 days. Static checks only; no Excel execution. |
 | Labels | Twenty-label catalogue with sync and read-only drift workflows. See LABELS.md for permissions and triggers. |
 
@@ -128,15 +135,14 @@ those controls and must not be represented as enabling all advanced security
 products. The private repository's security settings still do not offer the
 advanced code/secret-scanning sections after the upgrade.
 Reference: [GitHub plans](https://docs.github.com/en/get-started/learning-about-github/githubs-plans).
-Recheck feature availability before future configuration changes. Record the
-ruleset configuration and the remaining Wiki decision under the final setup
-review in issue #13. Issue #2 itself changes
-documentation and the release-branch baseline, not account billing or visibility.
+Recheck feature availability before future configuration changes. The
+ruleset configuration and Wiki state above are the ones accepted at the v0.0.1
+closeout in issue #13.
 
 ## Label workflows
 
-Main and the release branch carry the same label catalogue, scripts and
-workflows. PRs affecting them run offline validation. The automatic live sync
+Both branches carry the same label catalogue. Workflow/script revisions can
+differ while release work awaits integration into main. PRs affecting them run offline validation. The automatic live sync
 is triggered by changes to its inputs on main; scheduled drift uses the default
 branch. Changes merged into the release branch alone do not trigger live sync.
 

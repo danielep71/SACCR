@@ -46,7 +46,7 @@ production security support.
 
 | Source state | Security support |
 | --- | --- |
-| `release/0.0.1` (active development) | ⚠️ Best effort |
+| `release/1.0.0` (active development) | ⚠️ Best effort |
 | `main` | ⚠️ Best effort |
 | Modified copies or unofficial mirrors | ❌ Unsupported unless reproduced in official source |
 
@@ -131,8 +131,11 @@ an issue, unless it creates concrete security impact.
 
 ### Current risk surfaces
 
-- **Runtime.** The repository holds no VBA source yet. This section will
-  describe file, network, native-code and UI behavior when the engine exists.
+- **Runtime.** The only VBA is a neutral scaffold and the regression harness.
+  They use no files, network, native code (`Declare`) or UI, and the harness
+  only reads Excel settings to verify they are unchanged. This section will
+  describe the engine's file, network, native-code and UI behavior when it
+  exists.
 - **Automation.** Every workflow checkout sets `persist-credentials: false`,
   so code under review never receives Git credentials. The static-check and
   pull-request label jobs run with a read-only token. The label-sync workflow

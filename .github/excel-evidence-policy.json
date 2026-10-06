@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "repository": "danielep71/SACCR",
+  "entry_point": "TestHarness.RunTests",
+  "cases": [
+    "ratio.exact",
+    "ratio.tolerance",
+    "ratio.zero-denominator",
+    "ratio.repeatability"
+  ],
+  "assertions": 6,
+  "expected_error_cases": [
+    "ratio.zero-denominator"
+  ],
+  "required_references": [
+    "Visual Basic For Applications",
+    "Microsoft Excel 16.0 Object Library",
+    "OLE Automation",
+    "Microsoft Office 16.0 Object Library"
+  ]
+}

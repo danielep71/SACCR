@@ -18,10 +18,9 @@ from _gatelib import run_gate
 VBA_SUFFIXES = {".bas", ".cls", ".frm"}
 TOOL_NAME = "VBA conditional compilation"
 DECLARE_RE = re.compile(
-    r"^\s*(?:Public|Private)?\s*Declare\s+(?:PtrSafe\s+)?(?:Function|Sub)\b",
+    r"^\s*(?:Public|Private)?\s*Declare\s+(?P<ptrsafe>PtrSafe\s+)?(?:Function|Sub)\b",
     re.IGNORECASE,
 )
-PTRSAFE_RE = re.compile(r"\bPtrSafe\b", re.IGNORECASE)
 DIRECTIVE_RE = re.compile(
     r"^\s*#\s*(If|ElseIf|Else|End\s+If)\b(.*)$",
     re.IGNORECASE,
@@ -384,10 +383,11 @@ def _validate_declare(
     stacks: dict[str, list[Frame]],
     findings: list[dict[str, Any]],
 ) -> None:
-    if not DECLARE_RE.match(code):
+    declaration = DECLARE_RE.match(code)
+    if declaration is None:
         return
     reachable_vba7 = [name for name in VBA7_ENVIRONMENTS if active(stacks[name])]
-    if not reachable_vba7 or PTRSAFE_RE.search(code):
+    if not reachable_vba7 or declaration.group("ptrsafe"):
         return
     findings.append(
         {
