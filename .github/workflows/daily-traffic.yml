@@ -58,9 +58,10 @@ jobs:
   traffic:
     name: Export GitHub traffic
     # Manual dispatch can select any branch. Run only the default branch's
-    # reviewed copy, so code on a task branch never reaches the analytics
-    # environment, its token or the write-scoped GITHUB_TOKEN.
-    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    # reviewed copy; scheduled events already run on the default branch.
+    # The analytics environment independently allows only main, preventing a
+    # branch-edited workflow from bypassing this guard to access its secrets.
+    if: github.event_name == 'schedule' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
