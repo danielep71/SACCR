@@ -106,8 +106,9 @@ Use only the categories needed by a release.
 - This changelog.
 - Repository governance and agent instructions record the active release branch,
   issue metadata requirements, manual review process and current platform limits.
-- Label catalogue, synchronization/drift scripts and workflows are available on
-  the release branch as well as main; existing trigger behavior is preserved.
+- Twenty-label issue catalogue from the Excel VBA project template, with a
+  workflow that reconciles live labels from `.github/labels.json` and a
+  read-only daily drift check. See [`docs/LABELS.md`](docs/LABELS.md).
 
 ### Known limitations
 

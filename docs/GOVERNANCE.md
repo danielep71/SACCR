@@ -9,8 +9,8 @@ the scope of [issue #2](https://github.com/danielep71/SACCR/issues/2).
 | Branch | Purpose and allowed work |
 | --- | --- |
 | `release/0.0.1` | Active integration branch for all development and setup until milestone v0.0.1 closes. |
-| `main` | Preserved default-branch baseline. A specific owner instruction is required for any commit or merge into main during setup. |
-| Short-lived task branches | When needed, branch from release/0.0.1 and target release/0.0.1 in the PR. Use an issue-related name such as chore/2-governance. |
+| `main` | Default branch. Receives `release/0.0.1` only through an owner-requested PR merged with a merge commit; last integrated by PR #14 (`ff71489`). Nothing is committed to main directly. |
+| Short-lived task branches | Every change: branch from release/0.0.1, open the PR against release/0.0.1 and squash-merge it. Use a descriptive name such as `fix/<issue>-<slug>`, `docs/<slug>` or `chore/<slug>`. |
 | Other `release/*` branches | Reserved for explicitly agreed future milestones; do not infer a new development target from a version number. |
 
 The default branch remains `main`; this does not make it the active development
@@ -18,19 +18,21 @@ branch. Check the PR base explicitly. Closing a milestone does not publish a
 tag, release or workbook, or authorize an automatic merge into main. The owner
 must agree the final integration and subsequent working branch.
 
-Use a non-rewriting merge for integration so provenance remains visible. Never
-force-push or reset shared branches. Delete only disposable task branches after
-their work is integrated; preserve the active release branch. Do not open a
-release-to-main PR just to record progress during this setup phase.
+Task PRs into the release branch are squash-merged. Integration of the release
+branch into main uses a PR merged with a merge commit once hosted checks are
+green, so provenance remains visible; afterwards the release branch is
+fast-forwarded to main, so both point to the merge commit. Never force-push or
+reset shared branches. Delete task branches after their work is integrated;
+preserve the active release branch. Do not open a release-to-main PR just to
+record progress during this setup phase.
 
 ## Ownership, authorization and review
 
 The owner sets scope, priorities, exceptions and release decisions. Contributors
-and agents work within the authorized issue. Routine scoped changes may be
-committed directly to the active release branch when covered by the owner's
-task instruction; use a PR for changes requiring review, collaboration or
-validation of the PR path. In both cases, inspect the diff and run the same
-applicable checks. An agent's self-check is not an independent human review.
+and agents work within the authorized issue. Every change reaches the active
+release branch through a PR; nothing is committed directly to the release
+branch or main. Inspect the diff and run the applicable checks before pushing.
+An agent's self-check is not an independent human review.
 
 No change to visibility, paid subscriptions, security-sensitive access or
 main-branch scope is implied by an ordinary development task. Raise a concrete
@@ -50,10 +52,10 @@ Minimum review checklist, before integration or recording completion:
 - [ ] No credentials, client data, unrelated binary outputs or undeclared dependencies are introduced.
 - [ ] Static results are separated from real Excel compilation/execution evidence.
 
-For an authorized direct release commit, local validation precedes the push;
-hosted validation follows it. If the hosted run fails, record the failure and
-fix or revert with a new commit before closing the issue. Never rewrite shared
-history to conceal the failed candidate.
+Local validation (`python tools/check.py`) precedes every push, and hosted
+checks must be green before a PR is merged. If a hosted run fails after a
+merge, record the failure and fix or revert it through a new PR before closing
+the issue. Never rewrite shared history to conceal the failed candidate.
 
 ## Issue metadata and completion
 
@@ -99,12 +101,12 @@ remaining protection/Wiki configuration under the final setup review in issue
 #13; do not mark it enabled just because Pro is active. Issue #2 itself changes
 documentation and the release-branch baseline, not account billing or visibility.
 
-## Label workflows while main is preserved
+## Label workflows
 
-The release branch carries the same label catalogue, scripts and workflows as
-main. PRs affecting them run offline validation. The existing automatic live
-sync is triggered by changes on main; scheduled drift uses the default branch.
-Copying the files to release does not change those trigger semantics.
+Main and the release branch carry the same label catalogue, scripts and
+workflows. PRs affecting them run offline validation. The automatic live sync
+is triggered by changes to its inputs on main; scheduled drift uses the default
+branch. Changes merged into the release branch alone do not trigger live sync.
 
 If an authorized label-policy change is developed on release, validate it
 locally and via PR checks, review removals and their issue associations, then
@@ -123,9 +125,13 @@ Both contained the same tooling and static workflow. Release lacked seven
 label-policy, script, workflow and documentation files present in main.
 The governance integration preserves both commits as parents, first the
 release tip and then main, and imports those seven files unchanged into
-release. Main remains at the recorded tip. The changelog states release is
-the active setup branch; the README links this policy and AGENTS.md records
-the owner's instructions for future agents.
+release. Main stayed at the recorded tip at that point. The changelog states
+release is the active setup branch; the README links this policy and AGENTS.md
+records the owner's instructions for future agents.
+
+PR #14 later merged the release branch into main with merge commit
+`ff714896eabfb32a91659b7d80aa9ad9b5607496`; both branches now point to that
+commit, and hosted checks passed on it for both.
 
 The accepted integration commit, hosted run, branch comparison and settings
 observations are recorded in issue #2. Retain necessary closeout evidence
