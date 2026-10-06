@@ -99,6 +99,9 @@ Use only the categories needed by a release.
   push: Git storage and line endings, exported VBA integrity (`Option Explicit`,
   `VB_Name`, form resources), changelog structure and whitespace. See
   [`tools/README.md`](tools/README.md).
+- Automatic **Repository integrity** checks on pull requests and pushes to
+  `main` and `release/**`, plus manual execution. Reports and logs identify the
+  checked commit and are retained for 30 days, including failed checks.
 - This changelog.
 
 ### Known limitations
