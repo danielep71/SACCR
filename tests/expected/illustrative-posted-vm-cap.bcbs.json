@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "kind": "saccr-expected",
+  "fixture": "illustrative-posted-vm-cap",
+  "regime": "BCBS",
+  "outputs": [
+    {
+      "quantity": "exposure_value",
+      "rule": "CRE52.2",
+      "value": 376592788.3471456,
+      "unit": "EUR",
+      "tolerance": {
+        "absolute": 1e-09,
+        "relative": 1e-09
+      },
+      "reference": {
+        "class": "illustrative",
+        "source": "BCBS",
+        "locator": "CRE52.2; EBA Q&A 2022_6354 (rejected)",
+        "derivation": "Prototype TestCatalogue T16 (Posted VM: Basel cap keeps VM in C -> margined EAD (~377); CRE52.2; EBA Q&A 2022_6354 (rejected); engineering scenario - not authoritative; workbook reference BCBS-VMCAP, EAD). Catalogue note: Basel cap ~602 > margined ~377. Value from an independent Python implementation that is not in the repository; illustrative until an independent derivation is committed and reviewed.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T16"
+    }
+  ]
+}

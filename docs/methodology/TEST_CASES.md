@@ -6,8 +6,11 @@ the suite counts as complete. Sources and rule IDs come from the
 [methodology](README.md).
 
 > [!IMPORTANT]
-> The format is defined; no real SA-CCR case exists yet. The only committed case
-> is **illustrative**: it shows the shape of the files and validates nothing.
+> The prototype's 28 TestCatalogue checks are ported as cases (#59): 14 values
+> printed in BCBS 279 Annex 4 are `published`; the other 14 are `illustrative`.
+> The VBA harness does not yet run any case ([consumption](#consumption)), so
+> no rule is validated by them yet. The mapping is in
+> [`tests/README.md`](../../tests/README.md#ported-prototype-catalogue).
 
 ## 📁 Files
 
@@ -42,17 +45,40 @@ counterparties, collateral agreements or portfolio extracts.
   "netting_set": {
     "id": "NS1",
     "margined": false,
-    "collateral_net_amount": 0
+    "cleared": false,
+    "remargin_period_business_days": null,
+    "large_or_illiquid": false,
+    "margin_disputes": false,
+    "mpor_override_business_days": null,
+    "variation_margin_net_amount": 0,
+    "independent_collateral_net_amount": 0,
+    "threshold_amount": 0,
+    "minimum_transfer_amount": 0,
+    "alpha_factor": null
   },
   "trades": [
     {
       "id": "T1",
       "asset_class": "interest_rate",
-      "currency": "EUR",
+      "sub_class": null,
+      "risk_factor": "EUR",
+      "instrument": "linear",
+      "direction": "long",
+      "option_type": null,
+      "nature": "standard",
+      "hedging_set_label": null,
       "notional_amount": 10000000,
+      "market_value_amount": 100000,
       "start_date": "2026-01-02",
       "end_date": "2031-01-02",
-      "market_value_amount": 100000
+      "maturity_date": "2031-01-02",
+      "option_expiry_date": null,
+      "underlying_price": null,
+      "strike_price": null,
+      "lambda_price": null,
+      "attachment_rate": null,
+      "detachment_rate": null,
+      "description": "Five-year swap, format example"
     }
   ]
 }
@@ -61,9 +87,39 @@ counterparties, collateral agreements or portfolio extracts.
 | Rule | Detail |
 | --- | --- |
 | Envelope | `schema_version`, `kind`, `id` (equal to the file name), `synthetic: true`, `description` and `category` are required |
-| Units | In `netting_set` and `trades`, a field's suffix states its unit: `_amount` in `calculation_currency`, unscaled; `_date` as ISO `YYYY-MM-DD`; `_years` in years; `_rate` and `_factor` as decimals. A quantity there never lacks a unit suffix. Envelope fields such as `schema_version` are metadata, not quantities |
-| Signs | Market values are from the bank's side: positive is an asset. `collateral_net_amount` is collateral held minus collateral posted |
-| Vocabulary | Trade and netting-set fields beyond the envelope are **provisional** and are fixed with the first engine milestone; adding one updates this table |
+| Units | In `netting_set` and `trades`, a field's suffix states its unit: `_amount` in `calculation_currency`, unscaled; `_date` as ISO `YYYY-MM-DD`; `_years` in years; `_business_days` in business days; `_rate` and `_factor` as decimals; `underlying_price`, `strike_price` and `lambda_price` share the underlying's unit, a decimal rate for an interest-rate option and a price otherwise. A quantity there never lacks a unit suffix. Envelope fields such as `schema_version` are metadata, not quantities |
+| Currencies | Every amount is in `calculation_currency`; amounts in other currencies are converted before they enter a fixture ([decision 6](README.md#open-decisions)). `risk_factor` names what the trade is exposed to: the interest-rate currency, the FX pair, the credit or equity reference, or the commodity |
+| Signs | Market values are from the bank's side: positive is an asset. `variation_margin_net_amount` and `independent_collateral_net_amount` are held minus posted. `notional_amount` is unsigned; `direction` gives the sign |
+| Parameters | A fixture runs with the default parameters of the workbook template's Params sheet (for example 365 days and 250 business days a year); a case that needs other parameters adds them to the format first |
+| Fields | Every field below is present in every fixture; `null` means not applicable or the default. `tools/check_test_cases.py` rejects an unknown, missing or mistyped field |
+
+| Netting-set field | Type | Meaning |
+| --- | --- | --- |
+| `id` | text | Netting-set ID |
+| `margined`, `cleared`, `large_or_illiquid`, `margin_disputes` | Boolean | As on the NettingSets sheet |
+| `remargin_period_business_days` | number or `null` | Remargining period of a margined set |
+| `mpor_override_business_days` | number or `null` | MPOR override; `null` for none |
+| `variation_margin_net_amount`, `independent_collateral_net_amount` | amount | Net VM and NICA, held minus posted |
+| `threshold_amount`, `minimum_transfer_amount` | amount, at least 0 | Margin agreement terms |
+| `alpha_factor` | number or `null` | Alpha override; `null` uses the regime's alpha |
+
+| Trade field | Type | Meaning |
+| --- | --- | --- |
+| `id` | text | Trade ID, unique in the fixture |
+| `asset_class` | `interest_rate`, `foreign_exchange`, `credit`, `equity`, `commodity`, `other` | Asset class; `other` exists only under CRR |
+| `sub_class` | text or `null` | Rating, credit quality step, index or commodity type, as in the supervisory-factor table |
+| `risk_factor` | text | See Currencies above |
+| `instrument` | `linear`, `option`, `cdo` | Instrument type |
+| `direction` | `long`, `short` | Position |
+| `option_type` | `call`, `put` or `null` | Options only |
+| `nature` | `standard`, `basis`, `volatility` | Transaction nature |
+| `hedging_set_label` | text or `null` | Basis and volatility transactions only |
+| `notional_amount` | amount, at least 0 | Notional |
+| `market_value_amount` | amount | Market value |
+| `start_date`, `end_date`, `maturity_date`, `option_expiry_date` | date or `null` | As on the Trades sheet; `null` when not given |
+| `underlying_price`, `strike_price`, `lambda_price` | number or `null` | Options; `lambda_price` is an entered shift |
+| `attachment_rate`, `detachment_rate` | decimal or `null` | CDO tranches |
+| `description` | text or `null` | Free text; never read by the engine |
 
 <a id="expected-format"></a>
 
@@ -104,10 +160,33 @@ example; no such constant exists yet:
 {"quantity": "exposure_value", "rule": "CRR.274.2", "error": "SACCR_ERROR_INVALID_NOTIONAL", "reference": {"class": "illustrative", "...": "..."}}
 ```
 
-Quantities use stable names: `exposure_value`, `replacement_cost`,
-`potential_future_exposure`, `multiplier`, `aggregate_add_on`, and
-`add_on.<asset_class>` for each asset class. Intermediate quantities may be
-added when a rule needs them; each name is used with one meaning only.
+An output is one of three forms: a number (`value`, `unit`, `tolerance`), a
+text result (`text`, compared exactly, no unit or tolerance) or an error
+(`error`). It may also carry `catalogue`, the prototype TestCatalogue test it
+was ported from, such as `T01`.
+
+Quantities use stable names, each with one meaning only:
+
+| Level | Quantity | Form and unit |
+| --- | --- | --- |
+| Netting set | `exposure_value`, `replacement_cost`, `potential_future_exposure`, `aggregate_add_on`, `add_on.<asset_class>` | Number in the calculation currency |
+| Netting set | `multiplier` | Number, unit `1` |
+| Netting set | `margin_period_of_risk` | Number, unit `business_days` |
+| Netting set | `cap_applied` | Text: `Y` when the unmargined cap sets the exposure value |
+| Trade | `adjusted_notional` | Number in the calculation currency |
+| Trade | `supervisory_delta`, `supervisory_factor` | Number, unit `1` |
+| Trade | `lambda_shift` | Number in the underlying's unit: `1` for a rate, `price` otherwise |
+| Trade | `hedging_set` | Text: the engine's hedging-set key, for example `CO\|CLIMATIC\|STD` |
+| Trade | `trade_status` | Text: `OK` or `EXCLUDED` |
+
+A trade-level output names its trade in `trade`; a netting-set output has no
+`trade`. New quantities are added to this table and to the validator together.
+
+Rule IDs follow the [traceability](README.md#traceability) convention:
+`CRR.<article>[.<paragraph>]`, `CRR-RTS.<article>` for Delegated Regulation
+(EU) 2021/931, and `CRE52.<paragraph>`, with `CRE52` alone for a paragraph not
+yet located. The rule IDs of the ported cases are those the prototype cites and
+are verified with the sources.
 
 <a id="reference-classes"></a>
 
@@ -185,6 +264,11 @@ Each fixture declares one `category`:
 
 How the VBA harness reads these files is still open
 ([decision 7](README.md#open-decisions)): a JSON parser in VBA, or VBA test
-modules generated from the JSON by a checked tool. A validator for the file
-format is added with the first real case, so the format is enforced from then
-on. Until then these rules are applied in review.
+modules generated from the JSON by a checked tool. Until it is decided, no case
+runs against the engine.
+
+The file format is enforced by `tools/check_test_cases.py`, part of
+`python tools/check.py`: envelopes, field names, types and units, quantity
+names and forms, trade references, tolerances, reference classes and their
+required fields, sources from the register, the `illustrative-` naming rule,
+and unique catalogue IDs. It does not check any value against the engine.

@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "kind": "saccr-fixture",
+  "id": "illustrative-credit-quality-step",
+  "synthetic": true,
+  "description": "Single-name credit derivative mapped by credit quality step 2.",
+  "category": "nominal",
+  "calculation_currency": "EUR",
+  "valuation_date": "2026-09-30",
+  "netting_set": {
+    "id": "CQS",
+    "margined": true,
+    "cleared": false,
+    "remargin_period_business_days": 1,
+    "large_or_illiquid": false,
+    "margin_disputes": false,
+    "mpor_override_business_days": null,
+    "variation_margin_net_amount": 1500000,
+    "independent_collateral_net_amount": 2000000,
+    "threshold_amount": 0,
+    "minimum_transfer_amount": 250000,
+    "alpha_factor": null
+  },
+  "trades": [
+    {
+      "id": "B03",
+      "asset_class": "credit",
+      "sub_class": "CQS2",
+      "risk_factor": "OMEGA AG",
+      "instrument": "linear",
+      "direction": "short",
+      "option_type": null,
+      "nature": "standard",
+      "hedging_set_label": null,
+      "notional_amount": 8000000,
+      "market_value_amount": 120000,
+      "start_date": null,
+      "end_date": "2030-09-29",
+      "maturity_date": "2030-09-29",
+      "option_expiry_date": null,
+      "underlying_price": null,
+      "strike_price": null,
+      "lambda_price": null,
+      "attachment_rate": null,
+      "detachment_rate": null,
+      "description": "4y CDS protection sold - credit quality step 2 (CRR Art. 280c)"
+    }
+  ]
+}

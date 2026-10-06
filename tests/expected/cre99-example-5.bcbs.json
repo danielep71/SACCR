@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "kind": "saccr-expected",
+  "fixture": "cre99-example-5",
+  "regime": "BCBS",
+  "outputs": [
+    {
+      "quantity": "margin_period_of_risk",
+      "rule": "CRE52.50",
+      "value": 14,
+      "unit": "business_days",
+      "tolerance": {
+        "absolute": 0,
+        "relative": 0
+      },
+      "reference": {
+        "class": "published",
+        "source": "BCBS-279",
+        "locator": "Annex 4, example 5 (also Basel Framework CRE99)",
+        "derivation": "Prototype TestCatalogue T11 (Example 5: MPOR, weekly remargining; CRE99 ex.5; official published value (rounded); workbook reference BCBS-EX5, MPOR (BD)). Printed figure, rounded; not yet re-checked against the registered text.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T11"
+    },
+    {
+      "quantity": "aggregate_add_on",
+      "rule": "CRE52.25",
+      "value": 1401,
+      "unit": "EUR",
+      "tolerance": {
+        "absolute": 0.5,
+        "relative": 0
+      },
+      "reference": {
+        "class": "published",
+        "source": "BCBS-279",
+        "locator": "Annex 4, example 5 (also Basel Framework CRE99)",
+        "derivation": "Prototype TestCatalogue T12 (Example 5: aggregate add-on; CRE99 ex.5; official published value (rounded); workbook reference BCBS-EX5, AddOn aggregate). Printed figure, rounded; not yet re-checked against the registered text.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T12"
+    },
+    {
+      "quantity": "multiplier",
+      "rule": "CRE52.23",
+      "value": 0.958,
+      "unit": "1",
+      "tolerance": {
+        "absolute": 0.0005,
+        "relative": 0
+      },
+      "reference": {
+        "class": "published",
+        "source": "BCBS-279",
+        "locator": "Annex 4, example 5 (also Basel Framework CRE99)",
+        "derivation": "Prototype TestCatalogue T13 (Example 5: multiplier; CRE99 ex.5; official published value (rounded); workbook reference BCBS-EX5, Multiplier). Printed figure, rounded; not yet re-checked against the registered text.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T13"
+    },
+    {
+      "quantity": "exposure_value",
+      "rule": "CRE52.1",
+      "value": 1879,
+      "unit": "EUR",
+      "tolerance": {
+        "absolute": 0.5,
+        "relative": 0
+      },
+      "reference": {
+        "class": "published",
+        "source": "BCBS-279",
+        "locator": "Annex 4, example 5 (also Basel Framework CRE99)",
+        "derivation": "Prototype TestCatalogue T14 (Example 5: EAD; CRE99 ex.5; official published value (rounded); workbook reference BCBS-EX5, EAD). Printed figure, rounded; not yet re-checked against the registered text.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T14"
+    }
+  ]
+}
