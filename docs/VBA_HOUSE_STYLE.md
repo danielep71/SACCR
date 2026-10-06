@@ -75,7 +75,8 @@ signature. Omit sections that are empty.
 - Every numeric input states its valid domain, for example `notionalAmount >= 0`
   or `0 < correlation <= 1`, and the facade rejects values outside it.
 - The exact day-count, maturity and supervisory parameter conventions are part
-  of the methodology (#8) and are cited in `REFERENCE`.
+  of the [methodology](methodology/README.md) and are cited in `REFERENCE` by
+  source ID and locator, for example `CRR Article 275(1)`.
 
 ### Errors
 

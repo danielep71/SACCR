@@ -178,6 +178,15 @@ Use only the categories needed by a release.
   reports import, compile, test, cleanup, incomplete and unavailable outcomes
   separately and never runs Excel.
 
+- Methodology basis and numerical test-case format: the EU CRR is the baseline
+  regime and Basel CRE52 is also supported, as recorded differences.
+  [`docs/methodology/`](docs/methodology/README.md) holds the source register,
+  assumptions, open decisions and traceability table;
+  [`TEST_CASES.md`](docs/methodology/TEST_CASES.md) defines fixture and
+  expected-result files, reference classes (published, independent,
+  illustrative), tolerances, case categories and the completeness policy, with
+  one clearly illustrative case. No SA-CCR formula is implemented.
+
 ### Known limitations
 
 - The only VBA is the neutral scaffold and the regression harness; there is no
