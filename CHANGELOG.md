@@ -194,6 +194,10 @@ Use only the categories needed by a release.
   release. Release branches are `release/X.Y.Z`; tags are annotated `vX.Y.Z`.
   Development continues on `release/1.0.0`.
 
+- Daily traffic export, as in VBA-DATETIMEPICKER: GitHub's 14-day traffic data
+  is kept on the orphan `traffic-history` branch, with alert issues on spikes
+  and new referrers. See [`tools/README.md`](tools/README.md#traffic-history).
+
 ### Known limitations
 
 - The only VBA is the neutral scaffold and the regression harness; there is no
