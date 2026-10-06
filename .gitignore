@@ -70,6 +70,10 @@
 # Example for a deliberately version-controlled workbook:
 # !/examples/Project-demo.xlsm
 
+# Approved in issue #58: the macro-free template that holds the workbook's
+# sheets; the VBA is imported from src/ when the workbook is built.
+!/src/workbook/SACCR_Template.xlsx
+
 
 #------------------------------------------------------------------------------
 # RELEASE / BUILD STAGING

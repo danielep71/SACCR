@@ -21,6 +21,7 @@ SOURCES = {
     "src/modules/SaccrScaffold.bas": "Attribute VB_Name = \"SaccrScaffold\"\n",
     "src/forms/FSample.frm": "Attribute VB_Name = \"FSample\"\n",
     "src/forms/FSample.frx": "binary resource\n",
+    "src/workbook/SACCR_Template.xlsx": "template bytes\n",
     "tests/modules/TestHarness.bas": "Attribute VB_Name = \"TestHarness\"\n",
     "examples/ExampleUse.bas": "Attribute VB_Name = \"ExampleUse\"\n",
     "README.md": "fixture\n",
@@ -109,7 +110,7 @@ class ExcelEvidenceTests(unittest.TestCase):
         paths = [item["path"] for item in self.record["sources"]]
         self.assertEqual(paths, ["src/core/CoreScaffold.bas", "src/forms/FSample.frm",
                                  "src/forms/FSample.frx", "src/modules/SaccrScaffold.bas",
-                                 "tests/modules/TestHarness.bas"])
+                                 "src/workbook/SACCR_Template.xlsx", "tests/modules/TestHarness.bas"])
         expected = hashlib.sha256(SOURCES["tests/modules/TestHarness.bas"].encode()).hexdigest()
         self.assertEqual(self.record["sources"][-1]["sha256"], expected)
 
