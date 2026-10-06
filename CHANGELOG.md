@@ -196,8 +196,11 @@ Use only the categories needed by a release.
   `docs/PUBLIC_API.txt`), and the sheet-button macros in `src/workbook/M_Main`
   with the 13 document modules. It covers both regimes (CRR default, Basel
   CRE52 per netting set), the CRR other-risks class and the margined-EAD cap.
-  The code is unchanged except `Option Private Module` in the three core
-  modules.
+  The five standard modules are laid out in the house style (#60): module and
+  procedure banners giving purpose, inputs, results and regulatory
+  references, one commented declaration per line, and section comments. Their
+  statements are unchanged from the prototype apart from `Option Private
+  Module` in the three core modules, which the import had declared twice.
 - Workbook template `src/workbook/SACCR_Template.xlsx` (#58): the prototype's
   12 sheets, formulas, named ranges and buttons with its VBA project removed.
   The workbook is built by saving it as `.xlsm` and importing the source; the

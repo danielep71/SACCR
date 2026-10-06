@@ -1,1194 +1,2400 @@
 Attribute VB_Name = "M_Engine"
 '==============================================================================
-' Module   : M_Engine
-' Purpose  : SA-CCR exposure at default per netting set
+' MODULE: M_Engine
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Calculate SA-CCR exposure at default (EAD) for every netting set on the
+'   input sheets, and write the intermediate and final figures to the output
+'   sheets.
 '
-'   EAD = alpha * (RC + PFE)                                   [CRE52.1]
-'   PFE = multiplier * AddOn_aggregate                         [CRE52.20]
-'   AddOn_aggregate = sum of asset-class add-ons (IR,FX,CR,EQ,CO) [CRE52.25]
-'   Trade effective notional = delta * d * MF
+'     EAD = alpha * (RC + PFE)                                    [CRE52.1]
+'     PFE = multiplier * aggregate add-on                         [CRE52.20]
+'     aggregate add-on = sum of the asset-class add-ons           [CRE52.25]
+'     trade effective notional = delta * d * MF
 '
-'   For margined netting sets the EAD is capped at the EAD of the same
-'   netting set computed on an unmargined basis               [CRE52.2]
+'   The EAD of a margined netting set is capped at the EAD of the same
+'   netting set calculated as if it were unmargined.             [CRE52.2]
 '
-' Regime layer (default on Params, override per netting set):
-'   BCBS : cap computed with C = VM + NICA (posted VM negative)    [CRE52.2]
-'   CRR  : cap per Art. 274(3) with RC per Art. 275(1); NICA excludes
-'          VM posted or received (EBA Q&A 2023_6962)
-'   CRR  : 'other risks' category OT, SF 8%                    [Art. 280f]
-'   CRR  : lambda for IR / commodity options per Del. Reg. 2021/931 Art. 5
-'   SF-table rows can be restricted to one regime (column 'Regimes').
+' REGIME LAYER
+'   The regime is set on Params (CRR by default) and can be overridden per
+'   netting set.
+'   BCBS: the cap uses C = VM + NICA, with posted VM negative.    [CRE52.2]
+'   CRR:  the cap follows Art. 274(3), with RC per Art. 275(1) and C = NICA
+'         only, excluding VM posted or received (EBA Q&A 2023_6962).
+'   CRR:  the other-risks class OT, supervisory factor 8%.       [Art. 280f]
+'   CRR:  lambda for interest-rate and commodity options per Delegated
+'         Regulation (EU) 2021/931 Art. 5.
+'   A row of the supervisory-factor table can be limited to one regime in
+'   its Regimes column.
 '
-' Flow : LoadParams -> LoadSFTable -> LoadFXTable -> LoadNettingSets
-'        -> ProcessTrades -> ComputeHedgingSets -> ComputeNettingSets
-'        -> write TradeCalc / Buckets / HedgingSets / Results / Checks
+' FLOW
+'   Calculate runs, in order:
+'     LoadParams, LoadSFTable, LoadFXTable, LoadNettingSets: read the inputs;
+'     ProcessTrades: one row per trade, collected into buckets;
+'     ComputeHedgingSets: buckets into hedging-set and asset-class add-ons;
+'     ComputeNettingSets: RC, multiplier, PFE and EAD per netting set;
+'     WriteBuckets, WriteHedgingSets, WriteChecks, WriteRunInfo: outputs.
+'   Each trade, bucket and hedging set is stored once in an array, with a
+'   Collection (see M_Util.KeyIndex) mapping its key to its array position.
+'
+' PUBLIC SURFACE
+'   None outside this VBA project. Calculate and the five run counters are
+'   Public for M_Main; Option Private Module keeps them off the supported
+'   external surface.
+'
+' DEPENDENCIES
+'   M_Config for the layout, M_Util for conversions and sheet access, and
+'   M_Formulas for every regulatory formula.
+'
+' STATE OWNERSHIP
+'   Owns the module state below. ResetState clears it at the start of each
+'   run; the run counters stay readable until the next run. Reads the input
+'   sheets and Params; writes the TradeCalc, Buckets, HedgingSets, Results
+'   and Checks sheets. Changes no Excel application setting.
+'
+' ERROR POLICY
+'   Invalid inputs are not VBA errors. They are logged as ERROR, WARNING or
+'   INFO lines for the Checks sheet: an invalid trade is excluded and the
+'   run continues; invalid parameters or netting sets stop the run.
+'   LoadParams, WriteChecks and WriteRunInfo contain their own errors; any
+'   other unexpected error propagates to M_Main.
+'
+' KNOWN DEVIATION
+'   This module lives in src/core but reads and writes worksheets, which the
+'   repository structure reserves for src/workbook. See the known deviations
+'   in docs/REPOSITORY_STRUCTURE.md.
+'
+' COMPATIBILITY
+'   Excel VBA; no references beyond the defaults.
+'
+' UPDATED
+'   2026-10-06
+'
+' AUTHOR
+'   Daniele Penza
 '==============================================================================
-Option Explicit
-Option Private Module
-Option Private Module
 
-'--- Data structures -----------------------------------------------------------
-Private Type tNettingSet
-    ID As String
-    Counterparty As String
-    Margined As Boolean
-    Cleared As Boolean
-    RemarginBD As Double
-    LargeOrIlliquid As Boolean
-    Disputes As Boolean
-    MPOR As Double              ' effective MPOR, business days
-    MFMargined As Double
-    VM As Double                ' net variation margin held (+) / posted (-)
-    NICA As Double              ' net independent collateral amount
-    TH As Double
-    MTA As Double
-    Alpha As Double
-    Regime As String            ' BCBS or CRR
-    IsCRR As Boolean
-    V As Double                 ' sum of trade MtM (reporting ccy)
-    Trades As Long
-End Type
+'------------------------------------------------------------------------------
+' MODULE SETTINGS
+'------------------------------------------------------------------------------
+    'Require explicit declarations; keep the engine inside this project.
+    Option Explicit
+    Option Private Module
 
-Private Type tSupervisory
-    Key As String
-    AssetClass As String
-    Category As String
-    SF As Double
-    Corr As Double
-    Vol As Double
-    Group As String             ' commodity hedging set (ENERGY, METALS, ...)
-    Regimes As String           ' BOTH (blank), BCBS or CRR
-End Type
+'------------------------------------------------------------------------------
+' DATA STRUCTURES
+'------------------------------------------------------------------------------
+    'One netting set, as read from the NettingSets sheet. Amounts are in the
+    'reporting currency.
+    Private Type tNettingSet
+        ID                As String     'Netting-set ID, upper case
+        Counterparty      As String     'Counterparty name
+        Margined          As Boolean    'Subject to a margin agreement
+        Cleared           As Boolean    'Centrally cleared
+        RemarginBD        As Double     'Remargining frequency, business days, at least 1
+        LargeOrIlliquid   As Boolean    'Over 5,000 trades or illiquid collateral
+        Disputes          As Boolean    'Margin disputes; doubles the MPOR
+        MPOR              As Double     'Effective MPOR, business days
+        MFMargined        As Double     'Margined maturity factor for the MPOR
+        VM                As Double     'Net variation margin held (+) or posted (-)
+        NICA              As Double     'Net independent collateral amount
+        TH                As Double     'Threshold
+        MTA               As Double     'Minimum transfer amount
+        Alpha             As Double     'Alpha multiplier
+        Regime            As String     'BCBS or CRR
+        IsCRR             As Boolean    'Regime = CRR
+        V                 As Double     'Sum of trade MtM
+        Trades            As Long       'Number of valid trades
+    End Type
 
-Private Type tBucket            ' IR maturity bucket / FX pair / entity / commodity type
-    NSIdx As Long
-    AC As Long
-    HSKey As String
-    SubKey As String
-    SF As Double                ' after basis / volatility scaling
-    Corr As Double
-    ENU As Double               ' sum(delta*d*MF), unmargined MF
-    ENM As Double               ' sum(delta*d*MF), margined MF
-    Trades As Long
-    HSIdx As Long
-End Type
+    'One row of the supervisory-factor table on Params.
+    Private Type tSupervisory
+        Key          As String    'Lookup key: IR, FX, OT, or class_subclass such as CR_AAA
+        AssetClass   As String    'Asset-class code
+        Category     As String    'Sub-class
+        SF           As Double    'Supervisory factor
+        Corr         As Double    'Correlation (credit, equity, commodity)
+        Vol          As Double    'Supervisory option volatility
+        Group        As String    'Commodity hedging set: ENERGY, METALS, ...
+        Regimes      As String    'Blank (both regimes), BCBS or CRR
+    End Type
 
-Private Type tHedgingSet
-    NSIdx As Long
-    AC As Long
-    Key As String
-    D1U As Double
-    D2U As Double
-    D3U As Double
-    D1M As Double
-    D2M As Double
-    D3M As Double
-    SysU As Double
-    IdioU As Double
-    SysM As Double
-    IdioM As Double
-    ENU As Double
-    ENM As Double
-    AddOnU As Double
-    AddOnM As Double
-    Trades As Long
-End Type
+    'One bucket: an IR maturity bucket, an FX currency pair, a credit or
+    'equity entity, or a commodity type. Effective notionals are kept on
+    'both bases: unmargined (U) and margined (M) maturity factor.
+    Private Type tBucket
+        NSIdx    As Long      'Netting set, position in mNS
+        AC       As Long      'Asset class, an AC_ constant
+        HSKey    As String    'Hedging-set key
+        SubKey   As String    'Bucket key within the hedging set
+        SF       As Double    'Supervisory factor after the basis or volatility multiplier
+        Corr     As Double    'Correlation
+        ENU      As Double    'Sum of delta * d * MF, unmargined MF
+        ENM      As Double    'Sum of delta * d * MF, margined MF
+        Trades   As Long      'Number of trades
+        HSIdx    As Long      'Hedging set, position in mHS
+    End Type
 
-'--- State ---------------------------------------------------------------------
-Private mNS() As tNettingSet
-Private mNSCount As Long
-Private mNSIndex As Collection
+    'One hedging set, on both bases. IR uses the bucket totals D1 to D3;
+    'FX and OT use EN; credit, equity and commodity use the systematic and
+    'idiosyncratic sums of the single-factor model.
+    Private Type tHedgingSet
+        NSIdx    As Long      'Netting set, position in mNS
+        AC       As Long      'Asset class
+        Key      As String    'Hedging-set key
+        D1U      As Double    'IR bucket under 1 year, unmargined
+        D2U      As Double    'IR bucket 1 to 5 years, unmargined
+        D3U      As Double    'IR bucket over 5 years, unmargined
+        D1M      As Double    'IR bucket under 1 year, margined
+        D2M      As Double    'IR bucket 1 to 5 years, margined
+        D3M      As Double    'IR bucket over 5 years, margined
+        SysU     As Double    'Sum of rho * add-on, unmargined
+        IdioU    As Double    'Sum of (1 - rho^2) * add-on^2, unmargined
+        SysM     As Double    'Sum of rho * add-on, margined
+        IdioM    As Double    'Sum of (1 - rho^2) * add-on^2, margined
+        ENU      As Double    'Effective notional, unmargined
+        ENM      As Double    'Effective notional, margined
+        AddOnU   As Double    'Hedging-set add-on, unmargined
+        AddOnM   As Double    'Hedging-set add-on, margined
+        Trades   As Long      'Number of trades
+    End Type
 
-Private mSF() As tSupervisory
-Private mSFCount As Long
-Private mSFIndex As Collection
+'------------------------------------------------------------------------------
+' MODULE STATE
+'------------------------------------------------------------------------------
+    'Each list is an array with a count of used elements and a Collection
+    'mapping keys to positions. Arrays grow by doubling.
+        Private mNS()         As tNettingSet     'Netting sets
+        Private mNSCount      As Long            'Netting sets used
+        Private mNSIndex      As Collection      'Netting-set ID to position
 
-Private mFXRate() As Double
-Private mFXCount As Long
-Private mFXIndex As Collection
+        Private mSF()         As tSupervisory    'Supervisory-factor table
+        Private mSFCount      As Long            'Rows used
+        Private mSFIndex      As Collection      'Key to position
 
-Private mBk() As tBucket
-Private mBkCount As Long
-Private mBkIndex As Collection
+        Private mFXRate()     As Double          'Units of reporting currency per unit of currency
+        Private mFXCount      As Long            'Rates used
+        Private mFXIndex      As Collection      'Currency code to position
 
-Private mHS() As tHedgingSet
-Private mHSCount As Long
-Private mHSIndex As Collection
+        Private mBk()         As tBucket         'Buckets
+        Private mBkCount      As Long            'Buckets used
+        Private mBkIndex      As Collection      'Netting set # hedging set # bucket to position
 
-Private mAddOnU() As Double     ' (netting set, asset class)
-Private mAddOnM() As Double
+        Private mHS()         As tHedgingSet     'Hedging sets
+        Private mHSCount      As Long            'Hedging sets used
+        Private mHSIndex      As Collection      'Netting set # hedging set to position
 
-Private mLog() As Variant
-Private mLogCount As Long
-Private mErrCount As Long
-Private mWarnCount As Long
+        Private mAddOnU()     As Double          'Asset-class add-ons (netting set, asset class), unmargined
+        Private mAddOnM()     As Double          'Asset-class add-ons (netting set, asset class), margined
 
-Private mTradesRead As Long
-Private mTradesUsed As Long
-Private mTotalEAD As Double
+    'Messages for the Checks sheet, one column per message, and the counts
+    'reported to the user.
+        Private mLog()        As Variant         '(field 1 to CK_NCOLS, message)
+        Private mLogCount     As Long            'Messages logged
+        Private mErrCount     As Long            'ERROR messages
+        Private mWarnCount    As Long            'WARNING messages
 
-'--- Parameters ----------------------------------------------------------------
-Private pAsOf As Double
-Private pRepCcy As String
-Private pAlpha As Double
-Private pFloor As Double
-Private pDaysYear As Double
-Private pBDYear As Double
-Private pMinMatBD As Double
-Private pSDFloorBD As Double
-Private pMPORBil As Double
-Private pMPORClr As Double
-Private pMPORLarge As Double
-Private pBasisF As Double
-Private pVolF As Double
-Private pRho12 As Double
-Private pRho23 As Double
-Private pRho13 As Double
-Private pIRFull As Boolean
-Private pRegime As String
-Private pLamThrIR As Double
-Private pLamThrCO As Double
+        Private mTradesRead   As Long            'Trades with an ID
+        Private mTradesUsed   As Long            'Trades included in the calculation
+        Private mTotalEAD     As Double          'Sum of netting-set EADs
 
+'------------------------------------------------------------------------------
+' RUN PARAMETERS
+'------------------------------------------------------------------------------
+    'Read from Params by LoadParams; see M_Config for each code.
+        Private pAsOf         As Double     'Reporting date, serial
+        Private pRepCcy       As String     'Reporting currency
+        Private pAlpha        As Double     'Default alpha
+        Private pFloor        As Double     'Multiplier floor
+        Private pDaysYear     As Double     'Calendar days per year
+        Private pBDYear       As Double     'Business days per year
+        Private pMinMatBD     As Double     'Floor on M, business days
+        Private pSDFloorBD    As Double     'Floor on supervisory duration, business days
+        Private pMPORBil      As Double     'MPOR floor, bilateral
+        Private pMPORClr      As Double     'MPOR floor, cleared
+        Private pMPORLarge    As Double     'MPOR floor, large or illiquid
+        Private pBasisF       As Double     'Factor multiplier, basis transactions
+        Private pVolF         As Double     'Factor multiplier, volatility transactions
+        Private pRho12        As Double     'IR correlation, buckets 1 and 2
+        Private pRho23        As Double     'IR correlation, buckets 2 and 3
+        Private pRho13        As Double     'IR correlation, buckets 1 and 3
+        Private pIRFull       As Boolean    'True: IR bucket formula; False: sum of absolutes
+        Private pRegime       As String     'Default regime
+        Private pLamThrIR     As Double     'CRR lambda threshold, IR options
+        Private pLamThrCO     As Double     'CRR lambda threshold, commodity options
+
+
+'
+'------------------------------------------------------------------------------
+'
+'                         ENTRY POINT AND RUN COUNTERS
+'
+'------------------------------------------------------------------------------
+'
+
+Public Function Calculate( _
+    ByVal writeOutputs As Boolean) _
+    As Boolean
+'
 '==============================================================================
-' Public entry point. writeOutputs = False runs validation only.
-' Returns True when the run completed (individual trades may still be
-' excluded - see the Checks sheet).
+'                                  Calculate
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Run the engine once: load the inputs, calculate every trade, hedging set
+'   and netting set, and write the outputs.
+'
+' INPUTS
+'   writeOutputs: True writes every output sheet; False validates only and
+'   writes the Checks sheet alone.
+'
+' RETURNS
+'   True when the run completed. Individual trades may still have been
+'   excluded; the Checks sheet lists them. False when a parameter, the
+'   factor or FX table, or the netting sets could not be loaded.
+'
+' STATE OWNERSHIP
+'   Resets all module state, then fills it for this run.
+'
+' UPDATED
+'   2026-10-06
 '==============================================================================
-Public Function Calculate(ByVal writeOutputs As Boolean) As Boolean
-    Dim t0 As Double
-    t0 = Timer
-    ResetState
+'
 
-    If Not LoadParams() Then GoTo Finish
-    If Not LoadSFTable() Then GoTo Finish
-    If Not LoadFXTable() Then GoTo Finish
-    If Not LoadNettingSets() Then GoTo Finish
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim t0   As Double    'Timer value at the start, for the run duration
 
-    ProcessTrades writeOutputs
-    ComputeHedgingSets
-    ComputeNettingSets writeOutputs
-    If writeOutputs Then
-        WriteBuckets
-        WriteHedgingSets
-    End If
-    Calculate = True
+'------------------------------------------------------------------------------
+' LOAD INPUTS
+'------------------------------------------------------------------------------
+    'Any loader that fails has logged why; skip to the Checks output.
+        t0 = Timer
+        ResetState
 
+        If Not LoadParams() Then GoTo Finish
+        If Not LoadSFTable() Then GoTo Finish
+        If Not LoadFXTable() Then GoTo Finish
+        If Not LoadNettingSets() Then GoTo Finish
+
+'------------------------------------------------------------------------------
+' CALCULATE
+'------------------------------------------------------------------------------
+        ProcessTrades writeOutputs
+        ComputeHedgingSets
+        ComputeNettingSets writeOutputs
+        If writeOutputs Then
+            WriteBuckets
+            WriteHedgingSets
+        End If
+        Calculate = True
+
+'------------------------------------------------------------------------------
+' WRITE CHECKS AND RUN SUMMARY
+'------------------------------------------------------------------------------
+    'Reached on success and after a failed load.
 Finish:
-    WriteChecks
-    If writeOutputs Then WriteRunInfo Timer - t0, Calculate
+        WriteChecks
+        If writeOutputs Then
+            WriteRunInfo Timer - t0, Calculate
+        End If
+
 End Function
+
 
 Public Property Get ErrorCount() As Long
-    ErrorCount = mErrCount
+'
+'==============================================================================
+'                                  ErrorCount
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Number of ERROR messages logged by the last run.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+        ErrorCount = mErrCount
+
 End Property
+
 
 Public Property Get WarningCount() As Long
-    WarningCount = mWarnCount
+'
+'==============================================================================
+'                                 WarningCount
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Number of WARNING messages logged by the last run.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+        WarningCount = mWarnCount
+
 End Property
+
 
 Public Property Get TotalEAD() As Double
-    TotalEAD = mTotalEAD
+'
+'==============================================================================
+'                                   TotalEAD
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Sum of the EADs of every reported netting set in the last run, in the
+'   reporting currency.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+        TotalEAD = mTotalEAD
+
 End Property
+
 
 Public Property Get TradesUsed() As Long
-    TradesUsed = mTradesUsed
+'
+'==============================================================================
+'                                  TradesUsed
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Number of trades included in the last run's calculation.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+        TradesUsed = mTradesUsed
+
 End Property
+
 
 Public Property Get TradesRead() As Long
-    TradesRead = mTradesRead
+'
+'==============================================================================
+'                                  TradesRead
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Number of trade rows with an ID read by the last run.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+        TradesRead = mTradesRead
+
 End Property
 
-'==============================================================================
-' Initialisation
-'==============================================================================
+
+'
+'------------------------------------------------------------------------------
+'
+'                           INITIALISATION AND LOG
+'
+'------------------------------------------------------------------------------
+'
+
 Private Sub ResetState()
-    mNSCount = 0: mSFCount = 0: mFXCount = 0: mBkCount = 0: mHSCount = 0
-    mLogCount = 0: mErrCount = 0: mWarnCount = 0
-    mTradesRead = 0: mTradesUsed = 0: mTotalEAD = 0#
-    Set mNSIndex = New Collection
-    Set mSFIndex = New Collection
-    Set mFXIndex = New Collection
-    Set mBkIndex = New Collection
-    Set mHSIndex = New Collection
-    ReDim mNS(1 To 16)
-    ReDim mSF(1 To 32)
-    ReDim mFXRate(1 To 32)
-    ReDim mBk(1 To 64)
-    ReDim mHS(1 To 32)
-    ReDim mLog(1 To CK_NCOLS, 1 To 64)
+'
+'==============================================================================
+'                                  ResetState
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Clear every list, counter and index before a run, and allocate the
+'   arrays at a starting size.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' RESET COUNTERS
+'------------------------------------------------------------------------------
+        mNSCount = 0
+        mSFCount = 0
+        mFXCount = 0
+        mBkCount = 0
+        mHSCount = 0
+        mLogCount = 0
+        mErrCount = 0
+        mWarnCount = 0
+        mTradesRead = 0
+        mTradesUsed = 0
+        mTotalEAD = 0#
+
+'------------------------------------------------------------------------------
+' RESET INDEXES AND ARRAYS
+'------------------------------------------------------------------------------
+    'The starting sizes are a guess; each array doubles when it fills up.
+        Set mNSIndex = New Collection
+        Set mSFIndex = New Collection
+        Set mFXIndex = New Collection
+        Set mBkIndex = New Collection
+        Set mHSIndex = New Collection
+        ReDim mNS(1 To 16)
+        ReDim mSF(1 To 32)
+        ReDim mFXRate(1 To 32)
+        ReDim mBk(1 To 64)
+        ReDim mHS(1 To 32)
+        ReDim mLog(1 To CK_NCOLS, 1 To 64)
+
 End Sub
 
-Private Sub LogMsg(ByVal severity As String, ByVal sheetName As String, _
-                   ByVal ref As String, ByVal msg As String, Optional ByVal rowNum As Long = 0)
-    mLogCount = mLogCount + 1
-    If mLogCount > UBound(mLog, 2) Then
-        ReDim Preserve mLog(1 To CK_NCOLS, 1 To mLogCount * 2)
-    End If
-    mLog(1, mLogCount) = severity
-    mLog(2, mLogCount) = sheetName
-    If rowNum > 0 Then mLog(3, mLogCount) = rowNum Else mLog(3, mLogCount) = Empty
-    mLog(4, mLogCount) = ref
-    mLog(5, mLogCount) = msg
-    If severity = SEV_ERROR Then mErrCount = mErrCount + 1
-    If severity = SEV_WARN Then mWarnCount = mWarnCount + 1
+
+Private Sub LogMsg( _
+    ByVal severity As String, _
+    ByVal sheetName As String, _
+    ByVal ref As String, _
+    ByVal msg As String, _
+    Optional ByVal rowNum As Long = 0)
+'
+'==============================================================================
+'                                    LogMsg
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Add one message for the Checks sheet and count errors and warnings.
+'
+' INPUTS
+'   severity: SEV_ERROR, SEV_WARN or SEV_INFO.
+'   sheetName: sheet the message refers to.
+'   ref: the ID or parameter code concerned; may be empty.
+'   msg: the message text.
+'   rowNum: sheet row concerned; 0 leaves the Row column blank.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' STORE MESSAGE
+'------------------------------------------------------------------------------
+    'mLog is (field, message) so that ReDim Preserve can grow its last
+    'dimension.
+        mLogCount = mLogCount + 1
+        If mLogCount > UBound(mLog, 2) Then
+            ReDim Preserve mLog(1 To CK_NCOLS, 1 To mLogCount * 2)
+        End If
+        mLog(1, mLogCount) = severity
+        mLog(2, mLogCount) = sheetName
+        If rowNum > 0 Then
+            mLog(3, mLogCount) = rowNum
+        Else
+            mLog(3, mLogCount) = Empty
+        End If
+        mLog(4, mLogCount) = ref
+        mLog(5, mLogCount) = msg
+
+'------------------------------------------------------------------------------
+' COUNT
+'------------------------------------------------------------------------------
+        If severity = SEV_ERROR Then
+            mErrCount = mErrCount + 1
+        End If
+        If severity = SEV_WARN Then
+            mWarnCount = mWarnCount + 1
+        End If
+
 End Sub
 
-Private Function NumParam(ByVal code As String, ByVal dflt As Double) As Double
-    Dim v As Variant
-    v = GetParam(code)
-    If IsNum(v) Then
-        NumParam = CDbl(v)
-    Else
-        NumParam = dflt
-        LogMsg SEV_WARN, SH_PARAMS, code, "Parameter missing or not numeric - default " & CStr(dflt) & " used."
-    End If
+
+'
+'------------------------------------------------------------------------------
+'
+'                                INPUT LOADING
+'
+'------------------------------------------------------------------------------
+'
+
+Private Function NumParam( _
+    ByVal code As String, _
+    ByVal dflt As Double) _
+    As Double
+'
+'==============================================================================
+'                                   NumParam
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read a numeric parameter, falling back to its regulatory default.
+'
+' INPUTS
+'   code: a PRM_ code from M_Config.
+'   dflt: value used, with a warning, when the parameter is missing or not
+'   numeric.
+'
+' RETURNS
+'   The parameter value, or dflt.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim v   As Variant    'Raw parameter value
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        v = GetParam(code)
+        If IsNum(v) Then
+            NumParam = CDbl(v)
+        Else
+            NumParam = dflt
+            LogMsg SEV_WARN, SH_PARAMS, code, "Parameter missing or not numeric - default " & CStr(dflt) & " used."
+        End If
+
 End Function
+
 
 Private Function LoadParams() As Boolean
-    On Error GoTo Fail
-    pAsOf = ToSerial(GetParam(PRM_ASOF))
-    If pAsOf <= 0# Then
-        LogMsg SEV_ERROR, SH_PARAMS, PRM_ASOF, "Reporting date missing or invalid."
+'
+'==============================================================================
+'                                  LoadParams
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read every run parameter from Params into the p* variables. Numeric
+'   parameters that are missing take their regulatory default with a
+'   warning.
+'
+' RETURNS
+'   True when the parameters are usable. False, with an error logged, when
+'   the reporting date or currency is missing, the regime is not BCBS or
+'   CRR, or a day count is not positive.
+'
+' ERROR POLICY
+'   An unexpected error while reading is logged as an error and returns
+'   False.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' REPORTING DATE AND CURRENCY
+'------------------------------------------------------------------------------
+    'Both are required: there is no sensible default.
+        On Error GoTo Fail
+        pAsOf = ToSerial(GetParam(PRM_ASOF))
+        If pAsOf <= 0# Then
+            LogMsg SEV_ERROR, SH_PARAMS, PRM_ASOF, "Reporting date missing or invalid."
+            Exit Function
+        End If
+        pRepCcy = UTxt(GetParam(PRM_REPCCY))
+        If Len(pRepCcy) = 0 Then
+            LogMsg SEV_ERROR, SH_PARAMS, PRM_REPCCY, "Reporting currency missing."
+            Exit Function
+        End If
+
+'------------------------------------------------------------------------------
+' NUMERIC PARAMETERS
+'------------------------------------------------------------------------------
+    'Defaults are the regulatory values: CRE52 and CRR Art. 274 to 280f.
+        pAlpha = NumParam(PRM_ALPHA, 1.4)
+        pFloor = NumParam(PRM_FLOOR, 0.05)
+        pDaysYear = NumParam(PRM_DAYSYEAR, 365#)
+        pBDYear = NumParam(PRM_BDYEAR, 250#)
+        pMinMatBD = NumParam(PRM_MINMAT, 10#)
+        pSDFloorBD = NumParam(PRM_SDFLOOR, 10#)
+        pMPORBil = NumParam(PRM_MPOR_BIL, 10#)
+        pMPORClr = NumParam(PRM_MPOR_CLR, 5#)
+        pMPORLarge = NumParam(PRM_MPOR_LARGE, 20#)
+        pBasisF = NumParam(PRM_BASIS, 0.5)
+        pVolF = NumParam(PRM_VOLF, 5#)
+        pRho12 = NumParam(PRM_RHO12, 0.7)
+        pRho23 = NumParam(PRM_RHO23, 0.7)
+        pRho13 = NumParam(PRM_RHO13, 0.3)
+        pIRFull = ToBool(GetParam(PRM_IRFULL), True)
+
+'------------------------------------------------------------------------------
+' REGIME
+'------------------------------------------------------------------------------
+    'A blank regime means CRR; anything other than BCBS or CRR stops the run.
+        pRegime = UTxt(GetParam(PRM_REGIME))
+        If Len(pRegime) = 0 Then
+            pRegime = RG_CRR
+            LogMsg SEV_WARN, SH_PARAMS, PRM_REGIME, "Regime missing - CRR assumed."
+        ElseIf pRegime <> RG_BCBS And pRegime <> RG_CRR Then
+            LogMsg SEV_ERROR, SH_PARAMS, PRM_REGIME, "Regime must be BCBS or CRR."
+            Exit Function
+        End If
+        pLamThrIR = NumParam(PRM_LAMIR, 0.001)
+        pLamThrCO = NumParam(PRM_LAMCO, 0.1)
+
+'------------------------------------------------------------------------------
+' DAY COUNTS
+'------------------------------------------------------------------------------
+    'Both are divisors in every year fraction.
+        If pDaysYear <= 0# Or pBDYear <= 0# Then
+            LogMsg SEV_ERROR, SH_PARAMS, PRM_DAYSYEAR, "Day-count parameters must be positive."
+            Exit Function
+        End If
+        LoadParams = True
         Exit Function
-    End If
-    pRepCcy = UTxt(GetParam(PRM_REPCCY))
-    If Len(pRepCcy) = 0 Then
-        LogMsg SEV_ERROR, SH_PARAMS, PRM_REPCCY, "Reporting currency missing."
-        Exit Function
-    End If
-    pAlpha = NumParam(PRM_ALPHA, 1.4)
-    pFloor = NumParam(PRM_FLOOR, 0.05)
-    pDaysYear = NumParam(PRM_DAYSYEAR, 365#)
-    pBDYear = NumParam(PRM_BDYEAR, 250#)
-    pMinMatBD = NumParam(PRM_MINMAT, 10#)
-    pSDFloorBD = NumParam(PRM_SDFLOOR, 10#)
-    pMPORBil = NumParam(PRM_MPOR_BIL, 10#)
-    pMPORClr = NumParam(PRM_MPOR_CLR, 5#)
-    pMPORLarge = NumParam(PRM_MPOR_LARGE, 20#)
-    pBasisF = NumParam(PRM_BASIS, 0.5)
-    pVolF = NumParam(PRM_VOLF, 5#)
-    pRho12 = NumParam(PRM_RHO12, 0.7)
-    pRho23 = NumParam(PRM_RHO23, 0.7)
-    pRho13 = NumParam(PRM_RHO13, 0.3)
-    pIRFull = ToBool(GetParam(PRM_IRFULL), True)
-    pRegime = UTxt(GetParam(PRM_REGIME))
-    If Len(pRegime) = 0 Then
-        pRegime = RG_CRR
-        LogMsg SEV_WARN, SH_PARAMS, PRM_REGIME, "Regime missing - CRR assumed."
-    ElseIf pRegime <> RG_BCBS And pRegime <> RG_CRR Then
-        LogMsg SEV_ERROR, SH_PARAMS, PRM_REGIME, "Regime must be BCBS or CRR."
-        Exit Function
-    End If
-    pLamThrIR = NumParam(PRM_LAMIR, 0.001)
-    pLamThrCO = NumParam(PRM_LAMCO, 0.1)
-    If pDaysYear <= 0# Or pBDYear <= 0# Then
-        LogMsg SEV_ERROR, SH_PARAMS, PRM_DAYSYEAR, "Day-count parameters must be positive."
-        Exit Function
-    End If
-    LoadParams = True
-    Exit Function
+
+'------------------------------------------------------------------------------
+' HANDLE ERROR
+'------------------------------------------------------------------------------
 Fail:
-    LogMsg SEV_ERROR, SH_PARAMS, "", "Cannot read parameters: " & Err.Description
+        LogMsg SEV_ERROR, SH_PARAMS, "", "Cannot read parameters: " & Err.Description
+
 End Function
+
 
 Private Function LoadSFTable() As Boolean
-    Dim ws As Worksheet, r As Long, r0 As Long, k As String
-    Set ws = GetSheet(SH_PARAMS)
-    r0 = FindHeaderRow(ws, 1, HDR_SF)
-    If r0 = 0 Then
-        LogMsg SEV_ERROR, SH_PARAMS, HDR_SF, "Supervisory factor table not found (header '" & HDR_SF & "' in column A)."
-        Exit Function
-    End If
-    r = r0 + 1
-    Do While Not IsBlankCell(ws.Cells(r, 1).Value)
-        k = UTxt(ws.Cells(r, 1).Value)
-        If KeyIndex(mSFIndex, k) > 0 Then
-            LogMsg SEV_WARN, SH_PARAMS, k, "Duplicate supervisory factor key - first occurrence used.", r
-        Else
-            mSFCount = mSFCount + 1
-            If mSFCount > UBound(mSF) Then
-                ReDim Preserve mSF(1 To mSFCount * 2)
-            End If
-            mSF(mSFCount).Key = k
-            mSF(mSFCount).AssetClass = UTxt(ws.Cells(r, 2).Value)
-            mSF(mSFCount).Category = UTxt(ws.Cells(r, 3).Value)
-            mSF(mSFCount).SF = ToDbl(ws.Cells(r, 4).Value)
-            mSF(mSFCount).Corr = ToDbl(ws.Cells(r, 5).Value)
-            mSF(mSFCount).Vol = ToDbl(ws.Cells(r, 6).Value)
-            mSF(mSFCount).Group = UTxt(ws.Cells(r, 7).Value)
-            mSF(mSFCount).Regimes = UTxt(ws.Cells(r, 8).Value)
-            If mSF(mSFCount).Regimes = "BOTH" Then
-                mSF(mSFCount).Regimes = ""
-            End If
-            KeyAdd mSFIndex, k, mSFCount
+'
+'==============================================================================
+'                                 LoadSFTable
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read the supervisory-factor table on Params: the rows below the SF_Key
+'   header, down to the first blank key.
+'
+' RETURNS
+'   True when at least one row was read. False, with an error logged, when
+'   the header is missing or the table is empty.
+'
+' STATE OWNERSHIP
+'   Fills mSF, mSFCount and mSFIndex. A duplicate key is warned about and
+'   the first row kept. "BOTH" in the Regimes column is stored as blank.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws   As Worksheet    'Params sheet
+    Dim r    As Long         'Row being read
+    Dim r0   As Long         'Header row of the table
+    Dim k    As String       'Key of the row, upper case
+
+'------------------------------------------------------------------------------
+' FIND THE TABLE
+'------------------------------------------------------------------------------
+        Set ws = GetSheet(SH_PARAMS)
+        r0 = FindHeaderRow(ws, 1, HDR_SF)
+        If r0 = 0 Then
+            LogMsg SEV_ERROR, SH_PARAMS, HDR_SF, "Supervisory factor table not found (header '" & HDR_SF & "' in column A)."
+            Exit Function
         End If
-        r = r + 1
-    Loop
-    If mSFCount = 0 Then
-        LogMsg SEV_ERROR, SH_PARAMS, HDR_SF, "Supervisory factor table is empty."
-        Exit Function
-    End If
-    LoadSFTable = True
+
+'------------------------------------------------------------------------------
+' READ ROWS
+'------------------------------------------------------------------------------
+    'Columns: 1 key, 2 asset class, 3 category, 4 factor, 5 correlation,
+    '6 option volatility, 7 commodity hedging set, 8 regimes.
+        r = r0 + 1
+        Do While Not IsBlankCell(ws.Cells(r, 1).Value)
+            k = UTxt(ws.Cells(r, 1).Value)
+            If KeyIndex(mSFIndex, k) > 0 Then
+                LogMsg SEV_WARN, SH_PARAMS, k, "Duplicate supervisory factor key - first occurrence used.", r
+            Else
+                mSFCount = mSFCount + 1
+                If mSFCount > UBound(mSF) Then
+                    ReDim Preserve mSF(1 To mSFCount * 2)
+                End If
+                mSF(mSFCount).Key = k
+                mSF(mSFCount).AssetClass = UTxt(ws.Cells(r, 2).Value)
+                mSF(mSFCount).Category = UTxt(ws.Cells(r, 3).Value)
+                mSF(mSFCount).SF = ToDbl(ws.Cells(r, 4).Value)
+                mSF(mSFCount).Corr = ToDbl(ws.Cells(r, 5).Value)
+                mSF(mSFCount).Vol = ToDbl(ws.Cells(r, 6).Value)
+                mSF(mSFCount).Group = UTxt(ws.Cells(r, 7).Value)
+                mSF(mSFCount).Regimes = UTxt(ws.Cells(r, 8).Value)
+                If mSF(mSFCount).Regimes = "BOTH" Then
+                    mSF(mSFCount).Regimes = ""
+                End If
+                KeyAdd mSFIndex, k, mSFCount
+            End If
+            r = r + 1
+        Loop
+
+'------------------------------------------------------------------------------
+' CHECK
+'------------------------------------------------------------------------------
+        If mSFCount = 0 Then
+            LogMsg SEV_ERROR, SH_PARAMS, HDR_SF, "Supervisory factor table is empty."
+            Exit Function
+        End If
+        LoadSFTable = True
+
 End Function
 
+
 Private Function LoadFXTable() As Boolean
-    Dim ws As Worksheet, r As Long, r0 As Long, k As String, rate As Double
-    Set ws = GetSheet(SH_PARAMS)
-    r0 = FindHeaderRow(ws, 1, HDR_FX)
-    If r0 = 0 Then
-        LogMsg SEV_ERROR, SH_PARAMS, HDR_FX, "FX table not found (header '" & HDR_FX & "' in column A)."
-        Exit Function
-    End If
-    r = r0 + 1
-    Do While Not IsBlankCell(ws.Cells(r, 1).Value)
-        k = UTxt(ws.Cells(r, 1).Value)
-        rate = ToDbl(ws.Cells(r, 3).Value, -1#)
-        If rate <= 0# Then
-            LogMsg SEV_WARN, SH_PARAMS, k, "FX rate missing or not positive - currency ignored.", r
-        ElseIf KeyIndex(mFXIndex, k) = 0 Then
+'
+'==============================================================================
+'                                 LoadFXTable
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read the FX table on Params: the rows below the FX_Ccy header, down to
+'   the first blank currency. Column C holds the units of reporting currency
+'   per one unit of the currency.
+'
+' RETURNS
+'   True when the table was found. False, with an error logged, when the
+'   header is missing.
+'
+' STATE OWNERSHIP
+'   Fills mFXRate, mFXCount and mFXIndex. A rate that is missing or not
+'   positive is warned about and the currency left out; for a duplicate
+'   currency the first rate is kept. The reporting currency is added at
+'   rate 1 if absent, and warned about if its rate is not 1.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws     As Worksheet    'Params sheet
+    Dim r      As Long         'Row being read
+    Dim r0     As Long         'Header row of the table
+    Dim k      As String       'Currency code, upper case
+    Dim rate   As Double       'Rate of the row; -1 when missing
+
+'------------------------------------------------------------------------------
+' FIND THE TABLE
+'------------------------------------------------------------------------------
+        Set ws = GetSheet(SH_PARAMS)
+        r0 = FindHeaderRow(ws, 1, HDR_FX)
+        If r0 = 0 Then
+            LogMsg SEV_ERROR, SH_PARAMS, HDR_FX, "FX table not found (header '" & HDR_FX & "' in column A)."
+            Exit Function
+        End If
+
+'------------------------------------------------------------------------------
+' READ ROWS
+'------------------------------------------------------------------------------
+        r = r0 + 1
+        Do While Not IsBlankCell(ws.Cells(r, 1).Value)
+            k = UTxt(ws.Cells(r, 1).Value)
+            rate = ToDbl(ws.Cells(r, 3).Value, -1#)
+            If rate <= 0# Then
+                LogMsg SEV_WARN, SH_PARAMS, k, "FX rate missing or not positive - currency ignored.", r
+            ElseIf KeyIndex(mFXIndex, k) = 0 Then
+                mFXCount = mFXCount + 1
+                If mFXCount > UBound(mFXRate) Then
+                    ReDim Preserve mFXRate(1 To mFXCount * 2)
+                End If
+                mFXRate(mFXCount) = rate
+                KeyAdd mFXIndex, k, mFXCount
+            End If
+            r = r + 1
+        Loop
+
+'------------------------------------------------------------------------------
+' ENSURE THE REPORTING CURRENCY
+'------------------------------------------------------------------------------
+        If KeyIndex(mFXIndex, pRepCcy) = 0 Then
             mFXCount = mFXCount + 1
             If mFXCount > UBound(mFXRate) Then
                 ReDim Preserve mFXRate(1 To mFXCount * 2)
             End If
-            mFXRate(mFXCount) = rate
-            KeyAdd mFXIndex, k, mFXCount
+            mFXRate(mFXCount) = 1#
+            KeyAdd mFXIndex, pRepCcy, mFXCount
+        ElseIf Abs(mFXRate(KeyIndex(mFXIndex, pRepCcy)) - 1#) > 0.0000001 Then
+            LogMsg SEV_WARN, SH_PARAMS, pRepCcy, "Rate of the reporting currency is not 1."
         End If
-        r = r + 1
-    Loop
-    If KeyIndex(mFXIndex, pRepCcy) = 0 Then
-        mFXCount = mFXCount + 1
-        If mFXCount > UBound(mFXRate) Then
-            ReDim Preserve mFXRate(1 To mFXCount * 2)
-        End If
-        mFXRate(mFXCount) = 1#
-        KeyAdd mFXIndex, pRepCcy, mFXCount
-    ElseIf Abs(mFXRate(KeyIndex(mFXIndex, pRepCcy)) - 1#) > 0.0000001 Then
-        LogMsg SEV_WARN, SH_PARAMS, pRepCcy, "Rate of the reporting currency is not 1."
-    End If
-    LoadFXTable = True
+        LoadFXTable = True
+
 End Function
 
-' Units of reporting currency per unit of ccy, or -1 if unknown
-Private Function FXRate(ByVal ccy As String) As Double
-    Dim i As Long
-    If Len(ccy) = 0 Then ccy = pRepCcy
-    i = KeyIndex(mFXIndex, ccy)
-    If i = 0 Then FXRate = -1# Else FXRate = mFXRate(i)
+
+Private Function FXRate( _
+    ByVal ccy As String) _
+    As Double
+'
+'==============================================================================
+'                                    FXRate
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Look up the conversion rate of a currency.
+'
+' INPUTS
+'   ccy: currency code, upper case; blank means the reporting currency.
+'
+' RETURNS
+'   Units of reporting currency per one unit of ccy; -1 when unknown.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim i   As Long    'Position of the currency in mFXRate; 0 when unknown
+
+'------------------------------------------------------------------------------
+' LOOK UP
+'------------------------------------------------------------------------------
+        If Len(ccy) = 0 Then
+            ccy = pRepCcy
+        End If
+        i = KeyIndex(mFXIndex, ccy)
+        If i = 0 Then
+            FXRate = -1#
+        Else
+            FXRate = mFXRate(i)
+        End If
+
 End Function
+
 
 Private Function LoadNettingSets() As Boolean
-    Dim ws As Worksheet, lastR As Long, n As Long, i As Long, rowNum As Long
-    Dim data As Variant, id As String, floorBD As Double, mpor As Double, ovr As Double
-    Dim rg As String
-    Set ws = GetSheet(SH_NS)
-    lastR = LastDataRow(ws, FIRST_DATA_ROW, NS_ID)
-    If lastR < FIRST_DATA_ROW Then
-        LogMsg SEV_ERROR, SH_NS, "", "No netting sets defined."
-        Exit Function
-    End If
-    n = lastR - FIRST_DATA_ROW + 1
-    data = ws.Range(ws.Cells(FIRST_DATA_ROW, 1), ws.Cells(lastR, NS_NCOLS)).Value
-    For i = 1 To n
-        rowNum = FIRST_DATA_ROW + i - 1
-        id = UTxt(data(i, NS_ID))
-        If Len(id) = 0 Then GoTo NextRow
-        If KeyIndex(mNSIndex, id) > 0 Then
-            LogMsg SEV_ERROR, SH_NS, id, "Duplicate netting set ID - row ignored.", rowNum
-            GoTo NextRow
-        End If
-        mNSCount = mNSCount + 1
-        If mNSCount > UBound(mNS) Then
-            ReDim Preserve mNS(1 To mNSCount * 2)
-        End If
-        With mNS(mNSCount)
-            .ID = id
-            .Counterparty = SafeStr(data(i, NS_CPTY))
-            .Margined = ToBool(data(i, NS_MARGINED), False)
-            .Cleared = ToBool(data(i, NS_CLEARED), False)
-            .RemarginBD = ToDbl(data(i, NS_FREQ), 1#)
-            If .RemarginBD < 1# Then .RemarginBD = 1#
-            .LargeOrIlliquid = ToBool(data(i, NS_LARGE), False)
-            .Disputes = ToBool(data(i, NS_DISPUTE), False)
-            .VM = ToDbl(data(i, NS_VM))
-            .NICA = ToDbl(data(i, NS_NICA))
-            .TH = ToDbl(data(i, NS_TH))
-            .MTA = ToDbl(data(i, NS_MTA))
-            .Alpha = ToDbl(data(i, NS_ALPHA), pAlpha)
-            If .Alpha <= 0# Then .Alpha = pAlpha
-            rg = UTxt(data(i, NS_REGIME))
-            If Len(rg) = 0 Then
-                rg = pRegime
-            ElseIf rg <> RG_BCBS And rg <> RG_CRR Then
-                LogMsg SEV_WARN, SH_NS, id, "Regime override must be BCBS or CRR - default " & pRegime & " used.", rowNum
-                rg = pRegime
-            End If
-            .Regime = rg
-            .IsCRR = (rg = RG_CRR)
-            If Not .Margined And Abs(.VM) > 0# Then
-                LogMsg SEV_WARN, SH_NS, id, "VM entered on an unmargined netting set - treated as collateral C. " & _
-                       "Under CRR collateral of an unmargined set belongs in NICA.", rowNum
-            End If
-            .V = 0#
-            .Trades = 0
-            .MPOR = 0#
-            .MFMargined = 0#
-            If .Margined Then
-                ' MPOR floors [CRE52.50-52.52]; cleared floor per CRE54 (configurable)
-                If .Cleared Then floorBD = pMPORClr Else floorBD = pMPORBil
-                If .LargeOrIlliquid Then floorBD = Max2(floorBD, pMPORLarge)
-                mpor = floorBD + .RemarginBD - 1#
-                If .Disputes Then mpor = 2# * mpor
-                ovr = ToDbl(data(i, NS_MPOR), 0#)
-                If ovr > 0# Then
-                    If ovr < mpor Then
-                        LogMsg SEV_WARN, SH_NS, id, "MPOR override " & CStr(ovr) & _
-                               " BD is below the regulatory floor - " & CStr(mpor) & " BD applied.", rowNum
-                    Else
-                        mpor = ovr
-                    End If
-                End If
-                .MPOR = mpor
-                .MFMargined = SACCR_MaturityFactor(0#, True, .MPOR, pMinMatBD, pBDYear)
-            End If
-        End With
-        KeyAdd mNSIndex, id, mNSCount
-NextRow:
-    Next i
-    If mNSCount = 0 Then
-        LogMsg SEV_ERROR, SH_NS, "", "No valid netting sets."
-        Exit Function
-    End If
-    ReDim mAddOnU(1 To mNSCount, 1 To AC_COUNT)
-    ReDim mAddOnM(1 To mNSCount, 1 To AC_COUNT)
-    LoadNettingSets = True
-End Function
-
+'
 '==============================================================================
-' Trade level calculation
+'                               LoadNettingSets
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read every netting set from the NettingSets sheet, apply the defaults,
+'   and work out the effective MPOR and margined maturity factor of each
+'   margined netting set.
+'
+' RETURNS
+'   True when at least one valid netting set was read. False, with an error
+'   logged, otherwise.
+'
+' STATE OWNERSHIP
+'   Fills mNS, mNSCount and mNSIndex, and sizes the asset-class add-on
+'   arrays. A duplicate ID is an error and the later row is ignored.
+'
+' REFERENCE
+'   MPOR floors CRE52.50 to CRE52.52; the cleared floor follows CRE54 and is
+'   configurable on Params.
+'
+' UPDATED
+'   2026-10-06
 '==============================================================================
-Private Sub AddErr(ByRef ok As Boolean, ByRef msg As String, ByVal txt As String)
-    ok = False
-    If Len(msg) > 0 Then msg = msg & "; "
-    msg = msg & txt
-End Sub
+'
 
-Private Sub AddWarn(ByRef warn As String, ByVal txt As String)
-    If Len(warn) > 0 Then warn = warn & "; "
-    warn = warn & txt
-End Sub
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws        As Worksheet    'NettingSets sheet
+    Dim lastR     As Long         'Last row with a netting-set ID
+    Dim n         As Long         'Number of rows to read
+    Dim i         As Long         'Row within data
+    Dim rowNum    As Long         'Sheet row of data row i
+    Dim data      As Variant      'Input block, (row, column)
+    Dim id        As String       'Netting-set ID, upper case
+    Dim floorBD   As Double       'MPOR floor before remargining, business days
+    Dim mpor      As Double       'Effective MPOR, business days
+    Dim ovr       As Double       'MPOR override entered; 0 when none
+    Dim rg        As String       'Regime of the netting set
 
-Private Sub ProcessTrades(ByVal writeOutputs As Boolean)
-    Dim ws As Worksheet, lastR As Long, n As Long, i As Long, rowNum As Long
-    Dim data As Variant, outArr() As Variant, nOut As Long
-    Dim ok As Boolean, msg As String, warn As String
-    Dim tid As String, nsId As String, acTxt As String, subCls As String, rf As String
-    Dim instType As String, dirTxt As String, optTxt As String, nature As String, lbl As String
-    Dim nsIdx As Long, ac As Long, sfKey As String, sfIdx As Long
-    Dim isLong As Boolean, natFactor As Double, natTag As String
-    Dim notional As Double, nccy As String, fxN As Double, notionalRep As Double
-    Dim mtm As Double, mccy As String, fxM As Double, mtmRep As Double
-    Dim dStart As Double, dEnd As Double, dMat As Double, dExp As Double
-    Dim S As Double, E As Double, M As Double, T As Double
-    Dim sd As Double, adjN As Double, delta As Double, vDelta As Variant
-    Dim mfU As Double, mfM As Double, enU As Double, enM As Double
-    Dim hsKey As String, subKey As String, bucketNo As Long
-    Dim sfEff As Double, corrEff As Double, pairSign As Double
-    Dim P As Double, K As Double, lam As Double, attA As Double, detD As Double
-    Dim lamIn As Variant, lamOut As Variant
-
-    Set ws = GetSheet(SH_TRADES)
-    lastR = LastDataRow(ws, FIRST_DATA_ROW, TR_ID)
-    If lastR < FIRST_DATA_ROW Then
-        LogMsg SEV_ERROR, SH_TRADES, "", "No trades found."
-        If writeOutputs Then ClearOutputBlock GetSheet(SH_TRADECALC), FIRST_DATA_ROW, TC_NCOLS
-        Exit Sub
-    End If
-    n = lastR - FIRST_DATA_ROW + 1
-    data = ws.Range(ws.Cells(FIRST_DATA_ROW, 1), ws.Cells(lastR, TR_NCOLS)).Value
-    ReDim outArr(1 To n, 1 To TC_NCOLS)
-    nOut = 0
-
-    For i = 1 To n
-        rowNum = FIRST_DATA_ROW + i - 1
-        tid = SafeStr(data(i, TR_ID))
-        If Len(tid) = 0 Then GoTo NextTrade
-        mTradesRead = mTradesRead + 1
-        ok = True: msg = "": warn = ""
-        S = 0#: E = 0#: M = 0#: T = 0#: sd = 0#: adjN = 0#: delta = 0#
-        mfU = 0#: mfM = 0#: enU = 0#: enM = 0#: bucketNo = 0
-        sfEff = 0#: corrEff = 0#: hsKey = "": subKey = "": sfIdx = 0
-        notionalRep = 0#: mtmRep = 0#: pairSign = 1#
-        lam = 0#: lamOut = Empty
-
-        '--- classification ----------------------------------------------
-        nsId = UTxt(data(i, TR_NS))
-        nsIdx = KeyIndex(mNSIndex, nsId)
-        If nsIdx = 0 Then AddErr ok, msg, "unknown netting set '" & nsId & "'"
-
-        acTxt = UTxt(data(i, TR_AC))
-        ac = ACIndex(acTxt)
-        If ac = 0 Then AddErr ok, msg, "asset class must be IR, FX, CR, EQ, CO or OT"
-
-        subCls = UTxt(data(i, TR_SUB))
-        rf = UTxt(data(i, TR_RF))
-        If Len(rf) = 0 Then AddErr ok, msg, "risk factor / reference missing"
-
-        instType = UTxt(data(i, TR_INSTR))
-        If Len(instType) = 0 Then instType = "LINEAR"
-        If instType <> "LINEAR" And instType <> "OPTION" And instType <> "CDO" Then
-            AddErr ok, msg, "instrument type must be Linear, Option or CDO"
-        End If
-        If instType = "CDO" And ac <> AC_CR Then AddErr ok, msg, "CDO tranches are credit (CR) trades"
-
-        dirTxt = UTxt(data(i, TR_DIR))
-        Select Case dirTxt
-            Case "LONG", "BUY", "BOUGHT", "L", "B": isLong = True
-            Case "SHORT", "SELL", "SOLD", "S": isLong = False
-            Case Else: AddErr ok, msg, "direction must be Long or Short"
-        End Select
-
-        nature = UTxt(data(i, TR_NATURE))
-        If Len(nature) = 0 Then nature = "STANDARD"
-        lbl = UTxt(data(i, TR_LABEL))
-        Select Case nature
-            Case "STANDARD"
-                natFactor = 1#: natTag = "STD"
-            Case "BASIS"
-                natFactor = pBasisF: natTag = "BASIS:" & lbl
-                If Len(lbl) = 0 Then AddWarn warn, "basis trade without hedging-set label"
-            Case "VOLATILITY"
-                natFactor = pVolF: natTag = "VOL:" & lbl
-                If Len(lbl) = 0 Then AddWarn warn, "volatility trade without hedging-set label"
-            Case Else
-                AddErr ok, msg, "nature must be Standard, Basis or Volatility"
-        End Select
-
-        '--- supervisory parameters ----------------------------------------
-        If ac > 0 Then
-            Select Case ac
-                Case AC_IR: sfKey = "IR"
-                Case AC_FX: sfKey = "FX"
-                Case AC_OT: sfKey = "OT"
-                Case Else: sfKey = acTxt & "_" & subCls
-            End Select
-            sfIdx = KeyIndex(mSFIndex, sfKey)
-            If sfIdx = 0 Then AddErr ok, msg, "no supervisory factor for '" & sfKey & "' (check sub-class)"
-        End If
-
-        '--- regime-specific availability ------------------------------------
-        If nsIdx > 0 And ac = AC_OT Then
-            If Not mNS(nsIdx).IsCRR Then
-                AddErr ok, msg, "asset class OT (other risks) exists only under CRR (Art. 277(1)(f), 280f); " & _
-                       "under BCBS map the trade to the class of its primary risk driver (CRE52)"
-            End If
-        End If
-        If nsIdx > 0 And sfIdx > 0 Then
-            If Len(mSF(sfIdx).Regimes) > 0 And mSF(sfIdx).Regimes <> mNS(nsIdx).Regime Then
-                AddErr ok, msg, "'" & sfKey & "' is defined only for regime " & mSF(sfIdx).Regimes & _
-                       " (netting set uses " & mNS(nsIdx).Regime & ")"
-            End If
-        End If
-
-        '--- amounts ---------------------------------------------------------
-        If IsNum(data(i, TR_NOTIONAL)) Then
-            notional = CDbl(data(i, TR_NOTIONAL))
-            If notional < 0# Then AddErr ok, msg, "notional must be positive (use Direction for the sign)"
-        Else
-            AddErr ok, msg, "notional missing"
-        End If
-        nccy = UTxt(data(i, TR_NCCY))
-        fxN = FXRate(nccy)
-        If fxN < 0# Then AddErr ok, msg, "no FX rate for notional currency '" & nccy & "'"
-        If IsNum(data(i, TR_MTM)) Then
-            mtm = CDbl(data(i, TR_MTM))
-        Else
-            mtm = 0#
-            AddWarn warn, "MtM missing - 0 assumed"
-        End If
-        mccy = UTxt(data(i, TR_MCCY))
-        If Len(mccy) = 0 Then mccy = nccy
-        fxM = FXRate(mccy)
-        If fxM < 0# Then AddErr ok, msg, "no FX rate for MtM currency '" & mccy & "'"
-        If ok Then
-            notionalRep = notional * fxN
-            mtmRep = mtm * fxM
-        End If
-
-        '--- dates -> year fractions ------------------------------------------
-        dStart = ToSerial(data(i, TR_START))
-        dEnd = ToSerial(data(i, TR_END))
-        dMat = ToSerial(data(i, TR_MAT))
-        dExp = ToSerial(data(i, TR_EXPIRY))
-        If dMat < 0# Then dMat = dEnd
-        If dMat < 0# Then dMat = dExp
-        If dEnd < 0# Then dEnd = dMat
-        If dMat < 0# Then
-            AddErr ok, msg, "maturity / end date missing"
-        Else
-            M = (dMat - pAsOf) / pDaysYear
-            E = (dEnd - pAsOf) / pDaysYear
-            If dStart >= 0# Then S = Max2(0#, (dStart - pAsOf) / pDaysYear) Else S = 0#
-            If M <= 0# Then
-                AddErr ok, msg, "trade has matured (maturity <= reporting date)"
-            ElseIf (ac = AC_IR Or ac = AC_CR) And E <= S Then
-                AddErr ok, msg, "end date must be after start date"
-            End If
-        End If
-
-        '--- supervisory delta ------------------------------------------------
-        If ok Then
-            Select Case instType
-                Case "LINEAR"
-                    If isLong Then delta = 1# Else delta = -1#
-                Case "OPTION"
-                    optTxt = UTxt(data(i, TR_OPT))
-                    If optTxt <> "CALL" And optTxt <> "PUT" Then AddErr ok, msg, "option type must be Call or Put"
-                    If dExp < 0# Then
-                        AddErr ok, msg, "option expiry missing"
-                    Else
-                        T = (dExp - pAsOf) / pDaysYear
-                        If T <= 0# Then AddErr ok, msg, "option has expired"
-                    End If
-                    If Not IsNum(data(i, TR_PRICE)) Or Not IsNum(data(i, TR_STRIKE)) Then
-                        AddErr ok, msg, "option needs underlying price and strike"
-                    End If
-                    If ok Then
-                        P = CDbl(data(i, TR_PRICE))
-                        K = CDbl(data(i, TR_STRIKE))
-                        lamIn = data(i, TR_LAMBDA)
-                        If mNS(nsIdx).IsCRR And (ac = AC_IR Or ac = AC_CO) Then
-                            ' Del. Reg. 2021/931 Art. 5 (as amended by 2025/855)
-                            If ac = AC_IR Then
-                                lam = SACCR_LambdaCRR(P, K, True, pLamThrIR)
-                            Else
-                                lam = SACCR_LambdaCRR(P, K, False, pLamThrCO)
-                            End If
-                            If IsNum(lamIn) Then
-                                If Abs(CDbl(lamIn) - lam) > 0.000000001 Then
-                                    AddWarn warn, "lambda input ignored under CRR - RTS lambda applied"
-                                End If
-                            End If
-                        Else
-                            lam = ToDbl(lamIn, 0#)
-                        End If
-                        lamOut = lam
-                        If P + lam <= 0# Or K + lam <= 0# Then
-                            AddErr ok, msg, "price and strike must be > 0 after lambda shift (BCBS: enter lambda per CRE52.40 FAQ)"
-                        ElseIf mSF(sfIdx).Vol <= 0# Then
-                            AddErr ok, msg, "supervisory volatility missing for '" & sfKey & "'"
-                        Else
-                            vDelta = SACCR_OptionDelta(P, K, T, mSF(sfIdx).Vol, (optTxt = "CALL"), isLong, lam)
-                            delta = CDbl(vDelta)
-                        End If
-                    End If
-                Case "CDO"
-                    If Not IsNum(data(i, TR_ATTACH)) Or Not IsNum(data(i, TR_DETACH)) Then
-                        AddErr ok, msg, "CDO tranche needs attachment and detachment points"
-                    Else
-                        attA = CDbl(data(i, TR_ATTACH))
-                        detD = CDbl(data(i, TR_DETACH))
-                        If attA < 0# Or detD > 1# Or attA >= detD Then
-                            AddErr ok, msg, "attachment/detachment must satisfy 0 <= A < D <= 1"
-                        Else
-                            delta = CDbl(SACCR_CDODelta(attA, detD, isLong))
-                        End If
-                    End If
-            End Select
-        End If
-
-        '--- hedging set, adjusted notional, maturity factor ----------------
-        If ok Then
-            Select Case ac
-                Case AC_IR
-                    sd = SACCR_SupervisoryDuration(S, E, pSDFloorBD / pBDYear)
-                    adjN = notionalRep * sd
-                    If E < 1# Then
-                        bucketNo = 1
-                        subKey = "<1Y"
-                    ElseIf E <= 5# Then
-                        bucketNo = 2
-                        subKey = "1-5Y"
-                    Else
-                        bucketNo = 3
-                        subKey = ">5Y"
-                    End If
-                    hsKey = "IR|" & rf & "|" & natTag
-                Case AC_FX
-                    rf = NormalizePair(rf, pairSign)
-                    If pairSign = 0# Then
-                        AddErr ok, msg, "FX risk factor must be a currency pair such as EUR/USD"
-                    End If
-                    delta = delta * pairSign
-                    adjN = notionalRep
-                    hsKey = "FX|" & rf & "|" & natTag
-                    subKey = rf
-                Case AC_CR
-                    sd = SACCR_SupervisoryDuration(S, E, pSDFloorBD / pBDYear)
-                    adjN = notionalRep * sd
-                    hsKey = "CR|" & natTag
-                    subKey = rf
-                Case AC_EQ
-                    adjN = notionalRep
-                    hsKey = "EQ|" & natTag
-                    subKey = rf
-                Case AC_CO
-                    adjN = notionalRep
-                    If Len(mSF(sfIdx).Group) = 0 Then
-                        AddErr ok, msg, "commodity hedging group missing for '" & sfKey & "'"
-                    End If
-                    hsKey = "CO|" & mSF(sfIdx).Group & "|" & natTag
-                    subKey = rf
-                Case AC_OT
-                    ' Art. 277a: same hedging set only for an identical primary risk driver
-                    adjN = notionalRep
-                    hsKey = "OT|" & rf & "|" & natTag
-                    subKey = rf
-            End Select
-        End If
-
-        If ok Then
-            sfEff = mSF(sfIdx).SF * natFactor
-            corrEff = mSF(sfIdx).Corr
-            mfU = SACCR_MaturityFactor(M, False, 0#, pMinMatBD, pBDYear)
-            If mNS(nsIdx).Margined Then mfM = mNS(nsIdx).MFMargined Else mfM = mfU
-            enU = delta * adjN * mfU
-            enM = delta * adjN * mfM
-            AddToBucket nsIdx, ac, hsKey, subKey, sfEff, corrEff, enU, enM, tid, rowNum
-            mNS(nsIdx).V = mNS(nsIdx).V + mtmRep
-            mNS(nsIdx).Trades = mNS(nsIdx).Trades + 1
-            mTradesUsed = mTradesUsed + 1
-        End If
-
-        If Not ok Then LogMsg SEV_ERROR, SH_TRADES, tid, "Trade excluded: " & msg, rowNum
-        If Len(warn) > 0 Then LogMsg SEV_WARN, SH_TRADES, tid, warn, rowNum
-
-        '--- output row ------------------------------------------------------
-        nOut = nOut + 1
-        outArr(nOut, 1) = tid
-        outArr(nOut, 2) = nsId
-        outArr(nOut, 3) = acTxt
-        If ok Then
-            outArr(nOut, 4) = "OK"
-            outArr(nOut, 5) = hsKey
-            outArr(nOut, 6) = subKey
-            outArr(nOut, 7) = sfEff
-            outArr(nOut, 8) = notionalRep
-            outArr(nOut, 9) = mtmRep
-            outArr(nOut, 10) = S
-            outArr(nOut, 11) = E
-            outArr(nOut, 12) = M
-            If instType = "OPTION" Then outArr(nOut, 13) = T
-            If ac = AC_IR Or ac = AC_CR Then outArr(nOut, 14) = sd
-            outArr(nOut, 15) = adjN
-            outArr(nOut, 16) = delta
-            outArr(nOut, 17) = mfU
-            If mNS(nsIdx).Margined Then outArr(nOut, 18) = mfM
-            outArr(nOut, 19) = enU
-            If mNS(nsIdx).Margined Then outArr(nOut, 20) = enM
-            If ac = AC_IR Then outArr(nOut, 21) = bucketNo
-            outArr(nOut, 22) = sfEff * Abs(enU)
-            outArr(nOut, 23) = lamOut
-            outArr(nOut, 24) = mNS(nsIdx).Regime
-            outArr(nOut, 25) = warn
-        Else
-            outArr(nOut, 4) = "EXCLUDED"
-            If nsIdx > 0 Then
-                outArr(nOut, 24) = mNS(nsIdx).Regime
-            End If
-            outArr(nOut, 25) = msg
-        End If
-NextTrade:
-    Next i
-
-    If writeOutputs Then
-        Dim wsOut As Worksheet
-        Set wsOut = GetSheet(SH_TRADECALC)
-        ClearOutputBlock wsOut, FIRST_DATA_ROW, TC_NCOLS
-        WriteBlock wsOut, FIRST_DATA_ROW, outArr, nOut, TC_NCOLS
-        FormatColumns wsOut, FIRST_DATA_ROW, nOut, _
-            "@|@|@|@|@|@|0.00%|#,##0|#,##0|0.0000|0.0000|0.0000|0.0000|0.0000|#,##0|0.0000|0.0000|0.0000|#,##0|#,##0|0|#,##0|0.0000%|@|@"
-    End If
-End Sub
-
-' "EUR/USD", "EURUSD", "eur-usd" -> canonical "EUR/USD" (alphabetical order).
-' pairSgn = +1 when kept, -1 when inverted, 0 when invalid.
-Private Function NormalizePair(ByVal txt As String, ByRef pairSgn As Double) As String
-    Dim s As String, c1 As String, c2 As String
-    s = UCase$(Replace(Replace(Replace(Replace(txt, "/", ""), "-", ""), " ", ""), ".", ""))
-    If Len(s) <> 6 Then
-        pairSgn = 0#
-        NormalizePair = txt
-        Exit Function
-    End If
-    c1 = Left$(s, 3): c2 = Right$(s, 3)
-    If c1 = c2 Then
-        pairSgn = 0#
-        NormalizePair = txt
-    ElseIf c1 < c2 Then
-        pairSgn = 1#
-        NormalizePair = c1 & "/" & c2
-    Else
-        pairSgn = -1#
-        NormalizePair = c2 & "/" & c1
-    End If
-End Function
-
-Private Sub AddToBucket(ByVal nsIdx As Long, ByVal ac As Long, ByVal hsKey As String, _
-                        ByVal subKey As String, ByVal sfEff As Double, ByVal corr As Double, _
-                        ByVal enU As Double, ByVal enM As Double, ByVal tid As String, ByVal rowNum As Long)
-    Dim key As String, b As Long
-    key = CStr(nsIdx) & "#" & hsKey & "#" & subKey
-    b = KeyIndex(mBkIndex, key)
-    If b = 0 Then
-        mBkCount = mBkCount + 1
-        If mBkCount > UBound(mBk) Then
-            ReDim Preserve mBk(1 To mBkCount * 2)
-        End If
-        b = mBkCount
-        mBk(b).NSIdx = nsIdx
-        mBk(b).AC = ac
-        mBk(b).HSKey = hsKey
-        mBk(b).SubKey = subKey
-        mBk(b).SF = sfEff
-        mBk(b).Corr = corr
-        mBk(b).ENU = 0#
-        mBk(b).ENM = 0#
-        mBk(b).Trades = 0
-        KeyAdd mBkIndex, key, b
-    ElseIf (ac = AC_CR Or ac = AC_EQ Or ac = AC_CO) And Abs(mBk(b).SF - sfEff) > 0.0000000001 Then
-        LogMsg SEV_WARN, SH_TRADES, tid, "Sub-class differs from earlier trades on '" & subKey & _
-               "' - supervisory factor of the first trade used.", rowNum
-    End If
-    mBk(b).ENU = mBk(b).ENU + enU
-    mBk(b).ENM = mBk(b).ENM + enM
-    mBk(b).Trades = mBk(b).Trades + 1
-End Sub
-
-'==============================================================================
-' Hedging-set and asset-class add-ons
-'==============================================================================
-Private Sub ComputeHedgingSets()
-    Dim b As Long, h As Long, key As String, aU As Double, aM As Double
-    ' 1) collect buckets into hedging sets
-    For b = 1 To mBkCount
-        key = CStr(mBk(b).NSIdx) & "#" & mBk(b).HSKey
-        h = KeyIndex(mHSIndex, key)
-        If h = 0 Then
-            mHSCount = mHSCount + 1
-            If mHSCount > UBound(mHS) Then
-                ReDim Preserve mHS(1 To mHSCount * 2)
-            End If
-            h = mHSCount
-            mHS(h).NSIdx = mBk(b).NSIdx
-            mHS(h).AC = mBk(b).AC
-            mHS(h).Key = mBk(b).HSKey
-            KeyAdd mHSIndex, key, h
-        End If
-        mBk(b).HSIdx = h
-        mHS(h).Trades = mHS(h).Trades + mBk(b).Trades
-        Select Case mBk(b).AC
-            Case AC_IR
-                Select Case mBk(b).SubKey
-                    Case "<1Y"
-                        mHS(h).D1U = mHS(h).D1U + mBk(b).ENU
-                        mHS(h).D1M = mHS(h).D1M + mBk(b).ENM
-                    Case "1-5Y"
-                        mHS(h).D2U = mHS(h).D2U + mBk(b).ENU
-                        mHS(h).D2M = mHS(h).D2M + mBk(b).ENM
-                    Case Else
-                        mHS(h).D3U = mHS(h).D3U + mBk(b).ENU
-                        mHS(h).D3M = mHS(h).D3M + mBk(b).ENM
-                End Select
-            Case AC_FX, AC_OT
-                mHS(h).ENU = mHS(h).ENU + mBk(b).ENU
-                mHS(h).ENM = mHS(h).ENM + mBk(b).ENM
-            Case Else
-                ' entity / commodity-type add-on, then single-factor aggregation
-                aU = mBk(b).SF * mBk(b).ENU
-                aM = mBk(b).SF * mBk(b).ENM
-                mHS(h).SysU = mHS(h).SysU + mBk(b).Corr * aU
-                mHS(h).IdioU = mHS(h).IdioU + (1# - mBk(b).Corr ^ 2) * aU * aU
-                mHS(h).SysM = mHS(h).SysM + mBk(b).Corr * aM
-                mHS(h).IdioM = mHS(h).IdioM + (1# - mBk(b).Corr ^ 2) * aM * aM
-        End Select
-    Next b
-
-    ' 2) hedging-set add-ons
-    Dim sfH As Double
-    For h = 1 To mHSCount
-        Select Case mHS(h).AC
-            Case AC_IR
-                sfH = BucketSF(h)
-                If pIRFull Then
-                    mHS(h).ENU = SACCR_IREffectiveNotional(mHS(h).D1U, mHS(h).D2U, mHS(h).D3U, pRho12, pRho23, pRho13)
-                    mHS(h).ENM = SACCR_IREffectiveNotional(mHS(h).D1M, mHS(h).D2M, mHS(h).D3M, pRho12, pRho23, pRho13)
-                Else
-                    mHS(h).ENU = Abs(mHS(h).D1U) + Abs(mHS(h).D2U) + Abs(mHS(h).D3U)
-                    mHS(h).ENM = Abs(mHS(h).D1M) + Abs(mHS(h).D2M) + Abs(mHS(h).D3M)
-                End If
-                mHS(h).AddOnU = sfH * mHS(h).ENU
-                mHS(h).AddOnM = sfH * mHS(h).ENM
-            Case AC_FX, AC_OT
-                ' FX [CRE52.59]; other risks [Art. 280f]: SF x |effective notional|
-                sfH = BucketSF(h)
-                mHS(h).AddOnU = sfH * Abs(mHS(h).ENU)
-                mHS(h).AddOnM = sfH * Abs(mHS(h).ENM)
-            Case Else
-                mHS(h).AddOnU = Sqr(mHS(h).SysU ^ 2 + mHS(h).IdioU)
-                mHS(h).AddOnM = Sqr(mHS(h).SysM ^ 2 + mHS(h).IdioM)
-        End Select
-        mAddOnU(mHS(h).NSIdx, mHS(h).AC) = mAddOnU(mHS(h).NSIdx, mHS(h).AC) + mHS(h).AddOnU
-        mAddOnM(mHS(h).NSIdx, mHS(h).AC) = mAddOnM(mHS(h).NSIdx, mHS(h).AC) + mHS(h).AddOnM
-    Next h
-End Sub
-
-' Credit, equity and commodity use entity/type add-ons with single-factor aggregation
-Private Function IsFactorClass(ByVal ac As Long) As Boolean
-    IsFactorClass = (ac = AC_CR Or ac = AC_EQ Or ac = AC_CO)
-End Function
-
-' Supervisory factor of the first bucket of a hedging set (IR/FX/OT: uniform)
-Private Function BucketSF(ByVal h As Long) As Double
-    Dim b As Long
-    For b = 1 To mBkCount
-        If mBk(b).HSIdx = h Then
-            BucketSF = mBk(b).SF
+'------------------------------------------------------------------------------
+' READ THE INPUT BLOCK
+'------------------------------------------------------------------------------
+        Set ws = GetSheet(SH_NS)
+        lastR = LastDataRow(ws, FIRST_DATA_ROW, NS_ID)
+        If lastR < FIRST_DATA_ROW Then
+            LogMsg SEV_ERROR, SH_NS, "", "No netting sets defined."
             Exit Function
         End If
-    Next b
+        n = lastR - FIRST_DATA_ROW + 1
+        data = ws.Range(ws.Cells(FIRST_DATA_ROW, 1), ws.Cells(lastR, NS_NCOLS)).Value
+
+'------------------------------------------------------------------------------
+' READ EACH NETTING SET
+'------------------------------------------------------------------------------
+    'Rows without an ID are skipped silently.
+        For i = 1 To n
+            rowNum = FIRST_DATA_ROW + i - 1
+            id = UTxt(data(i, NS_ID))
+            If Len(id) = 0 Then GoTo NextRow
+            If KeyIndex(mNSIndex, id) > 0 Then
+                LogMsg SEV_ERROR, SH_NS, id, "Duplicate netting set ID - row ignored.", rowNum
+                GoTo NextRow
+            End If
+            mNSCount = mNSCount + 1
+            If mNSCount > UBound(mNS) Then
+                ReDim Preserve mNS(1 To mNSCount * 2)
+            End If
+            With mNS(mNSCount)
+
+    'Plain fields. The remargining frequency is at least 1 business day;
+    'a missing or non-positive alpha takes the Params value.
+                .ID = id
+                .Counterparty = SafeStr(data(i, NS_CPTY))
+                .Margined = ToBool(data(i, NS_MARGINED), False)
+                .Cleared = ToBool(data(i, NS_CLEARED), False)
+                .RemarginBD = ToDbl(data(i, NS_FREQ), 1#)
+                If .RemarginBD < 1# Then
+                    .RemarginBD = 1#
+                End If
+                .LargeOrIlliquid = ToBool(data(i, NS_LARGE), False)
+                .Disputes = ToBool(data(i, NS_DISPUTE), False)
+                .VM = ToDbl(data(i, NS_VM))
+                .NICA = ToDbl(data(i, NS_NICA))
+                .TH = ToDbl(data(i, NS_TH))
+                .MTA = ToDbl(data(i, NS_MTA))
+                .Alpha = ToDbl(data(i, NS_ALPHA), pAlpha)
+                If .Alpha <= 0# Then
+                    .Alpha = pAlpha
+                End If
+
+    'Regime: blank takes the Params default; an unknown value is warned
+    'about and also takes the default.
+                rg = UTxt(data(i, NS_REGIME))
+                If Len(rg) = 0 Then
+                    rg = pRegime
+                ElseIf rg <> RG_BCBS And rg <> RG_CRR Then
+                    LogMsg SEV_WARN, SH_NS, id, "Regime override must be BCBS or CRR - default " & pRegime & " used.", rowNum
+                    rg = pRegime
+                End If
+                .Regime = rg
+                .IsCRR = (rg = RG_CRR)
+                If Not .Margined And Abs(.VM) > 0# Then
+                    LogMsg SEV_WARN, SH_NS, id, "VM entered on an unmargined netting set - treated as collateral C. " & _
+                           "Under CRR collateral of an unmargined set belongs in NICA.", rowNum
+                End If
+                .V = 0#
+                .Trades = 0
+                .MPOR = 0#
+                .MFMargined = 0#
+
+    'Effective MPOR of a margined netting set: the floor (cleared or
+    'bilateral, raised for large or illiquid sets) plus the remargining
+    'period minus one day, doubled for disputes. An override is accepted
+    'only if it is not below that.
+                If .Margined Then
+                    If .Cleared Then
+                        floorBD = pMPORClr
+                    Else
+                        floorBD = pMPORBil
+                    End If
+                    If .LargeOrIlliquid Then
+                        floorBD = Max2(floorBD, pMPORLarge)
+                    End If
+                    mpor = floorBD + .RemarginBD - 1#
+                    If .Disputes Then
+                        mpor = 2# * mpor
+                    End If
+                    ovr = ToDbl(data(i, NS_MPOR), 0#)
+                    If ovr > 0# Then
+                        If ovr < mpor Then
+                            LogMsg SEV_WARN, SH_NS, id, "MPOR override " & CStr(ovr) & _
+                                   " BD is below the regulatory floor - " & CStr(mpor) & " BD applied.", rowNum
+                        Else
+                            mpor = ovr
+                        End If
+                    End If
+                    .MPOR = mpor
+                    .MFMargined = SACCR_MaturityFactor(0#, True, .MPOR, pMinMatBD, pBDYear)
+                End If
+            End With
+            KeyAdd mNSIndex, id, mNSCount
+NextRow:
+        Next i
+
+'------------------------------------------------------------------------------
+' CHECK AND SIZE THE ADD-ON ARRAYS
+'------------------------------------------------------------------------------
+        If mNSCount = 0 Then
+            LogMsg SEV_ERROR, SH_NS, "", "No valid netting sets."
+            Exit Function
+        End If
+        ReDim mAddOnU(1 To mNSCount, 1 To AC_COUNT)
+        ReDim mAddOnM(1 To mNSCount, 1 To AC_COUNT)
+        LoadNettingSets = True
+
 End Function
 
-'==============================================================================
-' Netting-set results
-'==============================================================================
-Private Sub ComputeNettingSets(ByVal writeOutputs As Boolean)
-    ' Results layout (RS_NCOLS = 27):
-    '  1 ID  2 Counterparty  3 Regime  4 Margined  5 Trades  6 MPOR  7 V  8 C  9 RC
-    '  10-15 AddOn IR FX CR EQ CO OT  16 AddOn aggregate  17 Multiplier  18 PFE
-    '  19 Alpha  20 EAD margined  21 EAD cap  22 EAD  23 Cap applied
-    '  24 C (cap basis)  25 RC (cap basis)  26 AddOn unmargined  27 Multiplier (cap basis)
-    Dim k As Long, a As Long, outArr() As Variant, nOut As Long
-    Dim C As Double, cCap As Double, addU As Double, addM As Double
-    Dim rcU As Double, rcM As Double, mU As Double, mM As Double
-    Dim pfeU As Double, pfeM As Double, eadU As Double, eadM As Double, ead As Double
-    Dim tot(1 To RS_NCOLS) As Double
 
-    ReDim outArr(1 To mNSCount + 1, 1 To RS_NCOLS)
-    nOut = 0
-    For k = 1 To mNSCount
-        If mNS(k).Trades = 0 Then
-            LogMsg SEV_INFO, SH_NS, mNS(k).ID, "Netting set has no valid trades - not reported."
-            GoTo NextNS
+'
+'------------------------------------------------------------------------------
+'
+'                           TRADE-LEVEL CALCULATION
+'
+'------------------------------------------------------------------------------
+'
+
+Private Sub AddErr( _
+    ByRef ok As Boolean, _
+    ByRef msg As String, _
+    ByVal txt As String)
+'
+'==============================================================================
+'                                    AddErr
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Mark the current trade as invalid and append the reason.
+'
+' INPUTS
+'   ok: set to False.
+'   msg: the trade's reasons so far; txt is appended after "; ".
+'   txt: the reason.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' APPEND
+'------------------------------------------------------------------------------
+        ok = False
+        If Len(msg) > 0 Then
+            msg = msg & "; "
         End If
-        With mNS(k)
-            C = .VM + .NICA
-            addU = 0#: addM = 0#
-            For a = 1 To AC_COUNT
-                addU = addU + mAddOnU(k, a)
-                addM = addM + mAddOnM(k, a)
-            Next a
+        msg = msg & txt
 
-            ' unmargined calculation = EAD of an unmargined netting set, or the cap
-            If .Margined And .IsCRR Then
-                cCap = .NICA            ' Art. 274(3), 275(1); EBA Q&A 2023_6962
+End Sub
+
+
+Private Sub AddWarn( _
+    ByRef warn As String, _
+    ByVal txt As String)
+'
+'==============================================================================
+'                                   AddWarn
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Append a warning for the current trade; the trade stays valid.
+'
+' INPUTS
+'   warn: the trade's warnings so far; txt is appended after "; ".
+'   txt: the warning.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' APPEND
+'------------------------------------------------------------------------------
+        If Len(warn) > 0 Then
+            warn = warn & "; "
+        End If
+        warn = warn & txt
+
+End Sub
+
+
+Private Sub ProcessTrades( _
+    ByVal writeOutputs As Boolean)
+'
+'==============================================================================
+'                                ProcessTrades
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Validate and calculate every trade on the Trades sheet: classification,
+'   supervisory factor, amounts in the reporting currency, time to maturity,
+'   supervisory delta, adjusted notional, maturity factor and effective
+'   notional. Each valid trade is added to its bucket; every trade, valid or
+'   not, gets one TradeCalc row.
+'
+' INPUTS
+'   writeOutputs: True writes the TradeCalc sheet.
+'
+' STATE OWNERSHIP
+'   Adds to mBk through AddToBucket, adds MtM and trade counts to mNS, and
+'   updates mTradesRead and mTradesUsed. An invalid trade is logged with all
+'   its reasons and left out of the calculation.
+'
+' REFERENCE
+'   CRE52.30 to CRE52.52 for the trade-level quantities; CRR Art. 277 to
+'   280f for OT and the regime rules.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    'Sheet access and output.
+    Dim ws            As Worksheet    'Trades sheet
+    Dim wsOut         As Worksheet    'TradeCalc sheet
+    Dim lastR         As Long         'Last row with a trade ID
+    Dim n             As Long         'Number of rows to read
+    Dim i             As Long         'Row within data
+    Dim rowNum        As Long         'Sheet row of data row i
+    Dim data          As Variant      'Input block, (row, column)
+    Dim outArr()      As Variant      'TradeCalc rows, (row, column)
+    Dim nOut          As Long         'TradeCalc rows filled
+
+    'Validation state of the current trade.
+    Dim ok            As Boolean      'False once any error is found
+    Dim msg           As String       'Error reasons, separated by "; "
+    Dim warn          As String       'Warnings, separated by "; "
+
+    'Classification, as entered.
+    Dim tid           As String       'Trade ID
+    Dim nsId          As String       'Netting-set ID, upper case
+    Dim acTxt         As String       'Asset-class code, upper case
+    Dim subCls        As String       'Sub-class, upper case
+    Dim rf            As String       'Risk factor or reference, upper case
+    Dim instType      As String       'LINEAR, OPTION or CDO
+    Dim dirTxt        As String       'Direction text, upper case
+    Dim optTxt        As String       'CALL or PUT
+    Dim nature        As String       'STANDARD, BASIS or VOLATILITY
+    Dim lbl           As String       'Basis or volatility hedging-set label
+
+    'Classification, resolved.
+    Dim nsIdx         As Long         'Netting set, position in mNS; 0 when unknown
+    Dim ac            As Long         'Asset class, an AC_ constant; 0 when unknown
+    Dim sfKey         As String       'Key into the supervisory-factor table
+    Dim sfIdx         As Long         'Position in mSF; 0 when not found
+    Dim isLong        As Boolean      'Long (bought) position
+    Dim natFactor     As Double       'Factor multiplier: 1, basis or volatility
+    Dim natTag        As String       'Hedging-set suffix: STD, BASIS:label or VOL:label
+
+    'Amounts.
+    Dim notional      As Double       'Notional, in its currency
+    Dim nccy          As String       'Notional currency
+    Dim fxN           As Double       'Rate of the notional currency
+    Dim notionalRep   As Double       'Notional in the reporting currency
+    Dim mtm           As Double       'MtM, in its currency
+    Dim mccy          As String       'MtM currency
+    Dim fxM           As Double       'Rate of the MtM currency
+    Dim mtmRep        As Double       'MtM in the reporting currency
+
+    'Dates as serials (-1 when missing) and as years from the reporting date.
+    Dim dStart        As Double       'Start date
+    Dim dEnd          As Double       'End date
+    Dim dMat          As Double       'Maturity date
+    Dim dExp          As Double       'Option expiry date
+    Dim S             As Double       'Start S, years, at least 0
+    Dim E             As Double       'End E, years
+    Dim M             As Double       'Maturity M, years
+    Dim T             As Double       'Option expiry T, years
+
+    'Trade-level SA-CCR quantities.
+    Dim sd            As Double       'Supervisory duration (IR and credit)
+    Dim adjN          As Double       'Adjusted notional d
+    Dim delta         As Double       'Supervisory delta
+    Dim vDelta        As Variant      'Option delta as returned by SACCR_OptionDelta
+    Dim mfU           As Double       'Maturity factor, unmargined
+    Dim mfM           As Double       'Maturity factor, margined
+    Dim enU           As Double       'Effective notional delta * d * MF, unmargined
+    Dim enM           As Double       'Effective notional delta * d * MF, margined
+    Dim hsKey         As String       'Hedging-set key
+    Dim subKey        As String       'Bucket key within the hedging set
+    Dim bucketNo      As Long         'IR maturity bucket 1, 2 or 3
+    Dim sfEff         As Double       'Supervisory factor times natFactor
+    Dim corrEff       As Double       'Correlation
+    Dim pairSign      As Double       'FX: +1 pair kept, -1 inverted, 0 invalid
+
+    'Option and CDO inputs.
+    Dim P             As Double       'Underlying price
+    Dim K             As Double       'Strike
+    Dim lam           As Double       'Lambda shift applied
+    Dim attA          As Double       'CDO attachment point
+    Dim detD          As Double       'CDO detachment point
+    Dim lamIn         As Variant      'Lambda as entered
+    Dim lamOut        As Variant      'Lambda reported; Empty for non-options
+
+'------------------------------------------------------------------------------
+' READ THE INPUT BLOCK
+'------------------------------------------------------------------------------
+    'With no trades there is nothing to calculate; the old TradeCalc rows
+    'are cleared so they cannot be mistaken for results.
+        Set ws = GetSheet(SH_TRADES)
+        lastR = LastDataRow(ws, FIRST_DATA_ROW, TR_ID)
+        If lastR < FIRST_DATA_ROW Then
+            LogMsg SEV_ERROR, SH_TRADES, "", "No trades found."
+            If writeOutputs Then
+                ClearOutputBlock GetSheet(SH_TRADECALC), FIRST_DATA_ROW, TC_NCOLS
+            End If
+            Exit Sub
+        End If
+        n = lastR - FIRST_DATA_ROW + 1
+        data = ws.Range(ws.Cells(FIRST_DATA_ROW, 1), ws.Cells(lastR, TR_NCOLS)).Value
+        ReDim outArr(1 To n, 1 To TC_NCOLS)
+        nOut = 0
+
+'------------------------------------------------------------------------------
+' PROCESS EACH TRADE
+'------------------------------------------------------------------------------
+    'Rows without a trade ID are skipped silently. Every per-trade value is
+    'reset so nothing leaks from the previous trade into the output row.
+        For i = 1 To n
+            rowNum = FIRST_DATA_ROW + i - 1
+            tid = SafeStr(data(i, TR_ID))
+            If Len(tid) = 0 Then GoTo NextTrade
+            mTradesRead = mTradesRead + 1
+            ok = True
+            msg = ""
+            warn = ""
+            S = 0#
+            E = 0#
+            M = 0#
+            T = 0#
+            sd = 0#
+            adjN = 0#
+            delta = 0#
+            mfU = 0#
+            mfM = 0#
+            enU = 0#
+            enM = 0#
+            bucketNo = 0
+            sfEff = 0#
+            corrEff = 0#
+            hsKey = ""
+            subKey = ""
+            sfIdx = 0
+            notionalRep = 0#
+            mtmRep = 0#
+            pairSign = 1#
+            lam = 0#
+            lamOut = Empty
+
+    '--- Classification ------------------------------------------------------
+    'Netting set, asset class, risk factor, instrument, direction and
+    'nature. Basis and volatility trades form their own hedging sets, one
+    'per label, with the factor multiplied by BasisFactor or
+    'VolatilityFactor [CRE52.46, CRE52.47].
+            nsId = UTxt(data(i, TR_NS))
+            nsIdx = KeyIndex(mNSIndex, nsId)
+            If nsIdx = 0 Then AddErr ok, msg, "unknown netting set '" & nsId & "'"
+
+            acTxt = UTxt(data(i, TR_AC))
+            ac = ACIndex(acTxt)
+            If ac = 0 Then AddErr ok, msg, "asset class must be IR, FX, CR, EQ, CO or OT"
+
+            subCls = UTxt(data(i, TR_SUB))
+            rf = UTxt(data(i, TR_RF))
+            If Len(rf) = 0 Then AddErr ok, msg, "risk factor / reference missing"
+
+            instType = UTxt(data(i, TR_INSTR))
+            If Len(instType) = 0 Then instType = "LINEAR"
+            If instType <> "LINEAR" And instType <> "OPTION" And instType <> "CDO" Then
+                AddErr ok, msg, "instrument type must be Linear, Option or CDO"
+            End If
+            If instType = "CDO" And ac <> AC_CR Then AddErr ok, msg, "CDO tranches are credit (CR) trades"
+
+            dirTxt = UTxt(data(i, TR_DIR))
+            Select Case dirTxt
+                Case "LONG", "BUY", "BOUGHT", "L", "B"
+                    isLong = True
+                Case "SHORT", "SELL", "SOLD", "S"
+                    isLong = False
+                Case Else
+                    AddErr ok, msg, "direction must be Long or Short"
+            End Select
+
+            nature = UTxt(data(i, TR_NATURE))
+            If Len(nature) = 0 Then nature = "STANDARD"
+            lbl = UTxt(data(i, TR_LABEL))
+            Select Case nature
+                Case "STANDARD"
+                    natFactor = 1#
+                    natTag = "STD"
+                Case "BASIS"
+                    natFactor = pBasisF
+                    natTag = "BASIS:" & lbl
+                    If Len(lbl) = 0 Then AddWarn warn, "basis trade without hedging-set label"
+                Case "VOLATILITY"
+                    natFactor = pVolF
+                    natTag = "VOL:" & lbl
+                    If Len(lbl) = 0 Then AddWarn warn, "volatility trade without hedging-set label"
+                Case Else
+                    AddErr ok, msg, "nature must be Standard, Basis or Volatility"
+            End Select
+
+    '--- Supervisory parameters ----------------------------------------------
+    'IR, FX and OT have one factor each; the other classes are looked up by
+    'class and sub-class, for example CR_AAA.
+            If ac > 0 Then
+                Select Case ac
+                    Case AC_IR
+                        sfKey = "IR"
+                    Case AC_FX
+                        sfKey = "FX"
+                    Case AC_OT
+                        sfKey = "OT"
+                    Case Else
+                        sfKey = acTxt & "_" & subCls
+                End Select
+                sfIdx = KeyIndex(mSFIndex, sfKey)
+                If sfIdx = 0 Then AddErr ok, msg, "no supervisory factor for '" & sfKey & "' (check sub-class)"
+            End If
+
+    '--- Regime-specific availability ----------------------------------------
+    'OT exists only under CRR, and a factor-table row limited to one regime
+    'cannot be used by a netting set under the other.
+            If nsIdx > 0 And ac = AC_OT Then
+                If Not mNS(nsIdx).IsCRR Then
+                    AddErr ok, msg, "asset class OT (other risks) exists only under CRR (Art. 277(1)(f), 280f); " & _
+                           "under BCBS map the trade to the class of its primary risk driver (CRE52)"
+                End If
+            End If
+            If nsIdx > 0 And sfIdx > 0 Then
+                If Len(mSF(sfIdx).Regimes) > 0 And mSF(sfIdx).Regimes <> mNS(nsIdx).Regime Then
+                    AddErr ok, msg, "'" & sfKey & "' is defined only for regime " & mSF(sfIdx).Regimes & _
+                           " (netting set uses " & mNS(nsIdx).Regime & ")"
+                End If
+            End If
+
+    '--- Amounts ---------------------------------------------------------------
+    'The notional is unsigned; Direction gives the sign. A missing MtM is
+    'taken as 0 with a warning; a blank MtM currency means the notional
+    'currency. Both amounts are converted to the reporting currency.
+            If IsNum(data(i, TR_NOTIONAL)) Then
+                notional = CDbl(data(i, TR_NOTIONAL))
+                If notional < 0# Then AddErr ok, msg, "notional must be positive (use Direction for the sign)"
             Else
-                cCap = C                ' CRE52.2 (posted VM enters C with a negative sign)
+                AddErr ok, msg, "notional missing"
             End If
-            rcU = SACCR_ReplacementCost(.V, cCap, False)
-            mU = SACCR_Multiplier(.V - cCap, addU, pFloor)
-            pfeU = mU * addU
-            eadU = .Alpha * (rcU + pfeU)
-
-            If .Margined Then
-                rcM = SACCR_ReplacementCost(.V, C, True, .TH, .MTA, .NICA)
-                mM = SACCR_Multiplier(.V - C, addM, pFloor)
-                pfeM = mM * addM
-                eadM = .Alpha * (rcM + pfeM)
-                ead = Min2(eadM, eadU)
+            nccy = UTxt(data(i, TR_NCCY))
+            fxN = FXRate(nccy)
+            If fxN < 0# Then AddErr ok, msg, "no FX rate for notional currency '" & nccy & "'"
+            If IsNum(data(i, TR_MTM)) Then
+                mtm = CDbl(data(i, TR_MTM))
             Else
-                ead = eadU
+                mtm = 0#
+                AddWarn warn, "MtM missing - 0 assumed"
             End If
-            mTotalEAD = mTotalEAD + ead
+            mccy = UTxt(data(i, TR_MCCY))
+            If Len(mccy) = 0 Then mccy = nccy
+            fxM = FXRate(mccy)
+            If fxM < 0# Then AddErr ok, msg, "no FX rate for MtM currency '" & mccy & "'"
+            If ok Then
+                notionalRep = notional * fxN
+                mtmRep = mtm * fxM
+            End If
 
-            nOut = nOut + 1
-            outArr(nOut, 1) = .ID
-            outArr(nOut, 2) = .Counterparty
-            outArr(nOut, 3) = .Regime
-            outArr(nOut, 4) = IIf(.Margined, "Y", "N")
-            outArr(nOut, 5) = .Trades
-            If .Margined Then
-                outArr(nOut, 6) = .MPOR
-            End If
-            outArr(nOut, 7) = .V
-            outArr(nOut, 8) = C
-            For a = 1 To AC_COUNT
-                If .Margined Then
-                    outArr(nOut, 9 + a) = mAddOnM(k, a)
+    '--- Dates to year fractions -----------------------------------------------
+    'Missing dates are filled from each other: maturity from the end date,
+    'then from the option expiry; the end date from the maturity. S, E and M
+    'are years from the reporting date on the DaysPerYear basis, with S
+    'floored at 0.
+            dStart = ToSerial(data(i, TR_START))
+            dEnd = ToSerial(data(i, TR_END))
+            dMat = ToSerial(data(i, TR_MAT))
+            dExp = ToSerial(data(i, TR_EXPIRY))
+            If dMat < 0# Then dMat = dEnd
+            If dMat < 0# Then dMat = dExp
+            If dEnd < 0# Then dEnd = dMat
+            If dMat < 0# Then
+                AddErr ok, msg, "maturity / end date missing"
+            Else
+                M = (dMat - pAsOf) / pDaysYear
+                E = (dEnd - pAsOf) / pDaysYear
+                If dStart >= 0# Then
+                    S = Max2(0#, (dStart - pAsOf) / pDaysYear)
                 Else
-                    outArr(nOut, 9 + a) = mAddOnU(k, a)
+                    S = 0#
                 End If
-            Next a
-            If .Margined Then
-                outArr(nOut, 9) = rcM
-                outArr(nOut, 16) = addM
-                outArr(nOut, 17) = mM
-                outArr(nOut, 18) = pfeM
-                outArr(nOut, 20) = eadM
-                outArr(nOut, 21) = eadU
-                outArr(nOut, 23) = IIf(eadU < eadM, "Y", "N")
-                outArr(nOut, 24) = cCap
-                outArr(nOut, 25) = rcU
-                outArr(nOut, 26) = addU
-                outArr(nOut, 27) = mU
-            Else
-                outArr(nOut, 9) = rcU
-                outArr(nOut, 16) = addU
-                outArr(nOut, 17) = mU
-                outArr(nOut, 18) = pfeU
-                outArr(nOut, 23) = "n/a"
+                If M <= 0# Then
+                    AddErr ok, msg, "trade has matured (maturity <= reporting date)"
+                ElseIf (ac = AC_IR Or ac = AC_CR) And E <= S Then
+                    AddErr ok, msg, "end date must be after start date"
+                End If
             End If
-            outArr(nOut, 19) = .Alpha
-            outArr(nOut, 22) = ead
-            tot(7) = tot(7) + .V
-            tot(8) = tot(8) + C
-            For a = 9 To 16
-                tot(a) = tot(a) + ToDbl(outArr(nOut, a))
-            Next a
-            tot(18) = tot(18) + ToDbl(outArr(nOut, 18))
-            tot(22) = tot(22) + ead
-        End With
-NextNS:
-    Next k
 
-    If writeOutputs Then
-        Dim ws As Worksheet
-        Set ws = GetSheet(SH_RESULTS)
-        ClearOutputBlock ws, FIRST_DATA_ROW, RS_NCOLS
-        If nOut > 0 Then
-            nOut = nOut + 1
-            outArr(nOut, 1) = "TOTAL"
-            For a = 7 To 18
-                If a <> 17 Then
-                    outArr(nOut, a) = tot(a)
+    '--- Supervisory delta -------------------------------------------------------
+    'Linear trades: +1 long, -1 short [CRE52.38]. Options: the option delta
+    'with the lambda shift; under CRR the regulatory lambda replaces any
+    'entered value for IR and commodity options [CRE52.40]. CDO tranches:
+    'the tranche delta [CRE52.41].
+            If ok Then
+                Select Case instType
+                    Case "LINEAR"
+                        If isLong Then
+                            delta = 1#
+                        Else
+                            delta = -1#
+                        End If
+                    Case "OPTION"
+                        optTxt = UTxt(data(i, TR_OPT))
+                        If optTxt <> "CALL" And optTxt <> "PUT" Then AddErr ok, msg, "option type must be Call or Put"
+                        If dExp < 0# Then
+                            AddErr ok, msg, "option expiry missing"
+                        Else
+                            T = (dExp - pAsOf) / pDaysYear
+                            If T <= 0# Then AddErr ok, msg, "option has expired"
+                        End If
+                        If Not IsNum(data(i, TR_PRICE)) Or Not IsNum(data(i, TR_STRIKE)) Then
+                            AddErr ok, msg, "option needs underlying price and strike"
+                        End If
+                        If ok Then
+                            P = CDbl(data(i, TR_PRICE))
+                            K = CDbl(data(i, TR_STRIKE))
+                            lamIn = data(i, TR_LAMBDA)
+                            If mNS(nsIdx).IsCRR And (ac = AC_IR Or ac = AC_CO) Then
+                                'Delegated Regulation (EU) 2021/931 Art. 5, as amended by 2025/855.
+                                If ac = AC_IR Then
+                                    lam = SACCR_LambdaCRR(P, K, True, pLamThrIR)
+                                Else
+                                    lam = SACCR_LambdaCRR(P, K, False, pLamThrCO)
+                                End If
+                                If IsNum(lamIn) Then
+                                    If Abs(CDbl(lamIn) - lam) > 0.000000001 Then
+                                        AddWarn warn, "lambda input ignored under CRR - RTS lambda applied"
+                                    End If
+                                End If
+                            Else
+                                lam = ToDbl(lamIn, 0#)
+                            End If
+                            lamOut = lam
+                            If P + lam <= 0# Or K + lam <= 0# Then
+                                AddErr ok, msg, "price and strike must be > 0 after lambda shift (BCBS: enter lambda per CRE52.40 FAQ)"
+                            ElseIf mSF(sfIdx).Vol <= 0# Then
+                                AddErr ok, msg, "supervisory volatility missing for '" & sfKey & "'"
+                            Else
+                                vDelta = SACCR_OptionDelta(P, K, T, mSF(sfIdx).Vol, (optTxt = "CALL"), isLong, lam)
+                                delta = CDbl(vDelta)
+                            End If
+                        End If
+                    Case "CDO"
+                        If Not IsNum(data(i, TR_ATTACH)) Or Not IsNum(data(i, TR_DETACH)) Then
+                            AddErr ok, msg, "CDO tranche needs attachment and detachment points"
+                        Else
+                            attA = CDbl(data(i, TR_ATTACH))
+                            detD = CDbl(data(i, TR_DETACH))
+                            If attA < 0# Or detD > 1# Or attA >= detD Then
+                                AddErr ok, msg, "attachment/detachment must satisfy 0 <= A < D <= 1"
+                            Else
+                                delta = CDbl(SACCR_CDODelta(attA, detD, isLong))
+                            End If
+                        End If
+                End Select
+            End If
+
+    '--- Hedging set, adjusted notional and bucket -------------------------------
+    'IR: d = notional * SD, hedging set per currency (risk factor), bucket
+    'by end date: under 1 year, 1 to 5 years, over 5 years [CRE52.34,
+    'CRE52.56]. FX: d = notional, hedging set per currency pair written in
+    'alphabetical order; an inverted pair flips the delta [CRE52.58]. CR: d
+    '= notional * SD, one hedging set, bucket per entity [CRE52.60]. EQ: one
+    'hedging set, bucket per entity [CRE52.64]. CO: hedging set per
+    'commodity group, bucket per commodity [CRE52.68]. OT: hedging set per
+    'primary risk driver [CRR Art. 277a].
+            If ok Then
+                Select Case ac
+                    Case AC_IR
+                        sd = SACCR_SupervisoryDuration(S, E, pSDFloorBD / pBDYear)
+                        adjN = notionalRep * sd
+                        If E < 1# Then
+                            bucketNo = 1
+                            subKey = "<1Y"
+                        ElseIf E <= 5# Then
+                            bucketNo = 2
+                            subKey = "1-5Y"
+                        Else
+                            bucketNo = 3
+                            subKey = ">5Y"
+                        End If
+                        hsKey = "IR|" & rf & "|" & natTag
+                    Case AC_FX
+                        rf = NormalizePair(rf, pairSign)
+                        If pairSign = 0# Then
+                            AddErr ok, msg, "FX risk factor must be a currency pair such as EUR/USD"
+                        End If
+                        delta = delta * pairSign
+                        adjN = notionalRep
+                        hsKey = "FX|" & rf & "|" & natTag
+                        subKey = rf
+                    Case AC_CR
+                        sd = SACCR_SupervisoryDuration(S, E, pSDFloorBD / pBDYear)
+                        adjN = notionalRep * sd
+                        hsKey = "CR|" & natTag
+                        subKey = rf
+                    Case AC_EQ
+                        adjN = notionalRep
+                        hsKey = "EQ|" & natTag
+                        subKey = rf
+                    Case AC_CO
+                        adjN = notionalRep
+                        If Len(mSF(sfIdx).Group) = 0 Then
+                            AddErr ok, msg, "commodity hedging group missing for '" & sfKey & "'"
+                        End If
+                        hsKey = "CO|" & mSF(sfIdx).Group & "|" & natTag
+                        subKey = rf
+                    Case AC_OT
+                        'Art. 277a: same hedging set only for an identical primary risk driver.
+                        adjN = notionalRep
+                        hsKey = "OT|" & rf & "|" & natTag
+                        subKey = rf
+                End Select
+            End If
+
+    '--- Maturity factor and effective notional ---------------------------------
+    'The effective notional is kept on both bases: unmargined MF from the
+    'trade's maturity, and margined MF from the netting set's MPOR. The
+    'margined basis equals the unmargined one for an unmargined set.
+            If ok Then
+                sfEff = mSF(sfIdx).SF * natFactor
+                corrEff = mSF(sfIdx).Corr
+                mfU = SACCR_MaturityFactor(M, False, 0#, pMinMatBD, pBDYear)
+                If mNS(nsIdx).Margined Then
+                    mfM = mNS(nsIdx).MFMargined
+                Else
+                    mfM = mfU
                 End If
-            Next a
-            outArr(nOut, 22) = tot(22)
-            WriteBlock ws, FIRST_DATA_ROW, outArr, nOut, RS_NCOLS
-            FormatColumns ws, FIRST_DATA_ROW, nOut, _
-                "@|@|@|@|0|0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|0.0000|#,##0|0.00|#,##0|#,##0|#,##0|@|#,##0|#,##0|#,##0|0.0000"
-            ws.Range(ws.Cells(FIRST_DATA_ROW + nOut - 1, 1), ws.Cells(FIRST_DATA_ROW + nOut - 1, RS_NCOLS)).Font.Bold = True
+                enU = delta * adjN * mfU
+                enM = delta * adjN * mfM
+                AddToBucket nsIdx, ac, hsKey, subKey, sfEff, corrEff, enU, enM, tid, rowNum
+                mNS(nsIdx).V = mNS(nsIdx).V + mtmRep
+                mNS(nsIdx).Trades = mNS(nsIdx).Trades + 1
+                mTradesUsed = mTradesUsed + 1
+            End If
+
+            If Not ok Then LogMsg SEV_ERROR, SH_TRADES, tid, "Trade excluded: " & msg, rowNum
+            If Len(warn) > 0 Then LogMsg SEV_WARN, SH_TRADES, tid, warn, rowNum
+
+    '--- TradeCalc row ------------------------------------------------------------
+    'Columns: 1 ID, 2 netting set, 3 asset class, 4 status, 5 hedging set,
+    '6 bucket, 7 effective SF, 8 notional, 9 MtM, 10 S, 11 E, 12 M, 13 T,
+    '14 SD, 15 d, 16 delta, 17 MF unmargined, 18 MF margined, 19 effective
+    'notional unmargined, 20 effective notional margined, 21 IR bucket,
+    '22 stand-alone add-on, 23 lambda, 24 regime, 25 messages. Columns that
+    'do not apply to the trade stay blank.
+            nOut = nOut + 1
+            outArr(nOut, 1) = tid
+            outArr(nOut, 2) = nsId
+            outArr(nOut, 3) = acTxt
+            If ok Then
+                outArr(nOut, 4) = "OK"
+                outArr(nOut, 5) = hsKey
+                outArr(nOut, 6) = subKey
+                outArr(nOut, 7) = sfEff
+                outArr(nOut, 8) = notionalRep
+                outArr(nOut, 9) = mtmRep
+                outArr(nOut, 10) = S
+                outArr(nOut, 11) = E
+                outArr(nOut, 12) = M
+                If instType = "OPTION" Then outArr(nOut, 13) = T
+                If ac = AC_IR Or ac = AC_CR Then outArr(nOut, 14) = sd
+                outArr(nOut, 15) = adjN
+                outArr(nOut, 16) = delta
+                outArr(nOut, 17) = mfU
+                If mNS(nsIdx).Margined Then outArr(nOut, 18) = mfM
+                outArr(nOut, 19) = enU
+                If mNS(nsIdx).Margined Then outArr(nOut, 20) = enM
+                If ac = AC_IR Then outArr(nOut, 21) = bucketNo
+                outArr(nOut, 22) = sfEff * Abs(enU)
+                outArr(nOut, 23) = lamOut
+                outArr(nOut, 24) = mNS(nsIdx).Regime
+                outArr(nOut, 25) = warn
+            Else
+                outArr(nOut, 4) = "EXCLUDED"
+                If nsIdx > 0 Then
+                    outArr(nOut, 24) = mNS(nsIdx).Regime
+                End If
+                outArr(nOut, 25) = msg
+            End If
+NextTrade:
+        Next i
+
+'------------------------------------------------------------------------------
+' WRITE TRADECALC
+'------------------------------------------------------------------------------
+        If writeOutputs Then
+            Set wsOut = GetSheet(SH_TRADECALC)
+            ClearOutputBlock wsOut, FIRST_DATA_ROW, TC_NCOLS
+            WriteBlock wsOut, FIRST_DATA_ROW, outArr, nOut, TC_NCOLS
+            FormatColumns wsOut, FIRST_DATA_ROW, nOut, _
+                "@|@|@|@|@|@|0.00%|#,##0|#,##0|0.0000|0.0000|0.0000|0.0000|0.0000|#,##0|0.0000|0.0000|0.0000|#,##0|#,##0|0|#,##0|0.0000%|@|@"
         End If
-    End If
+
 End Sub
 
+
+Private Function NormalizePair( _
+    ByVal txt As String, _
+    ByRef pairSgn As Double) _
+    As String
+'
 '==============================================================================
-' Output writers
+'                                NormalizePair
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Write a currency pair in one canonical form, so that EUR/USD and
+'   USD/EUR fall in the same hedging set.
+'
+' INPUTS
+'   txt: the pair as entered, for example "EUR/USD", "EURUSD" or "eur-usd".
+'
+' RETURNS
+'   The pair as "AAA/BBB" with the two codes in alphabetical order; txt
+'   unchanged when it is not a valid pair.
+'   pairSgn: +1 when the order was kept, -1 when it was inverted, 0 when txt
+'   is not two different three-letter codes.
+'
+' UPDATED
+'   2026-10-06
 '==============================================================================
-Private Sub WriteBuckets()
-    Dim ws As Worksheet, arr() As Variant, b As Long
-    Set ws = GetSheet(SH_BUCKETS)
-    ClearOutputBlock ws, FIRST_DATA_ROW, BK_NCOLS
-    If mBkCount = 0 Then Exit Sub
-    ReDim arr(1 To mBkCount, 1 To BK_NCOLS)
-    For b = 1 To mBkCount
-        arr(b, 1) = mNS(mBk(b).NSIdx).ID
-        arr(b, 2) = ACCode(mBk(b).AC)
-        arr(b, 3) = mBk(b).HSKey
-        arr(b, 4) = mBk(b).SubKey
-        arr(b, 5) = mBk(b).Trades
-        arr(b, 6) = mBk(b).SF
-        If IsFactorClass(mBk(b).AC) Then arr(b, 7) = mBk(b).Corr
-        arr(b, 8) = mBk(b).ENU
-        arr(b, 9) = IIf(mNS(mBk(b).NSIdx).Margined, mBk(b).ENM, Empty)
-        If IsFactorClass(mBk(b).AC) Then
-            arr(b, 10) = mBk(b).SF * mBk(b).ENU
-            If mNS(mBk(b).NSIdx).Margined Then arr(b, 11) = mBk(b).SF * mBk(b).ENM
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim s    As String    'Pair without separators, upper case
+    Dim c1   As String    'First currency
+    Dim c2   As String    'Second currency
+
+'------------------------------------------------------------------------------
+' NORMALIZE
+'------------------------------------------------------------------------------
+    'Remove the separators "/", "-", " " and "." and expect six letters.
+        s = UCase$(Replace(Replace(Replace(Replace(txt, "/", ""), "-", ""), " ", ""), ".", ""))
+        If Len(s) <> 6 Then
+            pairSgn = 0#
+            NormalizePair = txt
+            Exit Function
         End If
-    Next b
-    WriteBlock ws, FIRST_DATA_ROW, arr, mBkCount, BK_NCOLS
-    FormatColumns ws, FIRST_DATA_ROW, mBkCount, "@|@|@|@|0|0.00%|0%|#,##0|#,##0|#,##0|#,##0"
+        c1 = Left$(s, 3)
+        c2 = Right$(s, 3)
+        If c1 = c2 Then
+            pairSgn = 0#
+            NormalizePair = txt
+        ElseIf c1 < c2 Then
+            pairSgn = 1#
+            NormalizePair = c1 & "/" & c2
+        Else
+            pairSgn = -1#
+            NormalizePair = c2 & "/" & c1
+        End If
+
+End Function
+
+
+Private Sub AddToBucket( _
+    ByVal nsIdx As Long, _
+    ByVal ac As Long, _
+    ByVal hsKey As String, _
+    ByVal subKey As String, _
+    ByVal sfEff As Double, _
+    ByVal corr As Double, _
+    ByVal enU As Double, _
+    ByVal enM As Double, _
+    ByVal tid As String, _
+    ByVal rowNum As Long)
+'
+'==============================================================================
+'                                 AddToBucket
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Add a trade's effective notionals to its bucket, creating the bucket on
+'   its first trade.
+'
+' INPUTS
+'   nsIdx, ac, hsKey, subKey: netting set, asset class, hedging set and
+'      bucket of the trade; together they identify the bucket.
+'   sfEff, corr: the trade's effective supervisory factor and correlation.
+'   enU, enM: the trade's effective notional, unmargined and margined.
+'   tid, rowNum: trade ID and sheet row, for messages.
+'
+' STATE OWNERSHIP
+'   Adds to mBk, mBkCount and mBkIndex. A bucket keeps the factor and
+'   correlation of its first trade. For credit, equity and commodity a later
+'   trade with a different factor is warned about.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim key   As String    'Bucket key: netting set # hedging set # bucket
+    Dim b     As Long      'Position of the bucket in mBk
+
+'------------------------------------------------------------------------------
+' FIND OR CREATE THE BUCKET
+'------------------------------------------------------------------------------
+        key = CStr(nsIdx) & "#" & hsKey & "#" & subKey
+        b = KeyIndex(mBkIndex, key)
+        If b = 0 Then
+            mBkCount = mBkCount + 1
+            If mBkCount > UBound(mBk) Then
+                ReDim Preserve mBk(1 To mBkCount * 2)
+            End If
+            b = mBkCount
+            mBk(b).NSIdx = nsIdx
+            mBk(b).AC = ac
+            mBk(b).HSKey = hsKey
+            mBk(b).SubKey = subKey
+            mBk(b).SF = sfEff
+            mBk(b).Corr = corr
+            mBk(b).ENU = 0#
+            mBk(b).ENM = 0#
+            mBk(b).Trades = 0
+            KeyAdd mBkIndex, key, b
+        ElseIf (ac = AC_CR Or ac = AC_EQ Or ac = AC_CO) And Abs(mBk(b).SF - sfEff) > 0.0000000001 Then
+            LogMsg SEV_WARN, SH_TRADES, tid, "Sub-class differs from earlier trades on '" & subKey & _
+                   "' - supervisory factor of the first trade used.", rowNum
+        End If
+
+'------------------------------------------------------------------------------
+' ACCUMULATE
+'------------------------------------------------------------------------------
+        mBk(b).ENU = mBk(b).ENU + enU
+        mBk(b).ENM = mBk(b).ENM + enM
+        mBk(b).Trades = mBk(b).Trades + 1
+
 End Sub
+
+
+'
+'------------------------------------------------------------------------------
+'
+'                     HEDGING-SET AND ASSET-CLASS ADD-ONS
+'
+'------------------------------------------------------------------------------
+'
+
+Private Sub ComputeHedgingSets()
+'
+'==============================================================================
+'                              ComputeHedgingSets
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Collect the buckets into hedging sets, calculate each hedging-set
+'   add-on on both bases, and sum them into the asset-class add-ons of each
+'   netting set.
+'
+' STATE OWNERSHIP
+'   Fills mHS, mHSCount and mHSIndex, links each bucket to its hedging set,
+'   and adds to mAddOnU and mAddOnM.
+'
+' REFERENCE
+'   IR CRE52.57; FX CRE52.59; credit CRE52.61; equity CRE52.66; commodity
+'   CRE52.70; other risks CRR Art. 280f.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim b     As Long      'Bucket, position in mBk
+    Dim h     As Long      'Hedging set, position in mHS
+    Dim key   As String    'Hedging-set key: netting set # hedging set
+    Dim aU    As Double    'Entity or type add-on, unmargined
+    Dim aM    As Double    'Entity or type add-on, margined
+    Dim sfH   As Double    'Supervisory factor of an IR, FX or OT hedging set
+
+'------------------------------------------------------------------------------
+' COLLECT BUCKETS INTO HEDGING SETS
+'------------------------------------------------------------------------------
+    'IR buckets go into D1, D2 or D3. FX and OT add their effective
+    'notionals. Credit, equity and commodity first turn each bucket into an
+    'entity or type add-on (SF * EN), then add it to the systematic and
+    'idiosyncratic sums of the single-factor model.
+        For b = 1 To mBkCount
+            key = CStr(mBk(b).NSIdx) & "#" & mBk(b).HSKey
+            h = KeyIndex(mHSIndex, key)
+            If h = 0 Then
+                mHSCount = mHSCount + 1
+                If mHSCount > UBound(mHS) Then
+                    ReDim Preserve mHS(1 To mHSCount * 2)
+                End If
+                h = mHSCount
+                mHS(h).NSIdx = mBk(b).NSIdx
+                mHS(h).AC = mBk(b).AC
+                mHS(h).Key = mBk(b).HSKey
+                KeyAdd mHSIndex, key, h
+            End If
+            mBk(b).HSIdx = h
+            mHS(h).Trades = mHS(h).Trades + mBk(b).Trades
+            Select Case mBk(b).AC
+                Case AC_IR
+                    Select Case mBk(b).SubKey
+                        Case "<1Y"
+                            mHS(h).D1U = mHS(h).D1U + mBk(b).ENU
+                            mHS(h).D1M = mHS(h).D1M + mBk(b).ENM
+                        Case "1-5Y"
+                            mHS(h).D2U = mHS(h).D2U + mBk(b).ENU
+                            mHS(h).D2M = mHS(h).D2M + mBk(b).ENM
+                        Case Else
+                            mHS(h).D3U = mHS(h).D3U + mBk(b).ENU
+                            mHS(h).D3M = mHS(h).D3M + mBk(b).ENM
+                    End Select
+                Case AC_FX, AC_OT
+                    mHS(h).ENU = mHS(h).ENU + mBk(b).ENU
+                    mHS(h).ENM = mHS(h).ENM + mBk(b).ENM
+                Case Else
+                    aU = mBk(b).SF * mBk(b).ENU
+                    aM = mBk(b).SF * mBk(b).ENM
+                    mHS(h).SysU = mHS(h).SysU + mBk(b).Corr * aU
+                    mHS(h).IdioU = mHS(h).IdioU + (1# - mBk(b).Corr ^ 2) * aU * aU
+                    mHS(h).SysM = mHS(h).SysM + mBk(b).Corr * aM
+                    mHS(h).IdioM = mHS(h).IdioM + (1# - mBk(b).Corr ^ 2) * aM * aM
+            End Select
+        Next b
+
+'------------------------------------------------------------------------------
+' HEDGING-SET ADD-ONS
+'------------------------------------------------------------------------------
+    'IR: SF * effective notional across the buckets, with the bucket
+    'formula or, when IRBucketOffset is False, the sum of absolute bucket
+    'values. FX and OT: SF * |effective notional|. Credit, equity and
+    'commodity: sqrt(systematic^2 + idiosyncratic). Each add-on is then
+    'added to its netting set's asset-class total.
+        For h = 1 To mHSCount
+            Select Case mHS(h).AC
+                Case AC_IR
+                    sfH = BucketSF(h)
+                    If pIRFull Then
+                        mHS(h).ENU = SACCR_IREffectiveNotional(mHS(h).D1U, mHS(h).D2U, mHS(h).D3U, pRho12, pRho23, pRho13)
+                        mHS(h).ENM = SACCR_IREffectiveNotional(mHS(h).D1M, mHS(h).D2M, mHS(h).D3M, pRho12, pRho23, pRho13)
+                    Else
+                        mHS(h).ENU = Abs(mHS(h).D1U) + Abs(mHS(h).D2U) + Abs(mHS(h).D3U)
+                        mHS(h).ENM = Abs(mHS(h).D1M) + Abs(mHS(h).D2M) + Abs(mHS(h).D3M)
+                    End If
+                    mHS(h).AddOnU = sfH * mHS(h).ENU
+                    mHS(h).AddOnM = sfH * mHS(h).ENM
+                Case AC_FX, AC_OT
+                    sfH = BucketSF(h)
+                    mHS(h).AddOnU = sfH * Abs(mHS(h).ENU)
+                    mHS(h).AddOnM = sfH * Abs(mHS(h).ENM)
+                Case Else
+                    mHS(h).AddOnU = Sqr(mHS(h).SysU ^ 2 + mHS(h).IdioU)
+                    mHS(h).AddOnM = Sqr(mHS(h).SysM ^ 2 + mHS(h).IdioM)
+            End Select
+            mAddOnU(mHS(h).NSIdx, mHS(h).AC) = mAddOnU(mHS(h).NSIdx, mHS(h).AC) + mHS(h).AddOnU
+            mAddOnM(mHS(h).NSIdx, mHS(h).AC) = mAddOnM(mHS(h).NSIdx, mHS(h).AC) + mHS(h).AddOnM
+        Next h
+
+End Sub
+
+
+Private Function IsFactorClass( _
+    ByVal ac As Long) _
+    As Boolean
+'
+'==============================================================================
+'                                IsFactorClass
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Tell whether an asset class uses entity or type add-ons with
+'   single-factor aggregation: credit, equity and commodity.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' TEST
+'------------------------------------------------------------------------------
+        IsFactorClass = (ac = AC_CR Or ac = AC_EQ Or ac = AC_CO)
+
+End Function
+
+
+Private Function BucketSF( _
+    ByVal h As Long) _
+    As Double
+'
+'==============================================================================
+'                                   BucketSF
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Return the supervisory factor of a hedging set from its first bucket.
+'   Used for IR, FX and OT, where every bucket of a hedging set has the same
+'   factor.
+'
+' INPUTS
+'   h: hedging set, position in mHS.
+'
+' RETURNS
+'   The factor of the first bucket linked to h; 0 when there is none.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim b   As Long    'Bucket, position in mBk
+
+'------------------------------------------------------------------------------
+' SEARCH
+'------------------------------------------------------------------------------
+        For b = 1 To mBkCount
+            If mBk(b).HSIdx = h Then
+                BucketSF = mBk(b).SF
+                Exit Function
+            End If
+        Next b
+
+End Function
+
+
+'
+'------------------------------------------------------------------------------
+'
+'                             NETTING-SET RESULTS
+'
+'------------------------------------------------------------------------------
+'
+
+Private Sub ComputeNettingSets( _
+    ByVal writeOutputs As Boolean)
+'
+'==============================================================================
+'                              ComputeNettingSets
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Calculate RC, multiplier, PFE and EAD for every netting set with at
+'   least one valid trade, apply the margined-EAD cap, and write the Results
+'   sheet with a total row.
+'
+' INPUTS
+'   writeOutputs: True writes the Results sheet.
+'
+' STATE OWNERSHIP
+'   Adds each EAD to mTotalEAD. A netting set without valid trades is not
+'   reported and gets an INFO message.
+'
+' REFERENCE
+'   EAD CRE52.1; cap CRE52.2 and CRR Art. 274(3); RC CRE52.10, CRE52.18 and
+'   CRR Art. 275(1); multiplier CRE52.23; collateral for the CRR cap per EBA
+'   Q&A 2023_6962.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    'Results columns (RS_NCOLS = 27): 1 ID, 2 counterparty, 3 regime,
+    '4 margined, 5 trades, 6 MPOR, 7 V, 8 C, 9 RC, 10 to 15 add-ons IR, FX,
+    'CR, EQ, CO, OT, 16 aggregate add-on, 17 multiplier, 18 PFE, 19 alpha,
+    '20 EAD margined, 21 EAD cap, 22 EAD, 23 cap applied, 24 C (cap basis),
+    '25 RC (cap basis), 26 add-on unmargined, 27 multiplier (cap basis).
+    Dim ws       As Worksheet    'Results sheet
+    Dim k        As Long         'Netting set, position in mNS
+    Dim a        As Long         'Asset class, or Results column in loops
+    Dim outArr() As Variant      'Results rows, (row, column)
+    Dim nOut     As Long         'Results rows filled
+    Dim C        As Double       'Collateral C = VM + NICA
+    Dim cCap     As Double       'Collateral used for the unmargined basis
+    Dim addU     As Double       'Aggregate add-on, unmargined
+    Dim addM     As Double       'Aggregate add-on, margined
+    Dim rcU      As Double       'RC, unmargined basis
+    Dim rcM      As Double       'RC, margined
+    Dim mU       As Double       'Multiplier, unmargined basis
+    Dim mM       As Double       'Multiplier, margined
+    Dim pfeU     As Double       'PFE, unmargined basis
+    Dim pfeM     As Double       'PFE, margined
+    Dim eadU     As Double       'EAD, unmargined basis: the EAD or the cap
+    Dim eadM     As Double       'EAD, margined, before the cap
+    Dim ead      As Double       'EAD reported
+    Dim tot(1 To RS_NCOLS) As Double    'Column totals for the TOTAL row
+
+'------------------------------------------------------------------------------
+' CALCULATE EACH NETTING SET
+'------------------------------------------------------------------------------
+        ReDim outArr(1 To mNSCount + 1, 1 To RS_NCOLS)
+        nOut = 0
+        For k = 1 To mNSCount
+            If mNS(k).Trades = 0 Then
+                LogMsg SEV_INFO, SH_NS, mNS(k).ID, "Netting set has no valid trades - not reported."
+                GoTo NextNS
+            End If
+            With mNS(k)
+
+    'Collateral and aggregate add-ons on both bases.
+                C = .VM + .NICA
+                addU = 0#
+                addM = 0#
+                For a = 1 To AC_COUNT
+                    addU = addU + mAddOnU(k, a)
+                    addM = addM + mAddOnM(k, a)
+                Next a
+
+    'Unmargined basis: the EAD of an unmargined netting set, or the cap of
+    'a margined one. Under CRR the cap of a margined set uses NICA only
+    '[Art. 274(3), 275(1); EBA Q&A 2023_6962]; otherwise C, in which posted
+    'VM is negative [CRE52.2].
+                If .Margined And .IsCRR Then
+                    cCap = .NICA
+                Else
+                    cCap = C
+                End If
+                rcU = SACCR_ReplacementCost(.V, cCap, False)
+                mU = SACCR_Multiplier(.V - cCap, addU, pFloor)
+                pfeU = mU * addU
+                eadU = .Alpha * (rcU + pfeU)
+
+    'Margined basis, then the cap: the EAD is the lower of the two.
+                If .Margined Then
+                    rcM = SACCR_ReplacementCost(.V, C, True, .TH, .MTA, .NICA)
+                    mM = SACCR_Multiplier(.V - C, addM, pFloor)
+                    pfeM = mM * addM
+                    eadM = .Alpha * (rcM + pfeM)
+                    ead = Min2(eadM, eadU)
+                Else
+                    ead = eadU
+                End If
+                mTotalEAD = mTotalEAD + ead
+
+    'Results row. A margined netting set shows its margined figures in
+    'columns 9 to 18 and the cap figures in 21 and 24 to 27.
+                nOut = nOut + 1
+                outArr(nOut, 1) = .ID
+                outArr(nOut, 2) = .Counterparty
+                outArr(nOut, 3) = .Regime
+                outArr(nOut, 4) = IIf(.Margined, "Y", "N")
+                outArr(nOut, 5) = .Trades
+                If .Margined Then
+                    outArr(nOut, 6) = .MPOR
+                End If
+                outArr(nOut, 7) = .V
+                outArr(nOut, 8) = C
+                For a = 1 To AC_COUNT
+                    If .Margined Then
+                        outArr(nOut, 9 + a) = mAddOnM(k, a)
+                    Else
+                        outArr(nOut, 9 + a) = mAddOnU(k, a)
+                    End If
+                Next a
+                If .Margined Then
+                    outArr(nOut, 9) = rcM
+                    outArr(nOut, 16) = addM
+                    outArr(nOut, 17) = mM
+                    outArr(nOut, 18) = pfeM
+                    outArr(nOut, 20) = eadM
+                    outArr(nOut, 21) = eadU
+                    outArr(nOut, 23) = IIf(eadU < eadM, "Y", "N")
+                    outArr(nOut, 24) = cCap
+                    outArr(nOut, 25) = rcU
+                    outArr(nOut, 26) = addU
+                    outArr(nOut, 27) = mU
+                Else
+                    outArr(nOut, 9) = rcU
+                    outArr(nOut, 16) = addU
+                    outArr(nOut, 17) = mU
+                    outArr(nOut, 18) = pfeU
+                    outArr(nOut, 23) = "n/a"
+                End If
+                outArr(nOut, 19) = .Alpha
+                outArr(nOut, 22) = ead
+
+    'Running totals for V, C, RC, the add-ons, PFE and EAD.
+                tot(7) = tot(7) + .V
+                tot(8) = tot(8) + C
+                For a = 9 To 16
+                    tot(a) = tot(a) + ToDbl(outArr(nOut, a))
+                Next a
+                tot(18) = tot(18) + ToDbl(outArr(nOut, 18))
+                tot(22) = tot(22) + ead
+            End With
+NextNS:
+        Next k
+
+'------------------------------------------------------------------------------
+' WRITE RESULTS
+'------------------------------------------------------------------------------
+    'The TOTAL row sums columns 7 to 18 except the multiplier (17), and the
+    'EAD (22). It is written in bold.
+        If writeOutputs Then
+            Set ws = GetSheet(SH_RESULTS)
+            ClearOutputBlock ws, FIRST_DATA_ROW, RS_NCOLS
+            If nOut > 0 Then
+                nOut = nOut + 1
+                outArr(nOut, 1) = "TOTAL"
+                For a = 7 To 18
+                    If a <> 17 Then
+                        outArr(nOut, a) = tot(a)
+                    End If
+                Next a
+                outArr(nOut, 22) = tot(22)
+                WriteBlock ws, FIRST_DATA_ROW, outArr, nOut, RS_NCOLS
+                FormatColumns ws, FIRST_DATA_ROW, nOut, _
+                    "@|@|@|@|0|0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|0.0000|#,##0|0.00|#,##0|#,##0|#,##0|@|#,##0|#,##0|#,##0|0.0000"
+                ws.Range(ws.Cells(FIRST_DATA_ROW + nOut - 1, 1), ws.Cells(FIRST_DATA_ROW + nOut - 1, RS_NCOLS)).Font.Bold = True
+            End If
+        End If
+
+End Sub
+
+
+'
+'------------------------------------------------------------------------------
+'
+'                                OUTPUT WRITERS
+'
+'------------------------------------------------------------------------------
+'
+
+Private Sub WriteBuckets()
+'
+'==============================================================================
+'                                 WriteBuckets
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Write one Buckets row per bucket.
+'
+' STATE OWNERSHIP
+'   Clears and rewrites the Buckets sheet.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws      As Worksheet    'Buckets sheet
+    Dim arr()   As Variant      'Output rows, (row, column)
+    Dim b       As Long         'Bucket, position in mBk
+
+'------------------------------------------------------------------------------
+' BUILD ROWS
+'------------------------------------------------------------------------------
+    'Columns: 1 netting set, 2 asset class, 3 hedging set, 4 bucket,
+    '5 trades, 6 SF, 7 correlation, 8 and 9 effective notional unmargined
+    'and margined, 10 and 11 entity or type add-on unmargined and margined.
+    'Correlation and add-ons apply to credit, equity and commodity only;
+    'margined figures to margined netting sets only.
+        Set ws = GetSheet(SH_BUCKETS)
+        ClearOutputBlock ws, FIRST_DATA_ROW, BK_NCOLS
+        If mBkCount = 0 Then
+            Exit Sub
+        End If
+        ReDim arr(1 To mBkCount, 1 To BK_NCOLS)
+        For b = 1 To mBkCount
+            arr(b, 1) = mNS(mBk(b).NSIdx).ID
+            arr(b, 2) = ACCode(mBk(b).AC)
+            arr(b, 3) = mBk(b).HSKey
+            arr(b, 4) = mBk(b).SubKey
+            arr(b, 5) = mBk(b).Trades
+            arr(b, 6) = mBk(b).SF
+            If IsFactorClass(mBk(b).AC) Then arr(b, 7) = mBk(b).Corr
+            arr(b, 8) = mBk(b).ENU
+            arr(b, 9) = IIf(mNS(mBk(b).NSIdx).Margined, mBk(b).ENM, Empty)
+            If IsFactorClass(mBk(b).AC) Then
+                arr(b, 10) = mBk(b).SF * mBk(b).ENU
+                If mNS(mBk(b).NSIdx).Margined Then arr(b, 11) = mBk(b).SF * mBk(b).ENM
+            End If
+        Next b
+
+'------------------------------------------------------------------------------
+' WRITE
+'------------------------------------------------------------------------------
+        WriteBlock ws, FIRST_DATA_ROW, arr, mBkCount, BK_NCOLS
+        FormatColumns ws, FIRST_DATA_ROW, mBkCount, "@|@|@|@|0|0.00%|0%|#,##0|#,##0|#,##0|#,##0"
+
+End Sub
+
 
 Private Sub WriteHedgingSets()
-    Dim ws As Worksheet, arr() As Variant, h As Long, mg As Boolean
-    Set ws = GetSheet(SH_HEDGING)
-    ClearOutputBlock ws, FIRST_DATA_ROW, HS_NCOLS
-    If mHSCount = 0 Then Exit Sub
-    ReDim arr(1 To mHSCount, 1 To HS_NCOLS)
-    For h = 1 To mHSCount
-        mg = mNS(mHS(h).NSIdx).Margined
-        arr(h, 1) = mNS(mHS(h).NSIdx).ID
-        arr(h, 2) = ACCode(mHS(h).AC)
-        arr(h, 3) = mHS(h).Key
-        arr(h, 4) = mHS(h).Trades
-        If mHS(h).AC = AC_IR Then
-            If mg Then
-                arr(h, 5) = mHS(h).D1M: arr(h, 6) = mHS(h).D2M: arr(h, 7) = mHS(h).D3M
-            Else
-                arr(h, 5) = mHS(h).D1U: arr(h, 6) = mHS(h).D2U: arr(h, 7) = mHS(h).D3U
+'
+'==============================================================================
+'                               WriteHedgingSets
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Write one HedgingSets row per hedging set, on the basis that applies to
+'   its netting set: margined figures for a margined set, unmargined
+'   otherwise.
+'
+' STATE OWNERSHIP
+'   Clears and rewrites the HedgingSets sheet.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws      As Worksheet    'HedgingSets sheet
+    Dim arr()   As Variant      'Output rows, (row, column)
+    Dim h       As Long         'Hedging set, position in mHS
+    Dim mg      As Boolean      'Netting set of h is margined
+
+'------------------------------------------------------------------------------
+' BUILD ROWS
+'------------------------------------------------------------------------------
+    'Columns: 1 netting set, 2 asset class, 3 hedging set, 4 trades, 5 to 7
+    'IR buckets D1 to D3, 8 effective notional (IR, FX, OT), 9 systematic
+    'and 10 idiosyncratic part (credit, equity, commodity), 11 hedging-set
+    'add-on, 12 add-on unmargined, 13 basis, 14 SF (IR, FX, OT).
+        Set ws = GetSheet(SH_HEDGING)
+        ClearOutputBlock ws, FIRST_DATA_ROW, HS_NCOLS
+        If mHSCount = 0 Then
+            Exit Sub
+        End If
+        ReDim arr(1 To mHSCount, 1 To HS_NCOLS)
+        For h = 1 To mHSCount
+            mg = mNS(mHS(h).NSIdx).Margined
+            arr(h, 1) = mNS(mHS(h).NSIdx).ID
+            arr(h, 2) = ACCode(mHS(h).AC)
+            arr(h, 3) = mHS(h).Key
+            arr(h, 4) = mHS(h).Trades
+            If mHS(h).AC = AC_IR Then
+                If mg Then
+                    arr(h, 5) = mHS(h).D1M
+                    arr(h, 6) = mHS(h).D2M
+                    arr(h, 7) = mHS(h).D3M
+                Else
+                    arr(h, 5) = mHS(h).D1U
+                    arr(h, 6) = mHS(h).D2U
+                    arr(h, 7) = mHS(h).D3U
+                End If
             End If
-        End If
-        If Not IsFactorClass(mHS(h).AC) Then
-            If mg Then arr(h, 8) = mHS(h).ENM Else arr(h, 8) = mHS(h).ENU
-        Else
-            If mg Then
-                arr(h, 9) = mHS(h).SysM: arr(h, 10) = Sqr(mHS(h).IdioM)
+            If Not IsFactorClass(mHS(h).AC) Then
+                If mg Then
+                    arr(h, 8) = mHS(h).ENM
+                Else
+                    arr(h, 8) = mHS(h).ENU
+                End If
             Else
-                arr(h, 9) = mHS(h).SysU: arr(h, 10) = Sqr(mHS(h).IdioU)
+                If mg Then
+                    arr(h, 9) = mHS(h).SysM
+                    arr(h, 10) = Sqr(mHS(h).IdioM)
+                Else
+                    arr(h, 9) = mHS(h).SysU
+                    arr(h, 10) = Sqr(mHS(h).IdioU)
+                End If
             End If
-        End If
-        If mg Then arr(h, 11) = mHS(h).AddOnM Else arr(h, 11) = mHS(h).AddOnU
-        arr(h, 12) = mHS(h).AddOnU
-        arr(h, 13) = IIf(mg, "Margined", "Unmargined")
-        If Not IsFactorClass(mHS(h).AC) Then
-            arr(h, 14) = BucketSF(h)
-        End If
-    Next h
-    WriteBlock ws, FIRST_DATA_ROW, arr, mHSCount, HS_NCOLS
-    FormatColumns ws, FIRST_DATA_ROW, mHSCount, "@|@|@|0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|@|0.00%"
+            If mg Then
+                arr(h, 11) = mHS(h).AddOnM
+            Else
+                arr(h, 11) = mHS(h).AddOnU
+            End If
+            arr(h, 12) = mHS(h).AddOnU
+            arr(h, 13) = IIf(mg, "Margined", "Unmargined")
+            If Not IsFactorClass(mHS(h).AC) Then
+                arr(h, 14) = BucketSF(h)
+            End If
+        Next h
+
+'------------------------------------------------------------------------------
+' WRITE
+'------------------------------------------------------------------------------
+        WriteBlock ws, FIRST_DATA_ROW, arr, mHSCount, HS_NCOLS
+        FormatColumns ws, FIRST_DATA_ROW, mHSCount, "@|@|@|0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|@|0.00%"
+
 End Sub
+
 
 Private Sub WriteChecks()
-    Dim ws As Worksheet, arr() As Variant, i As Long, j As Long
-    On Error GoTo Done
-    Set ws = GetSheet(SH_CHECKS)
-    ClearOutputBlock ws, FIRST_DATA_ROW, CK_NCOLS
-    If mLogCount = 0 Then
-        ReDim arr(1 To 1, 1 To CK_NCOLS)
-        arr(1, 1) = SEV_INFO
-        arr(1, 5) = "No issues found."
-        WriteBlock ws, FIRST_DATA_ROW, arr, 1, CK_NCOLS
-        Exit Sub
-    End If
-    ReDim arr(1 To mLogCount, 1 To CK_NCOLS)
-    For i = 1 To mLogCount
-        For j = 1 To CK_NCOLS
-            arr(i, j) = mLog(j, i)
-        Next j
-    Next i
-    WriteBlock ws, FIRST_DATA_ROW, arr, mLogCount, CK_NCOLS
-    For i = 1 To mLogCount
-        If arr(i, 1) = SEV_ERROR Then
-            ws.Cells(FIRST_DATA_ROW + i - 1, 1).Font.Bold = True
+'
+'==============================================================================
+'                                 WriteChecks
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Write the logged messages to the Checks sheet, errors in bold, or a
+'   single "No issues found." line.
+'
+' STATE OWNERSHIP
+'   Clears and rewrites the Checks sheet.
+'
+' ERROR POLICY
+'   Any error stops the writing silently, so that a damaged Checks sheet
+'   does not hide the run's result.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws      As Worksheet    'Checks sheet
+    Dim arr()   As Variant      'Output rows, (message, field)
+    Dim i       As Long         'Message
+    Dim j       As Long         'Field
+
+'------------------------------------------------------------------------------
+' WRITE
+'------------------------------------------------------------------------------
+    'mLog is stored (field, message); it is transposed into sheet rows.
+        On Error GoTo Done
+        Set ws = GetSheet(SH_CHECKS)
+        ClearOutputBlock ws, FIRST_DATA_ROW, CK_NCOLS
+        If mLogCount = 0 Then
+            ReDim arr(1 To 1, 1 To CK_NCOLS)
+            arr(1, 1) = SEV_INFO
+            arr(1, 5) = "No issues found."
+            WriteBlock ws, FIRST_DATA_ROW, arr, 1, CK_NCOLS
+            Exit Sub
         End If
-    Next i
+        ReDim arr(1 To mLogCount, 1 To CK_NCOLS)
+        For i = 1 To mLogCount
+            For j = 1 To CK_NCOLS
+                arr(i, j) = mLog(j, i)
+            Next j
+        Next i
+        WriteBlock ws, FIRST_DATA_ROW, arr, mLogCount, CK_NCOLS
+        For i = 1 To mLogCount
+            If arr(i, 1) = SEV_ERROR Then
+                ws.Cells(FIRST_DATA_ROW + i - 1, 1).Font.Bold = True
+            End If
+        Next i
 Done:
+
 End Sub
 
-Private Sub WriteRunInfo(ByVal secs As Double, ByVal completed As Boolean)
-    Dim ws As Worksheet, txt As String
-    On Error Resume Next
-    Set ws = GetSheet(SH_RESULTS)
-    If completed Then
-        txt = "Last run " & Format$(Now, "yyyy-mm-dd hh:mm:ss") & _
-              " | reporting date " & Format$(CDate(pAsOf), "yyyy-mm-dd") & _
-              " | ccy " & pRepCcy & _
-              " | trades used " & mTradesUsed & " of " & mTradesRead & _
-              " | errors " & mErrCount & ", warnings " & mWarnCount & _
-              " | " & Format$(secs, "0.00") & " s"
-    Else
-        txt = "Last run " & Format$(Now, "yyyy-mm-dd hh:mm:ss") & _
-              " FAILED - see Checks sheet (" & mErrCount & " errors)"
-    End If
-    ws.Range(RUNINFO_CELL).Value = txt
+
+Private Sub WriteRunInfo( _
+    ByVal secs As Double, _
+    ByVal completed As Boolean)
+'
+'==============================================================================
+'                                 WriteRunInfo
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Write a one-line run summary to cell A2 of the Results sheet.
+'
+' INPUTS
+'   secs: run duration in seconds.
+'   completed: the result of Calculate.
+'
+' ERROR POLICY
+'   Best effort: errors are ignored, because the summary is informative only.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws    As Worksheet    'Results sheet
+    Dim txt   As String       'Summary line
+
+'------------------------------------------------------------------------------
+' WRITE
+'------------------------------------------------------------------------------
+        On Error Resume Next
+        Set ws = GetSheet(SH_RESULTS)
+        If completed Then
+            txt = "Last run " & Format$(Now, "yyyy-mm-dd hh:mm:ss") & _
+                  " | reporting date " & Format$(CDate(pAsOf), "yyyy-mm-dd") & _
+                  " | ccy " & pRepCcy & _
+                  " | trades used " & mTradesUsed & " of " & mTradesRead & _
+                  " | errors " & mErrCount & ", warnings " & mWarnCount & _
+                  " | " & Format$(secs, "0.00") & " s"
+        Else
+            txt = "Last run " & Format$(Now, "yyyy-mm-dd hh:mm:ss") & _
+                  " FAILED - see Checks sheet (" & mErrCount & " errors)"
+        End If
+        ws.Range(RUNINFO_CELL).Value = txt
+
 End Sub
