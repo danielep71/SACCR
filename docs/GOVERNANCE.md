@@ -1,16 +1,18 @@
 # Repository governance
 
-Owner and maintainer: **@danielep71**. Setup milestone: **v0.0.1**.
+Owner and maintainer: **@danielep71**. Active release branch: **`release/1.0.0`**.
+Setup milestone v0.0.1 is closed; its baseline is recorded in
+[issue #13](https://github.com/danielep71/SACCR/issues/13).
 This policy implements the owner's working-branch decision of 2026-10-06 and
 the scope of [issue #2](https://github.com/danielep71/SACCR/issues/2).
 
-## Branch policy during setup
+## Branch policy
 
 | Branch | Purpose and allowed work |
 | --- | --- |
-| `release/0.0.1` | Active integration branch for all development and setup until milestone v0.0.1 closes. |
-| `main` | Default branch. Receives `release/0.0.1` only through an owner-requested PR merged with a merge commit; last integrated by PR #24 (`4130df7`). Nothing is committed to main directly. |
-| Short-lived task branches | Every change: branch from release/0.0.1, open the PR against release/0.0.1 and squash-merge it. Use a descriptive name such as `fix/<issue>-<slug>`, `docs/<slug>` or `chore/<slug>`. |
+| `release/1.0.0` | Active integration branch for all development, opened from `main` at the v0.0.1 closeout. |
+| `main` | Default branch. Receives the active release branch only through an owner-requested PR merged with a merge commit. Nothing is committed to main directly. |
+| Short-lived task branches | Every change: branch from the active release branch, open the PR against it and squash-merge it. Use a descriptive name such as `fix/<issue>-<slug>`, `docs/<slug>` or `chore/<slug>`. |
 | Other `release/*` branches | Reserved for explicitly agreed future milestones; do not infer a new development target from a version number. |
 
 The default branch remains `main`; this does not make it the active development
@@ -64,7 +66,7 @@ the issue. Never rewrite shared history to conceal the failed candidate.
 
 Every issue must have assignee **danielep71**, at least one priority label
 **P1/P2/P3**, and a reference milestone; use one clear priority unless a
-documented reason requires otherwise. Current setup work belongs to v0.0.1.
+documented reason requires otherwise. Each issue belongs to the milestone of the release branch it targets.
 Include objective, acceptance checklist, dependencies and required evidence.
 
 ### What is automatic and what is not
@@ -116,13 +118,14 @@ historical, not a current blocker. Availability and activation are distinct.
 | Control | Observed state and working response |
 | --- | --- |
 | Repository visibility | Private. Preserve it; public visibility is not a workaround for missing features. |
-| Branch rulesets | Configured by the owner on 2026-10-06. The repository's Settings → Rules page is authoritative for which branches and rules apply; keep following the review checklist for what rulesets cannot check. |
+| Branch rulesets | Configured by the owner on 2026-10-06. `main`: pull request required, merge commits only, conversations resolved, **Repository integrity** required and up to date, no force pushes or deletion; repository admins may bypass only through a pull request. Release branches: pull request required, squash only, **Repository integrity** required; deletion is not restricted, so automatic head-branch deletion removes a release branch when it is merged into main. Settings → Rules is authoritative; keep following the review checklist for what rulesets cannot check. |
+| Tag ruleset | `v*` tags: updates, deletions and force pushes blocked, so a published tag cannot move. Added by the owner at the v0.0.1 closeout. |
 | Automatic head-branch deletion | Enabled by the owner on 2026-10-06. Merged PR branches are deleted automatically. |
-| Wiki | Pro enables Wiki for private personal repositories, but SACCR's Wiki remains disabled in this baseline. Keep authoritative documentation in versioned docs/. |
+| Wiki | Enabled on 2026-10-06, private with the repository and editable by collaborators only; no pages published. Authoritative documentation stays in versioned docs/. |
 | Advanced code/secret scanning | Not offered in the current repository security settings. Do not claim CodeQL, secret scanning or push protection are active. Review code and credentials manually; this is not equivalent automated coverage. |
 | Dependency graph and Dependabot alerts | Enabled. Review alerts rather than assuming a clean dependency graph proves application security. |
 | Low-impact development-dependency alert auto-dismissal | Disabled by explicit owner decision. Keep those alerts visible. |
-| Automatic Dependabot updates | Weekly update PRs for GitHub Actions, aimed at the active release branch, from `.github/dependabot.yml`, integrated into `main` by PR #24. Every update is reviewed and merged manually; see [tools/README.md](../tools/README.md#dependency-updates). Alerts and update PRs are separate features. |
+| Automatic Dependabot updates | Weekly update PRs for GitHub Actions, aimed at the active release branch, from `.github/dependabot.yml`; Dependabot reads it from `main`. Every update is reviewed and merged manually; see [tools/README.md](../tools/README.md#dependency-updates). Alerts and update PRs are separate features. |
 | Repository integrity CI | Runs on main/release pushes and PRs, read-only token and full-SHA action pins. Also lints the Python tooling (Ruff, strict mypy) and the workflows (actionlint). Reports are retained for 30 days. Static checks only; no Excel execution. |
 | Labels | Twenty-label catalogue with sync and read-only drift workflows. See LABELS.md for permissions and triggers. |
 
@@ -132,10 +135,9 @@ those controls and must not be represented as enabling all advanced security
 products. The private repository's security settings still do not offer the
 advanced code/secret-scanning sections after the upgrade.
 Reference: [GitHub plans](https://docs.github.com/en/get-started/learning-about-github/githubs-plans).
-Recheck feature availability before future configuration changes. Record the
-ruleset configuration and the remaining Wiki decision under the final setup
-review in issue #13. Issue #2 itself changes
-documentation and the release-branch baseline, not account billing or visibility.
+Recheck feature availability before future configuration changes. The
+ruleset configuration and Wiki state above are the ones accepted at the v0.0.1
+closeout in issue #13.
 
 ## Label workflows
 

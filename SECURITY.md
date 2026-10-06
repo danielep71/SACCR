@@ -46,7 +46,7 @@ production security support.
 
 | Source state | Security support |
 | --- | --- |
-| `release/0.0.1` (active development) | ⚠️ Best effort |
+| `release/1.0.0` (active development) | ⚠️ Best effort |
 | `main` | ⚠️ Best effort |
 | Modified copies or unofficial mirrors | ❌ Unsupported unless reproduced in official source |
 

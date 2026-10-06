@@ -27,8 +27,8 @@ Participation is governed by the [Code of Conduct](CODE_OF_CONDUCT.md).
 Suspected vulnerabilities must never be disclosed in an issue or pull request.
 
 > [!NOTE]
-> SACCR is in its repository-setup milestone, **v0.0.1**. The SA-CCR engine
-> does not exist yet. Its regulatory basis (CRR baseline, Basel CRE52 also
+> Repository setup, milestone **v0.0.1**, is complete. The SA-CCR engine does
+> not exist yet. Its regulatory basis (CRR baseline, Basel CRE52 also
 > supported) and numerical test-case format are in
 > [`docs/methodology/`](docs/methodology/README.md). The regression harness is `TestHarness.RunTests`
 > ([running the harness](INSTALLATION.md#running-the-harness)). The source layout is set in
@@ -57,7 +57,7 @@ Pull requests follow [the PR template](.github/PULL_REQUEST_TEMPLATE.md).
 
 ## 🌿 Development workflow
 
-1. Start from the active release branch, currently `release/0.0.1`. Never assume
+1. Start from the active release branch, currently `release/1.0.0`. Never assume
    GitHub's default branch is the right base.
 2. Create one focused task branch with a descriptive name in the repository
    convention: `fix/<issue>-<slug>`, `docs/<slug>` or `chore/<slug>`.

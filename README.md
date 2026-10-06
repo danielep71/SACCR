@@ -6,7 +6,7 @@
 
 [![Excel VBA](https://img.shields.io/badge/Excel_VBA-Windows-217346?style=for-the-badge&logo=microsoft-excel&logoColor=white)](#status)
 [![Status](https://img.shields.io/badge/Status-Repository_setup-6e7781?style=for-the-badge)](#status)
-[![Milestone](https://img.shields.io/badge/Milestone-v0.0.1-6f42c1?style=for-the-badge)](https://github.com/danielep71/SACCR/milestone/1)
+[![Branch](https://img.shields.io/badge/Branch-release%2F1.0.0-6f42c1?style=for-the-badge)](https://github.com/danielep71/SACCR/tree/release/1.0.0)
 [![License](https://img.shields.io/badge/License-MIT-2ea44f?style=for-the-badge)](LICENSE)
 
 <br>
@@ -27,11 +27,12 @@ workbook driven by exported, reviewable VBA source.
 
 ## 🧭 Status
 
-The project is in its **repository-setup milestone, v0.0.1**. No calculation
-code exists yet. SACCR uses the **application** profile: the deliverable is a
-workbook built from the exported source, around a host-independent calculation
-core ([repository structure](docs/REPOSITORY_STRUCTURE.md)). The current work
-establishes:
+Repository setup, milestone **v0.0.1**, is complete; its accepted baseline is
+recorded in [issue #13](https://github.com/danielep71/SACCR/issues/13). No
+calculation code exists yet. SACCR uses the **application** profile: the
+deliverable is a workbook built from the exported source, around a
+host-independent calculation core
+([repository structure](docs/REPOSITORY_STRUCTURE.md)). Setup established:
 
 - repository conventions, static checks and CI;
 - governance, issue metadata and labels;
@@ -43,18 +44,18 @@ establishes:
 Nothing has been released. See the [changelog](CHANGELOG.md) for what has been
 added so far.
 
-## 🌿 Development during repository setup
+## 🌿 Development
 
-Until milestone **v0.0.1** closes, development and setup take place on
-`release/0.0.1`. Every change goes through a task branch and a pull request
-into that branch. Changes to `main` require an explicit owner instruction.
+Development takes place on the active release branch, `release/1.0.0`. Every
+change goes through a task branch and a pull request into that branch. Changes
+to `main` require an explicit owner instruction.
 
 ## 🚀 Getting started
 
 ```sh
 git clone https://github.com/danielep71/SACCR.git
 cd SACCR
-git switch release/0.0.1
+git switch release/1.0.0
 python tools/check.py
 ```
 

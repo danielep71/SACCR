@@ -23,13 +23,14 @@ sequence**. Day-to-day contribution is owned by
 | Property | State |
 | --- | --- |
 | Released versions | None |
-| Active branch | `release/0.0.1` |
-| Version file | Not present; version semantics are defined in issue #13 |
-| Release evidence tooling | Not present; static checks only (`tools/check.py`) |
+| Active branch | `release/1.0.0` |
+| Version file | Not present; created when the first release is prepared ([versioning](#versioning)) |
+| Release evidence tooling | Static checks (`tools/check.py`) and the Excel evidence validator (`tools/check_excel_evidence.py`) |
 | Excel certification procedure | Harness `TestHarness.RunTests`; evidence bundle and validator in [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) |
 
-Steps below marked *(to be defined)* depend on those issues. Until they land, a
-release cannot be certified and none will be made.
+Steps below marked *(to be defined)* are settled with the first distributed
+artifact. Repository setup, milestone v0.0.1, closed without a release; its
+baseline is recorded in [issue #13](https://github.com/danielep71/SACCR/issues/13).
 
 ## 🌿 Branch model
 
@@ -38,6 +39,25 @@ release cannot be certified and none will be made.
 | `release/<version>` | Active integration branch. Task PRs are squash-merged into it. |
 | `main` | Default branch. Receives the release branch only through an owner-requested PR. |
 | Task branches | One per change, from the release branch, deleted automatically after merge. |
+
+<a id="versioning"></a>
+
+## 🏷️ Versioning
+
+| Item | Convention |
+| --- | --- |
+| Version | Semantic Versioning `MAJOR.MINOR.PATCH`; rules in [`CHANGELOG.md`](CHANGELOG.md#date-and-version-rules) |
+| Release branch | `release/X.Y.Z`, without `v`, opened only by owner decision |
+| Milestone | `vX.Y.Z - <title>`, matching the release branch |
+| `VERSION` | Root file holding one `X.Y.Z` line. Created in the release-preparation PR, never before; afterwards it always names the newest released version |
+| Changelog | Work stays under `## [Unreleased]` until release preparation is approved; the release PR moves it to `## [X.Y.Z] - YYYY-MM-DD` |
+| Tag | Annotated `vX.Y.Z` on the certified commit on `main`; protected by the `v*` tag ruleset |
+| GitHub Release | Created from the tag, with certified artifacts only |
+
+`python tools/check.py` enforces the link between `VERSION` and the changelog:
+once the changelog has a dated release, `VERSION` must exist and equal the
+newest one; a `VERSION` without a dated release fails. Nothing is versioned,
+tagged or released without the owner's explicit request.
 
 <a id="release-invariants"></a>
 
@@ -87,7 +107,8 @@ version. Verify that the branch rulesets are still active in Settings → Rules.
 ### 2. Finalize the changelog
 
 Move the `[Unreleased]` entries into `## [X.Y.Z] - YYYY-MM-DD`, add the link
-reference for the new version and keep an empty `[Unreleased]` section.
+reference for the new version, keep an empty `[Unreleased]` section, and create
+or update `VERSION` to `X.Y.Z` in the same PR.
 `tools/check_source.py` enforces the heading format, real calendar dates and
 link references. Merge this through a task PR into the release branch.
 

@@ -30,7 +30,7 @@ and removal**. Contribution workflow is owned by
 
 ## 🧭 Current status
 
-SACCR is in its repository-setup milestone, **v0.0.1**. There is **no SA-CCR
+Repository setup, milestone **v0.0.1**, is complete. There is **no SA-CCR
 calculation yet**: the only VBA is a neutral scaffold and the regression harness
 that tests it. There is no workbook or add-in to install.
 
@@ -83,10 +83,10 @@ Use a **Git clone**:
 ```sh
 git clone https://github.com/danielep71/SACCR.git
 cd SACCR
-git switch release/0.0.1
+git switch release/1.0.0
 ```
 
-`release/0.0.1` is the active development branch; `main` receives it only on
+`release/1.0.0` is the active development branch; `main` receives it only on
 the owner's request.
 
 Do not use **Code → Download ZIP**. `.gitattributes` excludes repository
