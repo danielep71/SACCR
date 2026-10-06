@@ -117,6 +117,13 @@ def check_changelog(root: Path) -> list[str]:
             findings.append(f"CHANGELOG.md: [{label}] date {dated.group(1)} is not a calendar date")
         if not re.search(rf"^\[{re.escape(label)}\]: \S+$", text, re.M):
             findings.append(f"CHANGELOG.md: missing link reference for [{label}]")
+    releases = [(tuple(int(part) for part in label.split(".")), dated.group(1))
+                for label, suffix in headings
+                if re.fullmatch(SEMVER, label) and (dated := RELEASE_SUFFIX.fullmatch(suffix))]
+    for newer, older in zip(releases, releases[1:]):
+        if newer[0] <= older[0] or newer[1] < older[1]:
+            findings.append("CHANGELOG.md: releases must be listed newest first, by version and date")
+            break
     if "Unreleased" in seen and not re.search(r"^\[Unreleased\]: \S+$", text, re.M):
         findings.append("CHANGELOG.md: missing link reference for [Unreleased]")
     return findings

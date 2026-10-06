@@ -120,6 +120,15 @@ class SourceGateTests(unittest.TestCase):
         (self.root / "VERSION").unlink()
         self.assertIn("VERSION is missing; CHANGELOG.md releases [0.2.0]", self.findings())
 
+    def test_changelog_releases_newest_first(self) -> None:
+        for first, second in (("1.0.0] - 2026-01-01", "2.0.0] - 2026-02-01"),
+                              ("2.0.0] - 2026-01-01", "1.0.0] - 2026-02-01")):
+            self.write("CHANGELOG.md", CHANGELOG.replace("[Unreleased]: ", f"## [{first}\n\n## [{second}\n\n"
+                                                         "[1.0.0]: x\n[2.0.0]: x\n[Unreleased]: "))
+            self.write("VERSION", first.split("]")[0] + "\n")
+            self.assertIn("CHANGELOG.md: releases must be listed newest first, by version and date",
+                          self.findings())
+
     def test_changelog_release_date_must_exist(self) -> None:
         for bad in ("2026-02-31", "2026-99-99"):
             self.write("CHANGELOG.md", CHANGELOG + f"\n## [0.0.1] - {bad}\n\n[0.0.1]: x\n")
