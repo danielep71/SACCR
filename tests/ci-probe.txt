@@ -1,0 +1,1 @@
+Unrelated clean change so the PR head commit itself has no whitespace defect.
