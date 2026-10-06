@@ -204,15 +204,15 @@ Use only the categories needed by a release.
 - Workbook template `src/workbook/SACCR_Template.xlsx` (#58): the prototype's
   12 sheets, formulas, named ranges and buttons with its VBA project removed.
   The workbook is built by saving it as `.xlsm` and importing the source; the
-  template is part of the Excel evidence source inventory. Not yet built and
-  run in Excel from the repository.
+  template is part of the Excel evidence source inventory. Verified in Excel by
+  the owner (#58): a workbook built from it with the repository source ran the
+  harness and Run SA-CCR with the prototype's results.
 
 ### Fixed
 
 - Allow scheduled traffic exports without relying on a webhook payload, while
   retaining the default-branch restriction for manual dispatches (review #53).
   The analytics environment also restricts access to main independently.
-
 - VBA jump checks resolve labels separately in each reachable compilation
   environment; mutually exclusive labels cannot hide missing targets or create
   false duplicates (PRs #21 and #24).
@@ -229,9 +229,8 @@ Use only the categories needed by a release.
 ### Known limitations
 
 - The imported engine is not yet validated under the repository's test-case
-  policy and keeps the deviations listed in `docs/REPOSITORY_STRUCTURE.md`.
-  Building it from the template has not yet been verified in Excel. No automated
-  check compiles VBA or runs Excel.
+  policy and keeps the deviations listed in `docs/REPOSITORY_STRUCTURE.md`. No
+  automated check compiles VBA or runs Excel.
 - Excel evidence is manual and covers one 64-bit host; 32-bit is untested.
 - The methodology sources are registered but not yet verified against their
   official texts.
