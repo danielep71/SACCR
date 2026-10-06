@@ -163,7 +163,8 @@ Replace every value with what was observed. This shape is not evidence.
 Rules the validator applies:
 
 - `excel_version`, `office_bitness` and `runtime` must equal the `version`,
-  `office` and `runtime` values on the harness `ENVIRONMENT=` line.
+  `office` and `runtime` values on the harness `ENVIRONMENT=` line, and that
+  line's `os` must identify Windows.
 - `references` must be exactly the policy's required references, in any order.
 - A stage that did not run has `"status": "NOT_RUN"` and `"log": null`. Compile
   cannot run after a failed import, nor the regression after a failed compile.

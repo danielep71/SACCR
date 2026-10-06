@@ -165,6 +165,11 @@ class ExcelEvidenceTests(unittest.TestCase):
         self.record["environment"]["office_bitness"] = "32-bit"
         self.assertInvalid("office")
 
+    def test_harness_must_report_windows(self) -> None:
+        mac = self.log.replace("os=Windows (64-bit) NT 10.00", "os=Macintosh (Intel) Kernel Version 23.0")
+        self.record["stages"]["regression"] = self.stage("harness.log", mac)
+        self.assertInvalid("os is not Windows")
+
     def test_incomplete_execution(self) -> None:
         self.record["stages"]["regression"] = self.not_run()
         self.record["harness"] = None
