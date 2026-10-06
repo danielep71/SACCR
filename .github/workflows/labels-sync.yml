@@ -43,6 +43,8 @@ jobs:
     steps:
       - name: Check out the exact SHA under review
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Exercise validation, overlays, and reconciliation paths
         run: node .github/scripts/labels-sync.mjs --policy .github/label-policy.json --self-test
@@ -61,6 +63,8 @@ jobs:
     steps:
       - name: Check out the exact SHA to apply
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Exercise validation, overlays, and reconciliation paths
         run: node .github/scripts/labels-sync.mjs --policy .github/label-policy.json --self-test

@@ -8,6 +8,7 @@
 [![Versioning](https://img.shields.io/badge/Versioning-SemVer-6f42c1?style=flat-square)](https://semver.org/spec/v2.0.0.html)
 [![Dates](https://img.shields.io/badge/Dates-YYYY--MM--DD-217346?style=flat-square)](#date-and-version-rules)
 [![Staging](https://img.shields.io/badge/Staging-Unreleased_first-d97706?style=flat-square)](#unreleased)
+[![Contributing](https://img.shields.io/badge/Changes-Contribution_guide-2ea44f?style=flat-square)](CONTRIBUTING.md)
 
 <br>
 
@@ -40,6 +41,9 @@ tracker, or substitute for release evidence.
   explicitly prepared.
 - Do not edit a published release entry except to correct a demonstrable factual
   or link error; annotate material corrections instead of rewriting history.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for change and evidence requirements and
+[SECURITY.md](SECURITY.md) for private vulnerability reporting.
 
 <a id="date-and-version-rules"></a>
 
@@ -110,6 +114,12 @@ Use only the categories needed by a release.
 - Twenty-label issue catalogue from the Excel VBA project template, with a
   workflow that reconciles live labels from `.github/labels.json` and a
   read-only daily drift check. See [`docs/LABELS.md`](docs/LABELS.md).
+- Root project documents in the same form as the other Excel/VBA repositories:
+  [`CONTRIBUTING.md`](CONTRIBUTING.md), [`INSTALLATION.md`](INSTALLATION.md),
+  [`SECURITY.md`](SECURITY.md), [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) and
+  [`RELEASING.md`](RELEASING.md), tailored to SACCR's pre-release state. The
+  README now gives the project status, a getting-started path and a
+  documentation map.
 
 ### Known limitations
 
