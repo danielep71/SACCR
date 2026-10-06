@@ -157,6 +157,18 @@ Use only the categories needed by a release.
   demonstrates the failure path. It exercises a neutral scaffold
   (`CoreScaffold`, `SaccrScaffold`) that the SA-CCR engine will replace.
 
+### Fixed
+
+- VBA jump checks resolve labels separately in each reachable compilation
+  environment; mutually exclusive labels cannot hide missing targets or create
+  false duplicates (PRs #21 and #24).
+- Public API checks inspect colon-separated statements without splitting strings
+  or named arguments; the conditional checker requires `PtrSafe` in the actual
+  declaration modifier position (PRs #21 and #24).
+- The cleanup example reports restoration failures separately from the primary
+  error and attempts both restorations. Metadata triage includes closed issues
+  and documents the maintainer blank-issue bypass (PRs #18 and #19).
+
 ### Known limitations
 
 - The only VBA is the neutral scaffold and the regression harness; there is no

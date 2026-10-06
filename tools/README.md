@@ -31,13 +31,15 @@ the workbook works in Excel.
 
 `check_vba_jumps.py`, `check_vba_conditionals.py` and `check_vba_public_api.py`
 come from EXCEL-VBA-PROJECT-TEMPLATE at commit
-`b903fe44ef6a032c4689870b83745afa1c22490d`. The first two are unchanged. The
+`b903fe44ef6a032c4689870b83745afa1c22490d`. SACCR now evaluates jumps per reachable compilation environment and checks
+`PtrSafe` in the declaration modifier position. The
 public-API checker takes each component's role from its folder, as defined in
 [`docs/REPOSITORY_STRUCTURE.md`](../docs/REPOSITORY_STRUCTURE.md): `src/modules/`
 is public; the other `src/` folders are internal; `tests/` and `examples/` are
 test and example. The template instead reads a component registry from
 `.github/repository-profile.json`, which SACCR does not use. `test_tooling.py`
-adds fixtures for that role mapping.
+adds fixtures for that role mapping. `test_review_regressions.py` covers the
+post-merge findings, including colon-separated public declarations.
 
 ### Direct-call validation: evaluated, not adopted yet
 
@@ -101,8 +103,7 @@ mypy
 `.github/dependabot.yml` asks Dependabot for weekly version updates of the
 GitHub Actions pinned in the workflows. They are opened against the active
 release branch (`target-branch`) and labelled `ci` and `P3`. Dependabot reads
-this file from the default branch, so it takes effect after the next integration
-into `main`. Update `target-branch` whenever a new release branch is opened.
+this file from the default branch; PR #24 integrated it into `main`. Update `target-branch` whenever a new release branch is opened.
 
 Review each update pull request like any other:
 
