@@ -68,6 +68,7 @@ Attribute VB_Name = "CaseRunner"
     'Suite progress.
         Private mSuiteActive     As Boolean    'Between BeginSuite and EndSuite
         Private mExpectedCases   As Long       'Cases TestCases will run
+        Private mExpectedChecks  As Long       'Checks TestCases will run
         Private mCaseCount       As Long       'Cases started
         Private mCheckCount      As Long       'Checks evaluated
         Private mFailureCount    As Long       'Failed checks, runs and restorations
@@ -104,7 +105,8 @@ Attribute VB_Name = "CaseRunner"
 '
 
 Public Sub BeginSuite( _
-    ByVal expectedCases As Long)
+    ByVal expectedCases As Long, _
+    ByVal expectedChecks As Long)
 '
 '==============================================================================
 '                                  BeginSuite
@@ -113,8 +115,9 @@ Public Sub BeginSuite( _
 '   Save everything the cases will overwrite, then prepare Excel.
 '
 ' INPUTS
-'   expectedCases: number of cases TestCases will run; a different count
-'   fails the suite.
+'   expectedCases, expectedChecks: numbers of cases and checks TestCases
+'   will run; a different count fails the suite, so a stale or edited
+'   TestCases module cannot pass with checks missing.
 '
 ' ERROR POLICY
 '   Raises if a suite is already active or the inputs cannot be saved;
@@ -132,6 +135,7 @@ Public Sub BeginSuite( _
             Err.Raise ERR_RUN_ACTIVE, "CaseRunner.BeginSuite", "A case suite is already running."
         End If
         mExpectedCases = expectedCases
+        mExpectedChecks = expectedChecks
         mCaseCount = 0
         mCheckCount = 0
         mFailureCount = 0
@@ -205,16 +209,19 @@ Public Sub EndSuite( _
         restored = RestoreStep("inputs", 1) And restored
         restored = RestoreStep("parameters", 2) And restored
         restored = RestoreStep("outputs", 3) And restored
-        restored = RestoreStep("settings", 4) And restored
+        restored = RestoreStep("calculation", 4) And restored
+        restored = RestoreStep("events", 5) And restored
+        restored = RestoreStep("screen updating", 6) And restored
         mSuiteActive = False
 
 '------------------------------------------------------------------------------
 ' REPORT
 '------------------------------------------------------------------------------
-        complete = (mCaseCount = mExpectedCases)
+        complete = (mCaseCount = mExpectedCases) And (mCheckCount = mExpectedChecks)
         If Not complete Then
             mFailureCount = mFailureCount + 1
-            Debug.Print "FAILURE=suite: expected " & mExpectedCases & " cases, ran " & mCaseCount
+            Debug.Print "FAILURE=suite: expected " & mExpectedCases & " cases and " & mExpectedChecks & _
+                        " checks, ran " & mCaseCount & " and " & mCheckCount
         End If
         Debug.Print "PUBLISHED: passed=" & mPassed(CLASS_PUBLISHED) & "; failed=" & mFailed(CLASS_PUBLISHED)
         Debug.Print "INDEPENDENT: passed=" & mPassed(CLASS_INDEPENDENT) & "; failed=" & mFailed(CLASS_INDEPENDENT)
@@ -470,7 +477,9 @@ Public Sub ExpectNumber( _
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Check a numeric output: |actual - expected| <= max(absolute,
-'   relative * |expected|), as in docs/methodology/TEST_CASES.md.
+'   relative * |expected|), as in docs/methodology/TEST_CASES.md. A
+'   quantity that cannot be negative fails when it is, however small,
+'   before the tolerance is applied.
 '
 ' INPUTS
 '   label: catalogue ID or quantity, for the report.
@@ -504,6 +513,9 @@ Public Sub ExpectNumber( _
             Record label, referenceClass, False, detail
         ElseIf IsError(actual) Or IsEmpty(actual) Or Not IsNumeric(actual) Or VarType(actual) = vbString Then
             Record label, referenceClass, False, quantity & " is not a number"
+        ElseIf CDbl(actual) < 0# And MustBeNonNegative(quantity) Then
+            Record label, referenceClass, False, _
+                   quantity & " must not be negative, actual " & Trim$(Str$(CDbl(actual)))
         Else
             Record label, referenceClass, Abs(CDbl(actual) - expect) <= bound, _
                    quantity & " expected " & expected & ", actual " & Trim$(Str$(CDbl(actual))) & _
@@ -616,6 +628,34 @@ Private Function ReadOutput( _
         End If
         actual = ws.Cells(r, col).Value
         ReadOutput = True
+
+End Function
+
+
+Private Function MustBeNonNegative( _
+    ByVal quantity As String) _
+    As Boolean
+'
+'==============================================================================
+'                              MustBeNonNegative
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Tell whether a quantity is non-negative by definition, so that a
+'   negative result fails whatever the tolerance (TEST_CASES.md).
+'   Supervisory delta and adjusted notional carry a sign and are excluded.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+        Select Case quantity
+            Case "exposure_value", "replacement_cost", "potential_future_exposure", _
+                 "aggregate_add_on", "multiplier", "margin_period_of_risk", _
+                 "supervisory_factor", "lambda_shift"
+                MustBeNonNegative = True
+            Case Else
+                MustBeNonNegative = (Left$(quantity, 7) = "add_on.")
+        End Select
 
 End Function
 
@@ -749,7 +789,9 @@ Private Function RestoreStep( _
 '
 ' INPUTS
 '   stepName: name for the report.
-'   stepNumber: 1 inputs, 2 parameters, 3 outputs, 4 Excel settings.
+'   stepNumber: 1 inputs, 2 parameters, 3 outputs, 4 calculation mode,
+'   5 events, 6 screen updating. Each setting is its own step, so one
+'   failed restoration cannot leave the others changed.
 '
 ' RETURNS
 '   True when the step succeeded.
@@ -774,7 +816,9 @@ Private Function RestoreStep( _
                 M_Engine.Calculate True
             Case 4
                 Application.Calculation = mSavedCalculation
+            Case 5
                 Application.EnableEvents = mSavedEvents
+            Case 6
                 Application.ScreenUpdating = mSavedScreen
         End Select
         RestoreStep = True

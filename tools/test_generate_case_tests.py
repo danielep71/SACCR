@@ -31,8 +31,8 @@ class GenerateCaseTestsTests(unittest.TestCase):
     def test_every_expected_file_becomes_one_case(self) -> None:
         module = generator.generate(ROOT)
         expected_files = sorted((ROOT / generator.EXPECTED).glob("*.json"))
-        self.assertIn(f"CaseRunner.BeginSuite {len(expected_files)}\r\n", module)
         outputs = sum(len(json.loads(p.read_text())["outputs"]) for p in expected_files)
+        self.assertIn(f"CaseRunner.BeginSuite {len(expected_files)}, {outputs}\r\n", module)
         self.assertEqual(module.count("CaseRunner.Expect"), outputs)
         self.assertNotIn("\n", module.replace("\r\n", ""))
 

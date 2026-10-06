@@ -129,7 +129,7 @@ def generate(root: Path) -> str:
             "'" + "=" * 78, "'" + "RunCaseTests".center(78).rstrip(), "'" + "-" * 78,
             "' PURPOSE", f"'   Run the {len(cases)} expected files in file-name order, then restore the workbook.",
             "'" + "=" * 78, "'",
-            f"        CaseRunner.BeginSuite {len(cases)}",
+            f"        CaseRunner.BeginSuite {len(cases)}, {sum(len(e['outputs']) for e, _ in cases)}",
             "        On Error GoTo Failed"]
     out += [f"        {name}" for name in names]
     out += ["        CaseRunner.EndSuite \"\"", "        Exit Sub", "", "Failed:",
