@@ -1,0 +1,63 @@
+name: "📖 Documentation"
+description: "Report missing, wrong or unclear documentation."
+title: "[Docs]: "
+labels: ["documentation", "P3"]
+assignees: ["danielep71"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Triage sets the milestone and confirms the priority (default `P3`).
+
+  - type: input
+    id: location
+    attributes:
+      label: Document and section
+      placeholder: INSTALLATION.md → Building a workbook from source
+    validations:
+      required: true
+
+  - type: dropdown
+    id: problem_type
+    attributes:
+      label: Problem type
+      options:
+        - Incorrect
+        - Missing
+        - Unclear
+        - Out of date
+        - Broken link or example
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Current problem and impact
+    validations:
+      required: true
+
+  - type: textarea
+    id: correction
+    attributes:
+      label: Proposed correction
+    validations:
+      required: true
+
+  - type: textarea
+    id: source
+    attributes:
+      label: Authoritative source
+      description: The code, contract, regulatory text or decision the corrected text must match.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I checked the current documentation on the active release branch.
+          required: true
+        - label: This request contains no secrets, private links or real portfolio data.
+          required: true

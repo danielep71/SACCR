@@ -1,0 +1,101 @@
+name: "🐛 Bug report"
+description: "Report reproducible incorrect behavior in SACCR source, tooling or documentation."
+title: "[Bug]: "
+labels: ["bug", "P2"]
+assignees: ["danielep71"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use synthetic data only. Never paste real trades, netting sets, counterparty or collateral data, credentials or private workbooks. Report vulnerabilities privately as described in `SECURITY.md`.
+
+        Triage sets the milestone and confirms the priority (default `P2`).
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Calculation engine (src/core)
+        - Public API (src/modules)
+        - Workbook and user interface
+        - Tests and fixtures
+        - Tooling and CI
+        - Documentation
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Defect and impact
+      description: What is wrong, who is affected and what the consequence is. For a calculation defect, name the affected quantity (RC, PFE, add-on, multiplier, EAD).
+    validations:
+      required: true
+
+  - type: input
+    id: source
+    attributes:
+      label: Exact commit
+      description: Full 40-character commit SHA, or release tag, that reproduces the defect.
+      placeholder: 0123456789abcdef0123456789abcdef01234567
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Deterministic steps and synthetic inputs.
+      placeholder: |
+        1. Build the workbook from the commit above (INSTALLATION.md)
+        2. Enter ... / call ... with ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: The expected result, error or state, with its independent source (regulatory paragraph, published example or independent calculation).
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Observed behavior
+      description: Exact values or error messages, and whether the failure is repeatable.
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      value: |
+        Excel version/build:
+        Office bitness:
+        Windows version:
+        Locale / decimal separator:
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What must be true for this to be fixed, including the regression test that must pass.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I searched open and closed issues for an equivalent report.
+          required: true
+        - label: This report contains only synthetic data and no vulnerability details, secrets or private links.
+          required: true

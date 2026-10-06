@@ -135,6 +135,10 @@ Use only the categories needed by a release.
   hosts (Excel 2016+/Microsoft 365 on Windows, 64-bit supported, 32-bit best
   effort, default references only) and gives the step-by-step build-from-source
   and export procedure.
+- Issue forms for bugs, features and documentation, and a pull-request
+  template, adapted to SACCR and its label catalogue. Forms set the assignee,
+  type label and a default priority; `docs/GOVERNANCE.md` documents the manual
+  milestone step and a three-search triage check for issue metadata.
 
 ### Known limitations
 
