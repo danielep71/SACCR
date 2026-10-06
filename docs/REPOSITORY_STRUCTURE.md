@@ -115,8 +115,7 @@ A VBA `Public` declaration is not automatically supported API.
 - **Never supported:** test and example modules. They are not part of the
   workbook.
 
-The manifest lists the setup scaffold, `SaccrScaffold`, and the ten `SACCR_*`
-worksheet functions in `M_Formulas`.
+The manifest lists the ten `SACCR_*` worksheet functions in `M_Formulas`.
 
 <a id="known-deviations"></a>
 

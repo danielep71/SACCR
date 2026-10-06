@@ -4,9 +4,9 @@ Attribute VB_Name = "TestHarness"
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Run a deterministic, dependency-free regression suite and report complete,
-'   machine-checkable evidence to the Immediate window. The first cases
-'   exercise the setup scaffold (CoreScaffold, SaccrScaffold); SA-CCR cases are
-'   added here as the engine is built.
+'   machine-checkable evidence to the Immediate window. The cases exercise the
+'   SA-CCR worksheet functions in M_Formulas; more SA-CCR cases are added here
+'   as the engine is refactored.
 '
 ' PUBLIC SURFACE
 '   RunTests is the documented test entry point. RunTestsWithInjectedFailure
@@ -16,7 +16,7 @@ Attribute VB_Name = "TestHarness"
 '   automation API.
 '
 ' DEPENDENCIES
-'   SaccrScaffold and the built-in VBA/Excel object models only. No external
+'   M_Formulas and the built-in VBA/Excel object models only. No external
 '   references, workbook fixture, worksheet, donor project, or test framework.
 '
 ' STATE OWNERSHIP
@@ -25,7 +25,7 @@ Attribute VB_Name = "TestHarness"
 '   next run/reset so the final summary remains inspectable.
 '
 ' ERROR POLICY
-'   Expected facade errors are captured and asserted. Unexpected runner errors
+'   Expected worksheet error values are asserted. Unexpected runner errors
 '   are recorded, cleanup runs, and the original number/source/description is
 '   re-raised. Assertion failures raise one test-suite error after reporting.
 '
@@ -36,8 +36,9 @@ Attribute VB_Name = "TestHarness"
 '   workbook or worksheet state.
 '
 ' TEST SEAM
-'   Tests the supported SaccrScaffold surface. The fixed core boundary can be
-'   exercised by future focused tests without adding production API.
+'   Tests the supported M_Formulas surface listed in docs/PUBLIC_API.txt. Core
+'   procedures can be exercised by future focused tests without adding
+'   production API.
 '
 ' COMPATIBILITY
 '   Excel VBA on Windows; host evidence identifies the actual Office bitness
@@ -174,9 +175,9 @@ Public Sub RunTests()
     'Run cases in the evidence contract order; each case records unexpected
     'errors so later cases can still contribute to the report.
         PrintEnvironment
-        TestExactEquality
-        TestTolerance
-        TestExpectedError
+        TestReplacementCost
+        TestMaturityFactor
+        TestCdoDeltaError
         TestRepeatability
 
     'Require both counts so an early return cannot produce a complete PASS.
@@ -282,7 +283,7 @@ Public Sub RunTestsWithInjectedFailure()
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Demonstrate the failure path: run the full suite with one deliberately
-'   wrong expectation in ratio.exact.
+'   wrong expectation in replacement-cost.exact.
 '
 ' USAGE
 '   Run TestHarness.RunTestsWithInjectedFailure from the VBE Immediate window.
@@ -346,13 +347,14 @@ End Sub
 '------------------------------------------------------------------------------
 '
 
-Private Sub TestExactEquality()
+Private Sub TestReplacementCost()
 '
 '==============================================================================
-'                              TestExactEquality
+'                             TestReplacementCost
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Check one exactly representable quotient through the public facade.
+'   Check unmargined and margined replacement cost [CRE52.10, CRE52.18] on
+'   binary-exact inputs.
 '
 ' ERROR POLICY
 '   Record unexpected case errors and let the remaining suite continue.
@@ -366,23 +368,28 @@ Private Sub TestExactEquality()
 ' DECLARE
 '------------------------------------------------------------------------------
     'Hold the expectation separately so injected-failure mode can change it.
-    Dim expected   As Double    'Expected quotient for this case
+    Dim expected   As Double    'Expected unmargined replacement cost
 
 '------------------------------------------------------------------------------
 ' RUN CASE
 '------------------------------------------------------------------------------
-    'Use a binary-exact quotient so this case checks equality without a
-    'tolerance that could hide an incorrect result. In injected-failure mode
-    'the expectation is deliberately wrong, so the assertion must fail.
+    'Integer inputs keep both results exact, so equality is required without
+    'a tolerance. Unmargined: max(100 - 30, 0) = 70. Margined:
+    'max(10 - 20, 50 + 5 - 15, 0) = 40. In injected-failure mode the first
+    'expectation is deliberately wrong, so that assertion must fail.
         On Error GoTo CaseFailed
 
-        BeginCase "ratio.exact"
-        expected = 2.5
-        If mInjectFailure Then expected = 3.5
+        BeginCase "replacement-cost.exact"
+        expected = 70#
+        If mInjectFailure Then expected = 71#
         AssertEqualDouble _
-            "ScaffoldRatio(10, 4)", _
+            "SACCR_ReplacementCost(100, 30)", _
             expected, _
-            SaccrScaffold.ScaffoldRatio(10#, 4#)
+            M_Formulas.SACCR_ReplacementCost(100#, 30#)
+        AssertEqualDouble _
+            "SACCR_ReplacementCost(10, 20, margined, TH 50, MTA 5, NICA 15)", _
+            40#, _
+            M_Formulas.SACCR_ReplacementCost(10#, 20#, True, 50#, 5#, 15#)
         Exit Sub
 
 '------------------------------------------------------------------------------
@@ -390,18 +397,19 @@ Private Sub TestExactEquality()
 '------------------------------------------------------------------------------
 CaseFailed:
     'Record this case as failed without aborting the remaining cases.
-        RecordUnexpectedCaseError "ratio.exact"
+        RecordUnexpectedCaseError "replacement-cost.exact"
 
 End Sub
 
 
-Private Sub TestTolerance()
+Private Sub TestMaturityFactor()
 '
 '==============================================================================
-'                                TestTolerance
+'                              TestMaturityFactor
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Check a recurring quotient against an explicit absolute tolerance.
+'   Check the margined and unmargined maturity factor [CRE52.48, CRE52.52]
+'   against explicit absolute tolerances.
 '
 ' ERROR POLICY
 '   Record unexpected case errors and let the remaining suite continue.
@@ -414,15 +422,21 @@ Private Sub TestTolerance()
 '------------------------------------------------------------------------------
 ' RUN CASE
 '------------------------------------------------------------------------------
-    'Use a recurring quotient to exercise the absolute-tolerance assertion
-    'with an explicit reference value and bound.
+    'Both results involve a square root, so they are compared with an
+    'explicit bound. Margined, MPOR 10 business days: 1.5 * sqrt(10/250) = 0.3.
+    'Unmargined, M = 0.5 years: sqrt(0.5).
         On Error GoTo CaseFailed
 
-        BeginCase "ratio.tolerance"
+        BeginCase "maturity-factor.tolerance"
         AssertNear _
-            "ScaffoldRatio(1, 3)", _
-            0.333333333333333, _
-            SaccrScaffold.ScaffoldRatio(1#, 3#), _
+            "SACCR_MaturityFactor(margined, MPOR 10)", _
+            0.3, _
+            M_Formulas.SACCR_MaturityFactor(0#, True, 10#), _
+            0.000000000001
+        AssertNear _
+            "SACCR_MaturityFactor(0.5)", _
+            0.707106781186548, _
+            M_Formulas.SACCR_MaturityFactor(0.5), _
             0.000000000001
         Exit Sub
 
@@ -431,22 +445,23 @@ Private Sub TestTolerance()
 '------------------------------------------------------------------------------
 CaseFailed:
     'Keep the unexpected failure associated with the tolerance case.
-        RecordUnexpectedCaseError "ratio.tolerance"
+        RecordUnexpectedCaseError "maturity-factor.tolerance"
 
 End Sub
 
 
-Private Sub TestExpectedError()
+Private Sub TestCdoDeltaError()
 '
 '==============================================================================
-'                              TestExpectedError
+'                              TestCdoDeltaError
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Verify the zero-denominator error number, source, and description.
+'   Verify that an invalid tranche, attachment not below detachment, returns
+'   the worksheet error #NUM! [CRE52.41].
 '
 ' ERROR POLICY
-'   Capture the expected error before further calls can alter Err. A normal
-'   return is a failure; errors during verification are unexpected failures.
+'   The function signals invalid input with an error value, not a raised
+'   error; a raised error is recorded as unexpected.
 '
 ' UPDATED
 '   2026-10-06
@@ -454,58 +469,24 @@ Private Sub TestExpectedError()
 '
 
 '------------------------------------------------------------------------------
-' DECLARE
+' RUN CASE
 '------------------------------------------------------------------------------
-    'Capture the facade error as values before calling assertion helpers.
-    Dim actualDescription   As String    'Error description captured from the facade
-    Dim actualNumber        As Long      'Error number captured from the facade
-    Dim actualSource        As String    'Error source captured from the facade
-    Dim ignored             As Double    'Unexpected return value if the call fails to raise
-
-'------------------------------------------------------------------------------
-' CALL EXPECTED FAILURE
-'------------------------------------------------------------------------------
-    'A zero denominator must raise. Reaching the next statement is itself
-    'a failure, regardless of the returned numeric value.
-        BeginCase "ratio.zero-denominator"
-        On Error GoTo ExpectedError
-
-        ignored = SaccrScaffold.ScaffoldRatio(1#, 0#)
-        RecordFailure _
-            "ratio.zero-denominator.raises", _
-            "Expected an error, but the call returned " & CStr(ignored) & "."
-        Exit Sub
-
-'------------------------------------------------------------------------------
-' VERIFY EXPECTED ERROR
-'------------------------------------------------------------------------------
-ExpectedError:
-    'Snapshot the expected error before resetting error-handling mode and
-    'installing a separate handler for assertion-time failures.
-        actualNumber = Err.Number
-        actualSource = Err.Source
-        actualDescription = Err.Description
-        On Error GoTo 0
+    'Attachment 0.5 above detachment 0.3 is not a valid tranche.
         On Error GoTo CaseFailed
 
-    'Check captured values rather than the mutable live Err object.
-        AssertExpectedError _
-            "ratio.zero-denominator", _
-            SaccrScaffold.SACCR_ERROR_ZERO_DENOMINATOR, _
-            "SACCR.ScaffoldRatio", _
-            "Denominator must not be zero.", _
-            actualNumber, _
-            actualSource, _
-            actualDescription
+        BeginCase "cdo-delta.invalid-tranche"
+        AssertErrorValue _
+            "SACCR_CDODelta(0.5, 0.3)", _
+            xlErrNum, _
+            M_Formulas.SACCR_CDODelta(0.5, 0.3, True)
         Exit Sub
 
 '------------------------------------------------------------------------------
 ' HANDLE CASE ERROR
 '------------------------------------------------------------------------------
 CaseFailed:
-    'Treat a failure during verification as unexpected, not as evidence
-    'that the original facade call raised the correct error.
-        RecordUnexpectedCaseError "ratio.zero-denominator"
+    'Treat a raised error as unexpected: the contract is an error value.
+        RecordUnexpectedCaseError "cdo-delta.invalid-tranche"
 
 End Sub
 
@@ -516,7 +497,7 @@ Private Sub TestRepeatability()
 '                              TestRepeatability
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Verify identical facade results for two calls with the same inputs.
+'   Verify identical option-delta results for two calls with the same inputs.
 '
 ' ERROR POLICY
 '   Record unexpected case errors and let the remaining suite continue.
@@ -536,13 +517,14 @@ Private Sub TestRepeatability()
 '------------------------------------------------------------------------------
 ' RUN CASE
 '------------------------------------------------------------------------------
-    'Call the facade twice with identical signed inputs to detect a result
-    'that depends on residual state from an earlier invocation.
+    'Call the function twice with identical inputs to detect a result that
+    'depends on residual state from an earlier invocation. An error value
+    'fails the conversion and is recorded as unexpected.
         On Error GoTo CaseFailed
 
-        BeginCase "ratio.repeatability"
-        firstResult = SaccrScaffold.ScaffoldRatio(-9#, 4#)
-        secondResult = SaccrScaffold.ScaffoldRatio(-9#, 4#)
+        BeginCase "option-delta.repeatability"
+        firstResult = CDbl(M_Formulas.SACCR_OptionDelta(100#, 100#, 1#, 0.2, True, True))
+        secondResult = CDbl(M_Formulas.SACCR_OptionDelta(100#, 100#, 1#, 0.2, True, True))
         AssertEqualDouble "Repeated calls", firstResult, secondResult
         Exit Sub
 
@@ -551,7 +533,7 @@ Private Sub TestRepeatability()
 '------------------------------------------------------------------------------
 CaseFailed:
     'Report the failed repeatability case and allow suite finalization.
-        RecordUnexpectedCaseError "ratio.repeatability"
+        RecordUnexpectedCaseError "option-delta.repeatability"
 
 End Sub
 
@@ -672,67 +654,20 @@ Private Sub AssertNear( _
 End Sub
 
 
-Private Sub AssertExpectedError( _
+Private Sub AssertErrorValue( _
     ByVal assertionName As String, _
-    ByVal expectedNumber As Long, _
-    ByVal expectedSource As String, _
-    ByVal expectedDescription As String, _
-    ByVal actualNumber As Long, _
-    ByVal actualSource As String, _
-    ByVal actualDescription As String)
+    ByVal expectedCode As Long, _
+    ByVal actual As Variant)
 '
 '==============================================================================
-'                             AssertExpectedError
+'                               AssertErrorValue
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Verify the three stable fields of a captured facade error.
+'   Count one assertion and require a specific worksheet error value.
 '
 ' INPUTS
-'   assertionName prefixes three checks. The expected and actual number,
-'   source, and description are supplied as captured scalar values.
-'
-' SIDE EFFECTS
-'   Delegate to three assertions; do not read the live Err object.
-'
-' UPDATED
-'   2026-10-06
-'==============================================================================
-'
-
-'------------------------------------------------------------------------------
-' ASSERT ERROR CONTRACT
-'------------------------------------------------------------------------------
-    'Keep number, source and description as three independent assertions
-    'so a partially correct error cannot satisfy the complete contract.
-        AssertEqualLong _
-            assertionName & ".number", _
-            expectedNumber, _
-            actualNumber
-        AssertEqualString _
-            assertionName & ".source", _
-            expectedSource, _
-            actualSource
-        AssertEqualString _
-            assertionName & ".description", _
-            expectedDescription, _
-            actualDescription
-
-End Sub
-
-
-Private Sub AssertEqualLong( _
-    ByVal assertionName As String, _
-    ByVal expected As Long, _
-    ByVal actual As Long)
-'
-'==============================================================================
-'                               AssertEqualLong
-'------------------------------------------------------------------------------
-' PURPOSE
-'   Count one assertion and require exact Long equality.
-'
-' INPUTS
-'   assertionName identifies the check; expected and actual are compared.
+'   assertionName identifies the check; expectedCode is an xlErr constant;
+'   actual is the value returned by the function under test.
 '
 ' ERROR POLICY
 '   Append a mismatch to the run report without raising an assertion error.
@@ -745,50 +680,17 @@ Private Sub AssertEqualLong( _
 '------------------------------------------------------------------------------
 ' ASSERT
 '------------------------------------------------------------------------------
-    'Compare the integer contract exactly; a mismatched error number must
-    'not be accepted because the source or description happens to match.
+    'Check the type before comparing: comparing a number with an error value
+    'raises instead of returning False.
         mAssertionCount = mAssertionCount + 1
-        If actual <> expected Then
+        If Not IsError(actual) Then
             RecordFailure _
                 assertionName, _
-                "expected=" & CStr(expected) & "; actual=" & CStr(actual)
-        End If
-
-End Sub
-
-
-Private Sub AssertEqualString( _
-    ByVal assertionName As String, _
-    ByVal expected As String, _
-    ByVal actual As String)
-'
-'==============================================================================
-'                              AssertEqualString
-'------------------------------------------------------------------------------
-' PURPOSE
-'   Count one assertion and require binary, case-sensitive string equality.
-'
-' INPUTS
-'   assertionName identifies the check; expected and actual are compared.
-'
-' ERROR POLICY
-'   Append a mismatch to the run report without raising an assertion error.
-'
-' UPDATED
-'   2026-10-06
-'==============================================================================
-'
-
-'------------------------------------------------------------------------------
-' ASSERT
-'------------------------------------------------------------------------------
-    'Use binary comparison so case changes in the error source or message
-    'remain observable contract differences, independent of text settings.
-        mAssertionCount = mAssertionCount + 1
-        If StrComp(actual, expected, vbBinaryCompare) <> 0 Then
+                "expected error " & CStr(expectedCode) & "; actual type=" & TypeName(actual)
+        ElseIf actual <> CVErr(expectedCode) Then
             RecordFailure _
                 assertionName, _
-                "expected=""" & expected & """; actual=""" & actual & """"
+                "expected error " & CStr(expectedCode) & "; actual=" & CStr(actual)
         End If
 
 End Sub

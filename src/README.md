@@ -18,8 +18,6 @@ Current source:
 - the prototype engine imported from `SACCR_Calculator.xlsm`: `core/M_Config`,
   `core/M_Util`, `core/M_Engine`, the worksheet functions in
   `modules/M_Formulas`, and `workbook/M_Main` with the 13 document modules;
-- the setup scaffold the regression harness tests: `core/CoreScaffold.bas` and
-  `modules/SaccrScaffold.bas`;
 - `workbook/SACCR_Template.xlsx`: the prototype's 12 sheets with their
   formulas, named ranges and buttons, and its VBA project removed.
 

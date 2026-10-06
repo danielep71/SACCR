@@ -17,8 +17,8 @@ import check_excel_evidence as evidence
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = {
-    "src/core/CoreScaffold.bas": "Attribute VB_Name = \"CoreScaffold\"\n",
-    "src/modules/SaccrScaffold.bas": "Attribute VB_Name = \"SaccrScaffold\"\n",
+    "src/core/M_Engine.bas": "Attribute VB_Name = \"M_Engine\"\n",
+    "src/modules/M_Formulas.bas": "Attribute VB_Name = \"M_Formulas\"\n",
     "src/forms/FSample.frm": "Attribute VB_Name = \"FSample\"\n",
     "src/forms/FSample.frx": "binary resource\n",
     "src/workbook/SACCR_Template.xlsx": "template bytes\n",
@@ -77,7 +77,7 @@ class ExcelEvidenceTests(unittest.TestCase):
             },
             "harness": {"entry_point": "TestHarness.RunTests", "cases": 4, "assertions": 6,
                         "failures": 0, "completeness": "COMPLETE", "expected_errors": [
-                            {"case": "ratio.zero-denominator", "status": "PASS",
+                            {"case": "cdo-delta.invalid-tranche", "status": "PASS",
                              "detail": "Implied by the complete passing suite"}]},
         }
 
@@ -108,8 +108,8 @@ class ExcelEvidenceTests(unittest.TestCase):
 
     def test_inventory_is_exact_import_set(self) -> None:
         paths = [item["path"] for item in self.record["sources"]]
-        self.assertEqual(paths, ["src/core/CoreScaffold.bas", "src/forms/FSample.frm",
-                                 "src/forms/FSample.frx", "src/modules/SaccrScaffold.bas",
+        self.assertEqual(paths, ["src/core/M_Engine.bas", "src/forms/FSample.frm",
+                                 "src/forms/FSample.frx", "src/modules/M_Formulas.bas",
                                  "src/workbook/SACCR_Template.xlsx", "tests/modules/TestHarness.bas"])
         expected = hashlib.sha256(SOURCES["tests/modules/TestHarness.bas"].encode()).hexdigest()
         self.assertEqual(self.record["sources"][-1]["sha256"], expected)
@@ -132,7 +132,7 @@ class ExcelEvidenceTests(unittest.TestCase):
         self.assertInvalid("source inventory")
 
     def test_source_changed_after_candidate(self) -> None:
-        (self.root / "src/core/CoreScaffold.bas").write_text("changed\n")
+        (self.root / "src/core/M_Engine.bas").write_text("changed\n")
         self.commit("Later change")
         self.record["candidate_sha"] = self.git("-C", str(self.root), "rev-parse", "HEAD").strip()
         self.path.write_text(json.dumps(self.record))
@@ -182,7 +182,7 @@ class ExcelEvidenceTests(unittest.TestCase):
         self.record["harness"]["completeness"] = "INCOMPLETE"
         self.assertInvalid("contradicts")
         self.record["harness"]["completeness"] = "COMPLETE"
-        partial = self.log.replace("CASE=ratio.repeatability\n", "")
+        partial = self.log.replace("CASE=option-delta.repeatability\n", "")
         self.record["stages"]["regression"] = self.stage("harness.log", partial)
         self.assertInvalid("CASE")
 
@@ -204,7 +204,7 @@ class ExcelEvidenceTests(unittest.TestCase):
         self.record["harness"].update(harness)
 
     def test_test_failure(self) -> None:
-        failed = self.log.replace("FAILURES=0", "FAILURES=1\nFAILURE_DETAILS=ratio.exact: expected=3,5").replace(
+        failed = self.log.replace("FAILURES=0", "FAILURES=1\nFAILURE_DETAILS=replacement-cost.exact: expected=71").replace(
             "RESULT=PASS", "RESULT=FAIL").replace("failures=0", "failures=1")
         self.failed_regression(failed, failures=1)
         self.record["harness"]["expected_errors"][0]["status"] = "FAIL"

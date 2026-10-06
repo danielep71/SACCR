@@ -32,7 +32,7 @@ and removal**. Contribution workflow is owned by
 
 Repository setup, milestone **v0.0.1**, is complete. There is **no SA-CCR
 release yet**: the VBA is the prototype engine imported from
-`SACCR_Calculator.xlsm`, plus the scaffold and the regression harness. The
+`SACCR_Calculator.xlsm`, plus the regression harness. The
 workbook is built from the macro-free template `src/workbook/SACCR_Template.xlsx`
 and the VBA in `src/` and `tests/`.
 
@@ -162,14 +162,12 @@ The exact component list is added here with the first VBA source.
 
    | # | File | Component | Role |
    | ---: | --- | --- | --- |
-   | 1 | `src/core/CoreScaffold.bas` | `CoreScaffold` | Internal; neutral checked division for the scaffold |
-   | 2 | `src/core/M_Config.bas` | `M_Config` | Internal; sheet layout and parameter constants |
-   | 3 | `src/core/M_Engine.bas` | `M_Engine` | Internal; SA-CCR calculation run |
-   | 4 | `src/core/M_Util.bas` | `M_Util` | Internal; conversions and sheet helpers |
-   | 5 | `src/modules/M_Formulas.bas` | `M_Formulas` | Public worksheet functions `SACCR_*` (`docs/PUBLIC_API.txt`) |
-   | 6 | `src/modules/SaccrScaffold.bas` | `SaccrScaffold` | Public facade (`docs/PUBLIC_API.txt`) |
-   | 7 | `src/workbook/M_Main.bas` | `M_Main` | Sheet-button macros `RunSACCR`, `ValidateInputs`, `ClearOutputs` |
-   | 8 | `tests/modules/TestHarness.bas` | `TestHarness` | Regression harness; development workbook only |
+   | 1 | `src/core/M_Config.bas` | `M_Config` | Internal; sheet layout and parameter constants |
+   | 2 | `src/core/M_Engine.bas` | `M_Engine` | Internal; SA-CCR calculation run |
+   | 3 | `src/core/M_Util.bas` | `M_Util` | Internal; conversions and sheet helpers |
+   | 4 | `src/modules/M_Formulas.bas` | `M_Formulas` | Public worksheet functions `SACCR_*` (`docs/PUBLIC_API.txt`) |
+   | 5 | `src/workbook/M_Main.bas` | `M_Main` | Sheet-button macros `RunSACCR`, `ValidateInputs`, `ClearOutputs` |
+   | 6 | `tests/modules/TestHarness.bas` | `TestHarness` | Regression harness; development workbook only |
 
    The sheet buttons call `RunSACCR`, `ValidateInputs` and `ClearOutputs`, so
    they work once `M_Main` is imported.
@@ -228,7 +226,8 @@ To see the failure path, run:
 TestHarness.RunTestsWithInjectedFailure
 ```
 
-It runs the same suite with one deliberately wrong expectation and must print
+It runs the same suite with one deliberately wrong expectation, in
+`replacement-cost.exact`, and must print
 `MODE=INJECTED_FAILURE` and
 `RESULT=FAIL; completeness=COMPLETE; cases=4; assertions=6; failures=1; cleanup=PASS`,
 followed by the suite failure error. If a run is interrupted, run

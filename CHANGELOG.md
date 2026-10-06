@@ -155,8 +155,10 @@ Use only the categories needed by a release.
   assertions with stable case names, refuses to report `PASS` unless all
   expected cases and assertions ran, verifies Excel settings are unchanged, and
   prints a machine-readable `RESULT=` line. `RunTestsWithInjectedFailure`
-  demonstrates the failure path. It exercises a neutral scaffold
-  (`CoreScaffold`, `SaccrScaffold`) that the SA-CCR engine will replace.
+  demonstrates the failure path. Its four cases exercise the engine's worksheet
+  functions: replacement cost, maturity factor, the CDO-delta `#NUM!` result
+  for an invalid tranche, and option-delta repeatability. The v0.0.1 setup
+  scaffold it first tested (`CoreScaffold`, `SaccrScaffold`) is removed.
 - Excel evidence bound to an exact commit:
   [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) gives the manual
   Windows/Excel procedure and record format, and
