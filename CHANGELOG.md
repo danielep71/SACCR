@@ -190,6 +190,10 @@ Use only the categories needed by a release.
 
 ### Fixed
 
+- Allow scheduled traffic exports without relying on a webhook payload, while
+  retaining the default-branch restriction for manual dispatches (review #53).
+  The analytics environment also restricts access to main independently.
+
 - VBA jump checks resolve labels separately in each reachable compilation
   environment; mutually exclusive labels cannot hide missing targets or create
   false duplicates (PRs #21 and #24).

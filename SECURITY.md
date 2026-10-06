@@ -143,7 +143,12 @@ an issue, unless it creates concrete security impact.
   and keeps credentials to push its data to the `traffic-history` branch. Its
   `TRAFFIC_TOKEN`, a fine-grained token with `Administration: read` on this
   repository only, lives in the `analytics` environment; rotate it every 90
-  days and immediately if the workflow is changed by anyone but the owner. The static-check and
+  days and immediately if the workflow is changed by anyone but the owner.
+  The `analytics` environment separately allows only the `main` branch and no
+  tags (configured 2026-10-06). Keep this restriction before adding its token;
+  update the allowlist if the default branch changes. The workflow guard alone
+  is not a security boundary against an edited workflow on another branch.
+  The static-check and
   pull-request label jobs run with a read-only token. The label-sync workflow
   grants `issues: write` only to its reconciliation job, which runs on pushes to
   `main` and manual dispatch, never on pull requests. All actions are pinned to full
