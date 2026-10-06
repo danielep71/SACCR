@@ -7,12 +7,19 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use synthetic data only. Triage sets the milestone and confirms the priority (default `P2`).
+        ## ✨ Feature or calculation change
+
+        **Outcome first · Cited rule · Verifiable acceptance · Explicit boundaries**
+
+        Describe the result you need and how it will be proved, before any implementation. A calculation change cites its regulatory source and states units and valid input domains. Triage sets the milestone and confirms the priority (default `P2`).
+
+        > [!NOTE]
+        > CRR is the baseline regime and Basel CRE52 is also supported; see [`docs/methodology/`](https://github.com/danielep71/SACCR/blob/main/docs/methodology/README.md). Use synthetic data only.
 
   - type: dropdown
     id: area
     attributes:
-      label: Area
+      label: "🎚️ Area"
       options:
         - Calculation engine (src/core)
         - Public API (src/modules)
@@ -24,10 +31,22 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: regime
+    attributes:
+      label: "⚖️ Regime"
+      options:
+        - CRR (baseline)
+        - Basel CRE52 (BCBS)
+        - Both
+        - Not regime-specific
+    validations:
+      required: true
+
   - type: textarea
     id: problem
     attributes:
-      label: Problem and user
+      label: "🎯 Problem and user"
       description: What need is unmet, and for whom.
     validations:
       required: true
@@ -35,33 +54,41 @@ body:
   - type: textarea
     id: outcome
     attributes:
-      label: Requested behavior
-      description: The observable result. For a calculation change, cite the regulatory paragraph or published example and state units and valid input domains.
+      label: "🧩 Requested behavior"
+      description: The observable result. For a calculation change, cite the source and locator (for example CRR Article 275(1)) and state units and valid input domains.
     validations:
       required: true
 
   - type: textarea
     id: acceptance
     attributes:
-      label: Acceptance criteria
+      label: "🏁 Acceptance criteria"
       placeholder: |
         - [ ] ...
-        - [ ] Regression test with an independent expected value
+        - [ ] Regression case with an independent expected value
     validations:
       required: true
 
   - type: textarea
     id: scope
     attributes:
-      label: Scope and non-goals
+      label: "📐 Scope and non-goals"
       description: What is in and out of this change.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: "🔀 Alternatives considered"
+      description: Existing workarounds or smaller designs, and why they are not enough. Write "None" if there are none.
     validations:
       required: true
 
   - type: textarea
     id: dependencies
     attributes:
-      label: Dependencies
+      label: "🔗 Dependencies"
       description: Issues or decisions this depends on. Write "None" if there are none.
     validations:
       required: true
@@ -69,7 +96,7 @@ body:
   - type: textarea
     id: compatibility
     attributes:
-      label: Compatibility impact
+      label: "💥 Compatibility impact"
       description: Effect on the public API (docs/PUBLIC_API.txt), computed results, input or output layouts and supported hosts. Write "None" if there is none.
     validations:
       required: true
@@ -77,17 +104,19 @@ body:
   - type: textarea
     id: validation
     attributes:
-      label: Validation evidence required
-      description: Static checks, Excel compile, harness and the specific scenario that prove the change.
+      label: "✅ Validation evidence required"
+      description: Static checks, Excel compile, harness, the specific scenario and, for a calculation, the independent reference and tolerance.
     validations:
       required: true
 
   - type: checkboxes
     id: checks
     attributes:
-      label: Submission checks
+      label: "☑️ Submission checks"
       options:
         - label: I searched open and closed issues for an equivalent proposal.
+          required: true
+        - label: I separated the required behavior from implementation preferences.
           required: true
         - label: This proposal contains only synthetic data and no secrets or private links.
           required: true

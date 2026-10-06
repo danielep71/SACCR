@@ -198,6 +198,13 @@ Use only the categories needed by a release.
   is kept on the orphan `traffic-history` branch, with alert issues on spikes
   and new referrers. See [`tools/README.md`](tools/README.md#traffic-history).
 
+- Issue forms and the pull-request template rewritten in the style of the
+  Excel VBA project template: bug and feature forms ask for the regime (CRR,
+  Basel CRE52 or both), evidence and alternatives; the issue chooser links to
+  installation help and the methodology; the PR template covers candidate
+  identity, static checks, Excel evidence, regression coverage, risk,
+  provenance and SA-CCR-specific review.
+
 ### Known limitations
 
 - The only VBA is the neutral scaffold and the regression harness; there is no
