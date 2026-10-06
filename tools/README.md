@@ -16,7 +16,7 @@ pull request's whole range.
 | --- | --- |
 | `tool-tests` | Negative fixtures for the source gate (`test_tooling.py`) |
 | `check_committed_whitespace-fixtures` | Self-test of the whitespace gate |
-| `check_source` | Every tracked text file is stored with LF in Git (CRLF, mixed or lone-CR blobs declared as text fail); exported VBA (`.bas`, `.cls`, `.frm`) checks out as CRLF, decodes as cp1252, has `Option Explicit` and a `VB_Name` equal to its filename and unique in the project; each `.frm` references a tracked `.frx` large enough for its offset; `CHANGELOG.md` starts with `## [Unreleased]`, uses `## [X.Y.Z] - YYYY-MM-DD` release headings with real calendar dates and has a link reference for each |
+| `check_source` | Every tracked text file is stored with LF in Git (CRLF, mixed or lone-CR blobs declared as text fail); VBA components sit only in the locations defined in `docs/REPOSITORY_STRUCTURE.md`, and modules in `src/core/` declare `Option Private Module`; exported VBA (`.bas`, `.cls`, `.frm`) checks out as CRLF, decodes as cp1252, has `Option Explicit` and a `VB_Name` equal to its filename and unique in the project; each `.frm` references a tracked `.frx` large enough for its offset; `CHANGELOG.md` starts with `## [Unreleased]`, uses `## [X.Y.Z] - YYYY-MM-DD` release headings with real calendar dates and has a link reference for each |
 | `check_committed_whitespace` | `git diff --check` on staged and unstaged changes (local) or on the committed range (`--ci`) |
 
 These are static checks only. None of them compiles VBA, opens Excel or runs a
@@ -43,5 +43,5 @@ The workflow uses a read-only token, does not persist checkout credentials,
 and pins actions to full commit SHAs taken from the template.
 It uses GitHub-hosted Ubuntu and Python 3.10 with no additional Python packages.
 A successful job is static-check evidence only, not Excel validation.
-Whether GitHub blocks merging on this check depends on branch-protection
-availability and configuration.
+Whether GitHub blocks merging on this check depends on the repository's
+branch rulesets.

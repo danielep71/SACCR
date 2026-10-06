@@ -35,31 +35,44 @@ class SourceGateTests(unittest.TestCase):
         return check_source.run_check(self.root)["findings"]
 
     def test_clean_component_passes_and_is_stored_lf(self):
-        self.write("src/M_Test.bas", MODULE)
+        self.write("src/modules/M_Test.bas", MODULE)
         self.assertEqual(self.findings(), [])
-        self.assertEqual(self.git("ls-files", "--eol", "src/M_Test.bas").split()[0], "i/lf")
+        self.assertEqual(self.git("ls-files", "--eol", "src/modules/M_Test.bas").split()[0], "i/lf")
 
     def test_vb_name_must_match_filename(self):
-        self.write("src/M_Other.bas", MODULE)
-        self.assertIn("src/M_Other.bas: VB_Name must match the filename exactly", self.findings())
+        self.write("src/modules/M_Other.bas", MODULE)
+        self.assertIn("src/modules/M_Other.bas: VB_Name must match the filename exactly", self.findings())
 
     def test_duplicate_component_name(self):
-        self.write("src/M_Test.bas", MODULE)
-        self.write("test/M_Test.bas", MODULE)
+        self.write("src/modules/M_Test.bas", MODULE)
+        self.write("tests/M_Test.bas", MODULE)
         self.assertTrue(any("duplicate component name" in f for f in self.findings()))
 
     def test_option_explicit_in_comment_does_not_count(self):
-        self.write("src/M_Test.bas", MODULE.replace("Option Explicit", "' Option Explicit"))
-        self.assertIn("src/M_Test.bas: missing Option Explicit", self.findings())
+        self.write("src/modules/M_Test.bas", MODULE.replace("Option Explicit", "' Option Explicit"))
+        self.assertIn("src/modules/M_Test.bas: missing Option Explicit", self.findings())
 
     def test_form_requires_tracked_frx_within_bounds(self):
         form = 'VERSION 5.00\r\nBegin {X} F_Test\r\n   OleObjectBlob = "F_Test.frx":0010\r\nEnd\r\n'
         form += MODULE.replace("M_Test", "F_Test")
-        self.write("src/F_Test.frm", form)
-        self.assertIn("src/F_Test.frm: missing or unsafe form resource F_Test.frx", self.findings())
-        (self.root / "src/F_Test.frx").write_bytes(b"\0" * 8)
-        self.assertIn("src/F_Test.frm: resource offset is outside F_Test.frx", self.findings())
-        (self.root / "src/F_Test.frx").write_bytes(b"\0" * 32)
+        self.write("src/forms/F_Test.frm", form)
+        self.assertIn("src/forms/F_Test.frm: missing or unsafe form resource F_Test.frx", self.findings())
+        (self.root / "src/forms/F_Test.frx").write_bytes(b"\0" * 8)
+        self.assertIn("src/forms/F_Test.frm: resource offset is outside F_Test.frx", self.findings())
+        (self.root / "src/forms/F_Test.frx").write_bytes(b"\0" * 32)
+        self.assertEqual(self.findings(), [])
+
+    def test_vba_outside_documented_locations_is_rejected(self):
+        self.write("src/M_Test.bas", MODULE)
+        self.write("misc/Old.frx", "x")
+        found = self.findings()
+        self.assertIn("src/M_Test.bas: VBA component outside the documented source locations", found)
+        self.assertIn("misc/Old.frx: VBA component outside the documented source locations", found)
+
+    def test_core_module_requires_option_private_module(self):
+        self.write("src/core/M_Test.bas", MODULE)
+        self.assertIn("src/core/M_Test.bas: core modules must declare Option Private Module", self.findings())
+        self.write("src/core/M_Test.bas", MODULE.replace("Option Explicit", "Option Explicit\r\nOption Private Module"))
         self.assertEqual(self.findings(), [])
 
     def test_crlf_in_index_is_rejected(self):
@@ -77,8 +90,8 @@ class SourceGateTests(unittest.TestCase):
 
     def test_vba_without_crlf_checkout_attribute_is_rejected(self):
         (self.root / ".gitattributes").write_text("* text=auto eol=lf\n")
-        self.write("src/M_Test.bas", MODULE.replace("\r\n", "\n"))
-        self.assertIn("src/M_Test.bas: .gitattributes must check VBA source out as CRLF", self.findings())
+        self.write("src/modules/M_Test.bas", MODULE.replace("\r\n", "\n"))
+        self.assertIn("src/modules/M_Test.bas: .gitattributes must check VBA source out as CRLF", self.findings())
 
     def test_changelog_requires_unreleased_first(self):
         self.write("CHANGELOG.md", "## [0.0.1] - 2026-01-01\n\n## [Unreleased]\n")
