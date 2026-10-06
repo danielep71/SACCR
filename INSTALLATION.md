@@ -154,9 +154,11 @@ The exact component list is added here with the first VBA source.
    1. every file in `src/core/`;
    2. every file in `src/classes/`;
    3. every file in `src/modules/`;
-   4. every `.frm` in `src/forms/` (its `.frx` loads with it; never import a
+   4. every standard module (`.bas`) in `src/workbook/`, currently `M_Main`;
+      the `.cls` document modules there are pasted, not imported (step 5);
+   5. every `.frm` in `src/forms/` (its `.frx` loads with it; never import a
       `.frx`);
-   5. for a development workbook only: `tests/` and `examples/` modules.
+   6. for a development workbook only: `tests/` and `examples/` modules.
 
    Current components, in import order:
 
