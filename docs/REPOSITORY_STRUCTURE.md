@@ -8,8 +8,8 @@ This document is authoritative for **the project profile, where every durable
 artifact belongs and the boundary between the calculation core, the public
 interface and the Excel host**. It adapts
 `docs/REPOSITORY_STRUCTURE.md` from EXCEL-VBA-PROJECT-TEMPLATE to SACCR.
-Import order and host support are owned by [`INSTALLATION.md`](../INSTALLATION.md)
-once VBA source exists (#4).
+Import order and host support are owned by [`INSTALLATION.md`](../INSTALLATION.md);
+how VBA is written by [`VBA_HOUSE_STYLE.md`](VBA_HOUSE_STYLE.md).
 
 <a id="profile-decision"></a>
 
@@ -23,7 +23,7 @@ in issue #3.
 | Who calls it? | A user working in the SACCR workbook: entering trades and netting sets, running the calculation, reading results. |
 | What does it own? | The workbook: input and result sheets, the calculation engine and their startup and packaging. |
 | Lifecycle | The workbook is the deliverable; it is built from the exported source in this repository. |
-| Supported environments | To be defined in #4. |
+| Supported environments | Excel for Windows; see [supported hosts](../INSTALLATION.md#supported-hosts). |
 
 **Why not `library`:** the milestone plan defers business UI and production
 workbook packaging to later milestones, so the end product is a workbook, not
