@@ -19,7 +19,7 @@
 
 ## ✨ What this project is
 
-SACCR will calculate exposure at default for derivative netting sets under the   
+SACCR will calculate exposure at default for derivative netting sets under the
 Standardised Approach for Counterparty Credit Risk (SA-CCR), as an Excel
 workbook driven by exported, reviewable VBA source.
 
