@@ -67,6 +67,9 @@ the issue. Never rewrite shared history to conceal the failed candidate.
 Every issue must have assignee **danielep71**, at least one priority label
 **P1/P2/P3**, and a reference milestone; use one clear priority unless a
 documented reason requires otherwise. Each issue belongs to the milestone of the release branch it targets.
+Exception: traffic alert issues opened by the daily traffic export get the
+assignee and **P3** automatically and no milestone; they are operational
+analytics, not development work, and are closed once reviewed.
 Include objective, acceptance checklist, dependencies and required evidence.
 
 ### What is automatic and what is not
@@ -128,6 +131,7 @@ historical, not a current blocker. Availability and activation are distinct.
 | Automatic Dependabot updates | Weekly update PRs for GitHub Actions, aimed at the active release branch, from `.github/dependabot.yml`; Dependabot reads it from `main`. Every update is reviewed and merged manually; see [tools/README.md](../tools/README.md#dependency-updates). Alerts and update PRs are separate features. |
 | Repository integrity CI | Runs on main/release pushes and PRs, read-only token and full-SHA action pins. Also lints the Python tooling (Ruff, strict mypy) and the workflows (actionlint). Reports are retained for 30 days. Static checks only; no Excel execution. |
 | Labels | Twenty-label catalogue with sync and read-only drift workflows. See LABELS.md for permissions and triggers. |
+| Traffic history | Daily export of GitHub's 14-day traffic data to the orphan `traffic-history` branch, from `.github/workflows/daily-traffic.yml`, with an alert issue on a spike or new referrer. Needs `TRAFFIC_TOKEN` in the `analytics` environment. Analytics only, never CI. |
 
 GitHub Pro enables capabilities such as protected branches, required reviewers
 and Wiki in private personal repositories. It does not automatically configure
