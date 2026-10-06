@@ -216,7 +216,7 @@ Use only the categories needed by a release.
   tolerance matches the catalogue. `docs/methodology/TEST_CASES.md` defines
   the full fixture vocabulary, trade-level and text results, and currencies,
   and `tools/check_test_cases.py` validates the files in `python
-  tools/check.py`. The harness does not run the cases yet.
+  tools/check.py`.
 
 - The numerical test cases run against the engine in Excel (#44, decision 7):
   `tools/generate_case_tests.py` generates `tests/modules/TestCases.bas` from
