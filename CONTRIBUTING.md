@@ -168,7 +168,9 @@ Follow-up:
 Use only the applicable fields, but never omit a material limitation.
 
 - **Static checks are not Excel evidence.** `tools/check.py` and the hosted
-  workflow inspect files. They do not compile VBA or run Excel.
+  workflow inspect files. They do not compile VBA or run Excel. Evidence that
+  must be bound to an exact commit follows
+  [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md).
 - **VBA changes are not merged until verified in Excel:** compile, run the
   harness, and exercise the specific scenario the change addresses. State
   plainly what was and was not run in Excel.

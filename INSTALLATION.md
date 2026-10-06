@@ -39,7 +39,7 @@ that tests it. There is no workbook or add-in to install.
 | VBA source layout | Defined in [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) |
 | Import/export conventions and host support | Defined below and in [`docs/VBA_HOUSE_STYLE.md`](docs/VBA_HOUSE_STYLE.md) |
 | Regression harness | `tests/modules/TestHarness.bas`; see [running the harness](#running-the-harness) |
-| Excel evidence and smoke test | To be defined in issue #9 |
+| Excel evidence | Record and validator defined in [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) |
 | Released versions | None |
 
 The only VBA so far is the setup scaffold and the regression harness; the
@@ -71,10 +71,10 @@ Applications*, *Microsoft Excel 16.0 Object Library*, *OLE Automation* and
 *Microsoft Office 16.0 Object Library*. Adding any other reference needs an
 issue and an update to this section.
 
-**Evidence:** this table is a support **commitment**, not a test result. No
-version has been verified in Excel yet. Host evidence is recorded per change
-under [Validation record](#validation-record) and, from #9, as Excel evidence
-bound to a commit.
+**Evidence:** this table is a support **commitment**, not a test result. Host
+evidence is recorded per change under [Validation record](#validation-record),
+or as an evidence bundle bound to a commit as described in
+[`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md).
 
 ## 📥 Get the source
 
@@ -247,6 +247,11 @@ Skipped or unverified:
 
 A skipped, incomplete or cleanup-failed run is not a pass. Static checks cannot
 substitute for Excel execution.
+
+When the run must be bound to an exact commit, for example for a release or an
+issue's acceptance evidence, record it as an evidence bundle and validate it
+with `tools/check_excel_evidence.py`; see
+[`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md).
 
 ## ⬆️ Upgrade
 

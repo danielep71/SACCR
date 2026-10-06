@@ -169,6 +169,14 @@ Use only the categories needed by a release.
   error and attempts both restorations. Metadata triage includes closed issues
   and documents the maintainer blank-issue bypass (PRs #18 and #19).
 
+- Excel evidence bound to an exact commit:
+  [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) gives the manual
+  Windows/Excel procedure and record format, and
+  `tools/check_excel_evidence.py` checks a record against the candidate's
+  source digests, `.github/excel-evidence-policy.json`, the default references
+  and the retained harness log. It reports import, compile, test, cleanup,
+  incomplete and unavailable outcomes separately and never runs Excel.
+
 ### Known limitations
 
 - The only VBA is the neutral scaffold and the regression harness; there is no

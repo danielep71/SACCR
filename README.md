@@ -36,7 +36,8 @@ establishes:
 - repository conventions, static checks and CI;
 - governance, issue metadata and labels;
 - the methodology sources and numerical test-case contract (#8); and
-- Excel evidence and the first real Excel smoke test (#9).
+- Excel evidence bound to a commit ([`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md))
+  and the first real Excel smoke test (#9).
 
 Nothing has been released. See the [changelog](CHANGELOG.md) for what has been
 added so far.
@@ -67,6 +68,7 @@ Requirements, the import procedure and troubleshooting are in
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Workflow, commit messages, evidence and pull requests |
 | [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) | Profile decision, source layout, public API boundary |
 | [`docs/VBA_HOUSE_STYLE.md`](docs/VBA_HOUSE_STYLE.md) | VBA naming, contracts, errors, Excel-state cleanup, export rules |
+| [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) | Manual Excel run record, procedure and validator |
 | [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) | Branches, issue metadata, review checklist, GitHub controls |
 | [`tools/README.md`](tools/README.md) | Static checks and the CI workflow |
 | [`docs/LABELS.md`](docs/LABELS.md) | Issue-label catalogue and its workflows |
