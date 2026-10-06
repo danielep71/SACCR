@@ -133,9 +133,11 @@ an issue, unless it creates concrete security impact.
 
 - **Runtime.** The repository holds no VBA source yet. This section will
   describe file, network, native-code and UI behavior when the engine exists.
-- **Automation.** The static-check workflow runs with a read-only token and does
-  not persist checkout credentials. The label-sync workflow grants
-  `issues: write` only to its reconciliation job. All actions are pinned to full
+- **Automation.** Every workflow checkout sets `persist-credentials: false`,
+  so code under review never receives Git credentials. The static-check and
+  pull-request label jobs run with a read-only token. The label-sync workflow
+  grants `issues: write` only to its reconciliation job, which runs on pushes to
+  `main` and manual dispatch, never on pull requests. All actions are pinned to full
   commit SHAs. See [`tools/README.md`](tools/README.md#github-actions) and
   [`docs/LABELS.md`](docs/LABELS.md).
 - **Artifacts.** No workbook, add-in or other binary is distributed. Office
