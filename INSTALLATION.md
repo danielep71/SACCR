@@ -108,7 +108,7 @@ From the repository root:
 python tools/check.py
 ```
 
-All four gates must pass. Reports and logs are written to the ignored
+All gates must pass. Reports and logs are written to the ignored
 `test-results/` directory. Before pushing a committed candidate, the stricter
 form also requires a clean tree:
 

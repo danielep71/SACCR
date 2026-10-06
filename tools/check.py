@@ -25,10 +25,12 @@ def main() -> int:
     dirty = bool(git_text(root, "status", "--porcelain", "--untracked-files=normal", check=True).stdout)
     commands = [
         ("tool-tests", [sys.executable, "-m", "unittest", "discover", "-s", "tools", "-p", "test_*.py"]),
-        ("check_committed_whitespace-fixtures",
-         [sys.executable, "tools/check_committed_whitespace.py", "--self-test"]),
     ]
-    for name in ("check_source", "check_committed_whitespace"):
+    for name in ("check_committed_whitespace", "check_vba_jumps", "check_vba_conditionals",
+                 "check_vba_public_api"):
+        commands.append((name + "-fixtures", [sys.executable, f"tools/{name}.py", "--self-test"]))
+    for name in ("check_source", "check_committed_whitespace", "check_vba_jumps",
+                 "check_vba_conditionals", "check_vba_public_api"):
         command = [sys.executable, f"tools/{name}.py", "--root", str(root),
                    "--output", str(output / f"{name}.json")]
         if name == "check_committed_whitespace":
