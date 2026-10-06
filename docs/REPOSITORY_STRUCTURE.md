@@ -46,7 +46,7 @@ src/        production VBA source: the only input to the workbook
 tests/      regression modules, synthetic fixtures and expected results
 examples/   runnable examples of the supported API
 docs/       contracts, architecture and methodology
-tools/      static checks and, later, build and evidence tooling
+tools/      static checks and evidence tooling; later, build tooling
 .github/    workflows, label catalogue and scripts
 ```
 

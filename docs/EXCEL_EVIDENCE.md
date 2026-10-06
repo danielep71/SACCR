@@ -237,11 +237,13 @@ incomplete and interrupted execution, failed cleanup, import, compile and test
 failures, failure records that contradict their logs, timeouts that claim
 results or cite a finished log,
 injected-failure or repeated logs, tampered, missing, escaping or
-symlinked logs, environment and reference mismatches, unavailable records and
+symlinked logs, environment and reference mismatches, a non-Windows host,
+unavailable records and
 the command-line exit codes. Those tests are not Excel evidence.
 
 The validator and policy are adapted from EXCEL-VBA-PROJECT-TEMPLATE at commit
 `b903fe44ef6a032c4689870b83745afa1c22490d`. SACCR keeps manual execution only,
 derives the source inventory from the repository layout instead of a profile
-file, requires the default references, binds the harness `ENVIRONMENT` line, and
+file, requires the default references, binds the harness `ENVIRONMENT` line
+(including a Windows host), and
 does not include the template's release-evidence binding.
