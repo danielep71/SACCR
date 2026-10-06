@@ -202,9 +202,8 @@ def single(log: str, key: str) -> str:
     return values[0].strip()
 
 
-def validate_harness_log(record: dict[str, Any], policy: dict[str, Any], log: str) -> None:
-    """Bind a passing regression to one complete, normal-mode harness report."""
-    harness = record["harness"]
+def report_cases(record: dict[str, Any], policy: dict[str, Any], log: str) -> list[str]:
+    """Check the report header and return its CASE lines, which must follow the policy order."""
     require(re.findall(r"^SACCR TESTS[ \t]*$", log, re.MULTILINE) == ["SACCR TESTS"],
             "harness log must contain exactly one run")
     require(single(log, "MODE") == "NORMAL", "harness log is not a normal-mode run")
@@ -218,19 +217,45 @@ def validate_harness_log(record: dict[str, Any], policy: dict[str, Any], log: st
         require(reported.get(key) == environment[field],
                 f"harness ENVIRONMENT {key} differs from the record's {field}")
     cases = [case.strip() for case in re.findall(r"^CASE=(.*)$", log, re.MULTILINE)]
-    require(cases == policy["cases"], "harness CASE lines differ from the policy")
+    require(cases == policy["cases"][:len(cases)], "harness CASE lines differ from the policy")
+    require(len(cases) == record["harness"]["cases"], "harness CASE lines differ from the record")
+    return cases
+
+
+def validate_report(record: dict[str, Any], policy: dict[str, Any], log: str) -> None:
+    """Bind a passing or failed regression to one complete normal-mode harness report."""
+    harness = record["harness"]
+    report_cases(record, policy, log)
     for field in ("cases", "assertions", "failures"):
         require(single(log, field.upper()) == str(harness[field]),
                 f"harness {field.upper()} differs from the record")
     cleanup = single(log, "CLEANUP").split(";")[0]
     require(cleanup in ("PASS", "FAIL"), "harness CLEANUP must be PASS or FAIL")
-    verdict = "PASS" if cleanup == "PASS" else "FAIL"
+    # The harness reports COMPLETE only when both expected counts were reached.
+    complete = (harness["cases"] == len(policy["cases"])
+                and harness["assertions"] == policy["assertions"])
+    require(harness["completeness"] == ("COMPLETE" if complete else "INCOMPLETE"),
+            "harness completeness contradicts the counts")
+    passed = complete and harness["failures"] == 0 and cleanup == "PASS"
     require(single(log, "RESULT") == (
-        f"{verdict}; completeness=COMPLETE; cases={harness['cases']}; "
-        f"assertions={harness['assertions']}; failures=0; cleanup={cleanup}"),
-        "harness RESULT contradicts a complete regression")
+        f"{'PASS' if passed else 'FAIL'}; completeness={harness['completeness']}; "
+        f"cases={harness['cases']}; assertions={harness['assertions']}; "
+        f"failures={harness['failures']}; cleanup={cleanup}"),
+        "harness RESULT contradicts the record")
+    regression = record["stages"]["regression"]["status"]
+    require(regression == "FAIL" or (complete and harness["failures"] == 0),
+            "regression PASS contradicts the harness results")
+    require(regression == "PASS" or not passed, "regression FAIL contradicts a passing report")
     require(cleanup == "PASS" or record["stages"]["cleanup"]["status"] == "FAIL",
             "a harness cleanup failure must be recorded as cleanup FAIL")
+
+
+def validate_partial_report(record: dict[str, Any], policy: dict[str, Any], log: str) -> None:
+    """A timed-out run keeps what was printed, which must not claim a complete pass."""
+    require(record["harness"]["completeness"] == "INCOMPLETE", "a timed-out run is INCOMPLETE")
+    require(not re.search(r"^RESULT=PASS", log, re.MULTILINE), "a timed-out run cannot report PASS")
+    if re.search(r"^SACCR TESTS[ \t]*$", log, re.MULTILINE):
+        report_cases(record, policy, log)
 
 
 def validate_harness(record: dict[str, Any], policy: dict[str, Any], log: str) -> None:
@@ -248,13 +273,13 @@ def validate_harness(record: dict[str, Any], policy: dict[str, Any], log: str) -
                 "invalid expected-error result")
         observed.append(error["case"])
     require(observed == policy["expected_error_cases"], "expected-error results differ from policy")
-    if record["stages"]["regression"]["status"] != "PASS":
+    status = record["stages"]["regression"]["status"]
+    if status == "TIMEOUT":
+        validate_partial_report(record, policy, log)
         return
-    require(harness["cases"] == len(policy["cases"]) and harness["assertions"] == policy["assertions"]
-            and harness["failures"] == 0 and harness["completeness"] == "COMPLETE"
-            and all(error["status"] == "PASS" for error in harness["expected_errors"]),
-            "regression PASS contradicts the harness results")
-    validate_harness_log(record, policy, log)
+    require(status == "FAIL" or all(error["status"] == "PASS" for error in harness["expected_errors"]),
+            "regression PASS needs every expected-error result to pass")
+    validate_report(record, policy, log)
 
 
 def validate_unavailable(record: dict[str, Any]) -> list[str]:

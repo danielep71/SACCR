@@ -192,10 +192,51 @@ class ExcelEvidenceTests(unittest.TestCase):
         self.record["stages"]["cleanup"]["status"] = "FAIL"
         self.assertEqual(self.evaluate()["outcomes"], ["CLEANUP_FAILED"])
 
-    def test_test_failure(self) -> None:
+    def failed_regression(self, log: str, **harness: Any) -> None:
+        self.record["stages"]["regression"] = self.stage("harness.log", log)
         self.record["stages"]["regression"]["status"] = "FAIL"
-        self.record["harness"]["failures"] = 1
+        self.record["harness"].update(harness)
+
+    def test_test_failure(self) -> None:
+        failed = self.log.replace("FAILURES=0", "FAILURES=1\nFAILURE_DETAILS=ratio.exact: expected=3,5").replace(
+            "RESULT=PASS", "RESULT=FAIL").replace("failures=0", "failures=1")
+        self.failed_regression(failed, failures=1)
+        self.record["harness"]["expected_errors"][0]["status"] = "FAIL"
         self.assertEqual(self.evaluate()["outcomes"], ["TEST_FAILED"])
+
+    def test_interrupted_failure_keeps_observed_counts(self) -> None:
+        cases = self.policy["cases"][:3]
+        partial = "\n".join([
+            *self.log.splitlines()[:3], *("CASE=" + case for case in cases),
+            "CASES=3", "ASSERTIONS=5", "FAILURES=1", "CLEANUP=PASS; detail=unchanged",
+            "FAILURE_DETAILS=runner error 11", "RESULT=FAIL; completeness=INCOMPLETE; cases=3; "
+            "assertions=5; failures=1; cleanup=PASS", ""])
+        self.failed_regression(partial, cases=3, assertions=5, failures=1, completeness="INCOMPLETE")
+        self.assertEqual(self.evaluate()["outcomes"], ["TEST_FAILED"])
+        self.record["harness"]["completeness"] = "COMPLETE"
+        self.assertInvalid("completeness")
+
+    def test_failure_record_must_match_its_log(self) -> None:
+        self.failed_regression(self.log, failures=1)
+        self.assertInvalid("FAILURES")
+        self.failed_regression(self.log, failures=0)
+        self.assertInvalid("passing report")
+        injected = self.log.replace("MODE=NORMAL", "MODE=INJECTED_FAILURE")
+        self.failed_regression(injected, failures=0)
+        self.assertInvalid("normal-mode")
+
+    def test_timeout_keeps_partial_log(self) -> None:
+        partial = "\n".join([*self.log.splitlines()[:5], ""])
+        self.record["stages"]["regression"] = self.stage("harness.log", partial)
+        self.record["stages"]["regression"]["status"] = "TIMEOUT"
+        self.record["harness"].update(cases=2, assertions=2, completeness="INCOMPLETE")
+        self.assertEqual(self.evaluate()["outcomes"], ["EXECUTION_TIMEOUT"])
+        self.record["harness"]["cases"] = 4
+        self.assertInvalid("CASE lines")
+        self.record["harness"]["cases"] = 2
+        self.record["stages"]["regression"] = self.stage("harness.log", self.log)
+        self.record["stages"]["regression"]["status"] = "TIMEOUT"
+        self.assertInvalid("cannot report PASS")
 
     def test_compile_and_import_failures(self) -> None:
         self.record["stages"]["compile"]["status"] = "FAIL"

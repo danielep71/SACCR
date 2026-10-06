@@ -169,7 +169,11 @@ Rules the validator applies:
   cannot run after a failed import, nor the regression after a failed compile.
   When the regression did not run, `harness` is `null`.
 - A failed or interrupted regression keeps the observed counts, with
-  `completeness` set to `INCOMPLETE` when the run stopped early.
+  `completeness` set to `INCOMPLETE` when the run stopped early. Its log must
+  still be one normal-mode report whose `CASE` lines follow the policy order and
+  whose counts, `CLEANUP` and `RESULT=FAIL` lines match the record; a `FAIL`
+  record cannot cite a passing report. A `TIMEOUT` keeps the partial log, which
+  must not contain `RESULT=PASS`.
 - The expected-error result is inferred from the complete passing suite, which
   includes the error-number, source and description assertions; it is not a
   separate observation.
@@ -226,7 +230,8 @@ Keep non-passing bundles too until the finding is resolved.
 (`tool-tests`). It uses synthetic records and a temporary Git repository to
 cover a valid record and wrong source identity, a different candidate,
 incomplete and interrupted execution, failed cleanup, import, compile and test
-failures, injected-failure or repeated logs, tampered, missing, escaping or
+failures, failure and timeout records that contradict their logs,
+injected-failure or repeated logs, tampered, missing, escaping or
 symlinked logs, environment and reference mismatches, unavailable records and
 the command-line exit codes. Those tests are not Excel evidence.
 
