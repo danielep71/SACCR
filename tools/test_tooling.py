@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 import check_source
+import check_vba_public_api as public_api
 
 ROOT = Path(__file__).resolve().parents[1]
 CHANGELOG = "# Changelog\n\n## [Unreleased]\n\n[Unreleased]: https://example.invalid\n"
@@ -113,6 +114,37 @@ class SourceGateTests(unittest.TestCase):
     def test_missing_changelog(self):
         (self.root / "CHANGELOG.md").unlink()
         self.assertIn("CHANGELOG.md is missing", self.findings())
+
+
+class PublicApiRoleTests(unittest.TestCase):
+    FACADE = ('Attribute VB_Name = "Facade"\nOption Explicit\n'
+              'Public Function Echo(ByVal value As Long) As Long\nEnd Function\n')
+    MANIFEST = ["Facade\tFunction\tEcho",
+                "# SIG\tFacade\tFunction\tEcho\tPublic Function Echo(ByVal value As Long) As Long"]
+
+    def test_facade_declaration_listed_passes(self):
+        self.assertEqual(public_api.fixture(self.FACADE, self.MANIFEST)["status"], "pass")
+
+    def test_unlisted_facade_declaration_fails(self):
+        self.assertEqual(public_api.fixture(self.FACADE, [])["status"], "fail")
+
+    def test_core_declaration_cannot_be_listed(self):
+        manifest = self.MANIFEST + ["Core\tFunction\tInternalOnly"]
+        self.assertEqual(public_api.fixture(self.FACADE, manifest)["status"], "fail")
+
+    def test_roles_follow_repository_structure(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            for path in ("src/modules/A.bas", "src/core/B.bas", "src/classes/C.cls",
+                         "tests/modules/D.bas", "examples/modules/E.bas", "misc/F.bas"):
+                (root / path).parent.mkdir(parents=True, exist_ok=True)
+                (root / path).write_text("x")
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+            self.assertEqual(public_api.component_roles(root), {
+                "src/modules/A.bas": "public", "src/core/B.bas": "internal",
+                "src/classes/C.cls": "internal", "tests/modules/D.bas": "test",
+                "examples/modules/E.bas": "example"})
 
 
 if __name__ == "__main__":

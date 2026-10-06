@@ -139,6 +139,11 @@ Use only the categories needed by a release.
   template, adapted to SACCR and its label catalogue. Forms set the assignee,
   type label and a default priority; `docs/GOVERNANCE.md` documents the manual
   milestone step and a three-search triage check for issue metadata.
+- Three VBA static checks from the template run in `python tools/check.py`,
+  each with its own fixtures: jump targets stay within their procedure,
+  conditional compilation is balanced and uses known symbols with `PtrSafe`
+  declarations, and every public facade declaration matches
+  `docs/PUBLIC_API.txt`. None of them compiles VBA or checks SA-CCR results.
 
 ### Known limitations
 
