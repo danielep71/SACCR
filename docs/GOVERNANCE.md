@@ -22,17 +22,18 @@ Task PRs into the release branch are squash-merged. Integration of the release
 branch into main uses a PR merged with a merge commit once hosted checks are
 green, so provenance remains visible; afterwards the release branch is
 fast-forwarded to main, so both point to the merge commit. Never force-push or
-reset shared branches. Delete task branches after their work is integrated;
-preserve the active release branch. Do not open a release-to-main PR just to
+reset shared branches. Merged task branches are deleted automatically; preserve
+the active release branch, and if a release-to-main merge deletes it, recreate
+it from main at the merge commit. Do not open a release-to-main PR just to
 record progress during this setup phase.
 
 ## Ownership, authorization and review
 
 The owner sets scope, priorities, exceptions and release decisions. Contributors
-and agents work within the authorized issue. Every change reaches the active
-release branch through a PR; nothing is committed directly to the release
-branch or main. Inspect the diff and run the applicable checks before pushing.
-An agent's self-check is not an independent human review.
+work within the authorized issue. Every change reaches the active release
+branch through a PR; nothing is committed directly to the release branch or
+main. Inspect the diff and run the applicable checks before pushing. An
+author's self-check is not an independent review.
 
 No change to visibility, paid subscriptions, security-sensitive access or
 main-branch scope is implied by an ordinary development task. Raise a concrete
@@ -52,8 +53,10 @@ Minimum review checklist, before integration or recording completion:
 - [ ] No credentials, client data, unrelated binary outputs or undeclared dependencies are introduced.
 - [ ] Static results are separated from real Excel compilation/execution evidence.
 
-Local validation (`python tools/check.py`) precedes every push, and hosted
-checks must be green before a PR is merged. If a hosted run fails after a
+Local validation (`python tools/check.py`) precedes every push; run
+`python tools/check.py --ci` on the clean committed candidate, with
+`--base <base-sha>` for a PR. Hosted checks must be green before a PR is
+merged. Report static checks and real Excel runs separately. If a hosted run fails after a
 merge, record the failure and fix or revert it through a new PR before closing
 the issue. Never rewrite shared history to conceal the failed candidate.
 
@@ -81,7 +84,8 @@ historical, not a current blocker. Availability and activation are distinct.
 | Control | Observed state and working response |
 | --- | --- |
 | Repository visibility | Private. Preserve it; public visibility is not a workaround for missing features. |
-| Branch protection/rulesets | Pro now makes protection available; the active branches are still unprotected and no classic rule is configured. Follow the review checklist manually until controls are configured and verified. A green check does not itself prohibit a merge or direct push. |
+| Branch rulesets | Configured by the owner on 2026-10-06. The repository's Settings → Rules page is authoritative for which branches and rules apply; keep following the review checklist for what rulesets cannot check. |
+| Automatic head-branch deletion | Enabled by the owner on 2026-10-06. Merged PR branches are deleted automatically. |
 | Wiki | Pro enables Wiki for private personal repositories, but SACCR's Wiki remains disabled in this baseline. Keep authoritative documentation in versioned docs/. |
 | Advanced code/secret scanning | Not offered in the current repository security settings. Do not claim CodeQL, secret scanning or push protection are active. Review code and credentials manually; this is not equivalent automated coverage. |
 | Dependency graph and Dependabot alerts | Enabled. Review alerts rather than assuming a clean dependency graph proves application security. |
@@ -97,8 +101,8 @@ products. The private repository's security settings still do not offer the
 advanced code/secret-scanning sections after the upgrade.
 Reference: [GitHub plans](https://docs.github.com/en/get-started/learning-about-github/githubs-plans).
 Recheck feature availability before future configuration changes. Record the
-remaining protection/Wiki configuration under the final setup review in issue
-#13; do not mark it enabled just because Pro is active. Issue #2 itself changes
+ruleset configuration and the remaining Wiki decision under the final setup
+review in issue #13. Issue #2 itself changes
 documentation and the release-branch baseline, not account billing or visibility.
 
 ## Label workflows
@@ -126,8 +130,7 @@ label-policy, script, workflow and documentation files present in main.
 The governance integration preserves both commits as parents, first the
 release tip and then main, and imports those seven files unchanged into
 release. Main stayed at the recorded tip at that point. The changelog states
-release is the active setup branch; the README links this policy and AGENTS.md
-records the owner's instructions for future agents.
+release is the active setup branch, and the README links this policy.
 
 PR #14 later merged the release branch into main with merge commit
 `ff714896eabfb32a91659b7d80aa9ad9b5607496`; both branches now point to that

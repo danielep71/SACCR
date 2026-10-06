@@ -104,8 +104,9 @@ Use only the categories needed by a release.
   `main` and `release/**`, plus manual execution. Reports and logs identify the
   checked commit and are retained for 30 days, including failed checks.
 - This changelog.
-- Repository governance and agent instructions record the active release branch,
-  issue metadata requirements, manual review process and current platform limits.
+- Repository governance records the active release branch, the pull-request
+  workflow, issue metadata requirements, the review checklist and the current
+  GitHub controls.
 - Twenty-label issue catalogue from the Excel VBA project template, with a
   workflow that reconciles live labels from `.github/labels.json` and a
   read-only daily drift check. See [`docs/LABELS.md`](docs/LABELS.md).
