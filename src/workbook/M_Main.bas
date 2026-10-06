@@ -628,7 +628,7 @@ Private Function ReportOutcome( _
 '------------------------------------------------------------------------------
     'Messages and sheet activation are those of the original macros. A
     'completed run can still have excluded trades, so it points to Checks
-    'whenever there are errors or warnings.
+    'whenever there are errors or warnings. ShowChecksSheet never raises.
         Select Case operation
             Case OP_RUN
                 If ok Then
@@ -643,10 +643,10 @@ Private Function ReportOutcome( _
                 Else
                     msg = "SA-CCR run stopped - see the Checks sheet."
                     style = vbCritical
-                    ThisWorkbook.Worksheets(SH_CHECKS).Activate
+                    ShowChecksSheet
                 End If
             Case OP_VALIDATE
-                ThisWorkbook.Worksheets(SH_CHECKS).Activate
+                ShowChecksSheet
                 msg = "Validation finished: " & M_Engine.ErrorCount & " error(s), " & _
                       M_Engine.WarningCount & " warning(s)."
                 style = IIf(M_Engine.ErrorCount > 0, vbExclamation, vbInformation)
@@ -698,6 +698,47 @@ Private Function ReportOutcome( _
         ReportOutcome = result
 
 End Function
+
+
+Private Sub ShowChecksSheet()
+'
+'==============================================================================
+'                               ShowChecksSheet
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Bring the Checks sheet to the front so the user sees the findings.
+'
+' STATE OWNERSHIP
+'   Activates the Checks sheet; does nothing in silent mode, where no one
+'   is looking and the window may be hidden.
+'
+' ERROR POLICY
+'   Best effort: activation fails when the window or the sheet is hidden.
+'   That failure is contained, because showing the sheet is a convenience
+'   and must not replace the operation's outcome.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' SHOW
+'------------------------------------------------------------------------------
+        If gSilent Then
+            Exit Sub
+        End If
+        On Error GoTo NotShown
+        ThisWorkbook.Worksheets(SH_CHECKS).Activate
+        Exit Sub
+
+'------------------------------------------------------------------------------
+' IGNORE A HIDDEN SHEET OR WINDOW
+'------------------------------------------------------------------------------
+NotShown:
+        Err.Clear
+
+End Sub
 
 
 Private Sub ReportFailure( _
