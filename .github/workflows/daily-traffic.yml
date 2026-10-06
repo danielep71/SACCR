@@ -57,6 +57,10 @@ concurrency:
 jobs:
   traffic:
     name: Export GitHub traffic
+    # Manual dispatch can select any branch. Run only the default branch's
+    # reviewed copy, so code on a task branch never reaches the analytics
+    # environment, its token or the write-scoped GITHUB_TOKEN.
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -512,7 +516,6 @@ jobs:
           import os
           import subprocess
           import sys
-          import textwrap
 
           def read_csv(path):
               if not os.path.exists(path):
@@ -652,35 +655,37 @@ jobs:
               print(f"Alert issue already exists for {current_date}")
               sys.exit(0)
 
-          body = textwrap.dedent(f"""
-          Automated traffic alert for **SACCR**.
-
-          Trigger reason:
-          {", ".join(reasons)}
-
-          Current 14-day snapshot:
-          - Views: {current["views_14d"]} vs {previous["views_14d"]} on {previous_date}
-          - Unique views: {current["unique_views_14d"]} vs {previous["unique_views_14d"]} on {previous_date}
-          - Clones: {current["clones_14d"]} vs {previous["clones_14d"]} on {previous_date}
-          - Unique clones: {current["unique_clones_14d"]} vs {previous["unique_clones_14d"]} on {previous_date}
-          - Stars: {current["stars"]} vs {previous["stars"]} on {previous_date}
-          - Forks: {current["forks"]} vs {previous["forks"]} on {previous_date}
-
-          New referrers:
-          {new_referrer_lines}
-
-          Current top referrers:
-          {referrer_lines}
-
-          Current popular paths:
-          {path_lines}
-
-          Suggested checks:
-          1. Go to **Insights → Traffic**
-          2. Check whether one of the referrers is a blog, forum, Reddit, StackOverflow, GitHub project, or newsletter
-          3. Check which page, release, screenshot, source file, or README section is attracting traffic
-          4. Consider adding a short README CTA asking users to star the repository if they are using the project
-          """).strip()
+          # Built line by line: multi-line lists inside a dedented f-string
+          # would defeat textwrap.dedent and indent most of the body.
+          body = "\n".join([
+              "Automated traffic alert for **SACCR**.",
+              "",
+              "Trigger reason:",
+              ", ".join(reasons),
+              "",
+              "Current 14-day snapshot:",
+              f"- Views: {current['views_14d']} vs {previous['views_14d']} on {previous_date}",
+              f"- Unique views: {current['unique_views_14d']} vs {previous['unique_views_14d']} on {previous_date}",
+              f"- Clones: {current['clones_14d']} vs {previous['clones_14d']} on {previous_date}",
+              f"- Unique clones: {current['unique_clones_14d']} vs {previous['unique_clones_14d']} on {previous_date}",
+              f"- Stars: {current['stars']} vs {previous['stars']} on {previous_date}",
+              f"- Forks: {current['forks']} vs {previous['forks']} on {previous_date}",
+              "",
+              "New referrers:",
+              new_referrer_lines,
+              "",
+              "Current top referrers:",
+              referrer_lines,
+              "",
+              "Current popular paths:",
+              path_lines,
+              "",
+              "Suggested checks:",
+              "1. Go to **Insights → Traffic**",
+              "2. Check whether one of the referrers is a blog, forum, Reddit, StackOverflow, GitHub project, or newsletter",
+              "3. Check which page, release, screenshot, source file, or README section is attracting traffic",
+              "4. Consider adding a short README CTA asking users to star the repository if they are using the project",
+          ])
 
           created = subprocess.run(
               [

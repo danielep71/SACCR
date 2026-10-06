@@ -138,8 +138,8 @@ an issue, unless it creates concrete security impact.
   exists.
 - **Automation.** Every workflow checkout that can run code under review sets
   `persist-credentials: false`, so that code never receives Git credentials.
-  The one exception is the daily traffic export, which runs only from the
-  default branch on a schedule or manual dispatch, executes no repository code,
+  The one exception is the daily traffic export, whose job runs only on the
+  default branch, on a schedule or manual dispatch, executes no repository code,
   and keeps credentials to push its data to the `traffic-history` branch. Its
   `TRAFFIC_TOKEN`, a fine-grained token with `Administration: read` on this
   repository only, lives in the `analytics` environment; rotate it every 90
