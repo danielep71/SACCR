@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "kind": "saccr-expected",
+  "fixture": "cre99-example-4",
+  "regime": "BCBS",
+  "outputs": [
+    {
+      "quantity": "replacement_cost",
+      "rule": "CRE52.10",
+      "value": 40,
+      "unit": "EUR",
+      "tolerance": {
+        "absolute": 0.5,
+        "relative": 0
+      },
+      "reference": {
+        "class": "published",
+        "source": "BCBS-279",
+        "locator": "Annex 4, example 4 (also Basel Framework CRE99)",
+        "derivation": "Prototype TestCatalogue T08 (Example 4: RC; CRE99 ex.4; official published value (rounded); workbook reference BCBS-EX4, RC). Printed figure, rounded; not yet re-checked against the registered text.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T08"
+    },
+    {
+      "quantity": "aggregate_add_on",
+      "rule": "CRE52.25",
+      "value": 629,
+      "unit": "EUR",
+      "tolerance": {
+        "absolute": 0.5,
+        "relative": 0
+      },
+      "reference": {
+        "class": "published",
+        "source": "BCBS-279",
+        "locator": "Annex 4, example 4 (also Basel Framework CRE99)",
+        "derivation": "Prototype TestCatalogue T09 (Example 4: aggregate add-on (no diversification across classes); CRE99 ex.4; official published value (rounded); workbook reference BCBS-EX4, AddOn aggregate). Printed figure, rounded; not yet re-checked against the registered text.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T09"
+    },
+    {
+      "quantity": "exposure_value",
+      "rule": "CRE52.1",
+      "value": 936,
+      "unit": "EUR",
+      "tolerance": {
+        "absolute": 0.6,
+        "relative": 0
+      },
+      "reference": {
+        "class": "published",
+        "source": "BCBS-279",
+        "locator": "Annex 4, example 4 (also Basel Framework CRE99)",
+        "derivation": "Prototype TestCatalogue T10 (Example 4: EAD; CRE99 ex.4; official published value (rounded); workbook reference BCBS-EX4, EAD). Catalogue note: Published 936 = 1.4 x (40 + 629) with rounded add-ons; unrounded 936.5. Printed figure, rounded; not yet re-checked against the registered text.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T10"
+    }
+  ]
+}

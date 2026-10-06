@@ -208,6 +208,16 @@ Use only the categories needed by a release.
   the owner (#58): a workbook built from it with the repository source ran the
   harness and Run SA-CCR with the prototype's results.
 
+- The prototype TestCatalogue's 28 checks as versioned test cases (#59): 12
+  fixtures in `tests/fixtures` with expected files per regime in
+  `tests/expected`, mapped in `tests/README.md`. The 14 figures printed in BCBS
+  279 Annex 4 are `published`; the 14 that came from an unavailable Python
+  script or unreviewed hand calculations are `illustrative`. Each value and
+  tolerance matches the catalogue. `docs/methodology/TEST_CASES.md` defines
+  the full fixture vocabulary, trade-level and text results, and currencies,
+  and `tools/check_test_cases.py` validates the files in `python
+  tools/check.py`. The harness does not run the cases yet.
+
 ### Fixed
 
 - Allow scheduled traffic exports without relying on a webhook payload, while

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "kind": "saccr-expected",
+  "fixture": "illustrative-negative-commodity-price",
+  "regime": "CRR",
+  "outputs": [
+    {
+      "quantity": "lambda_shift",
+      "rule": "CRR-RTS.5",
+      "trade": "NCO-1",
+      "value": 5.5,
+      "unit": "price",
+      "tolerance": {
+        "absolute": 1e-12,
+        "relative": 0
+      },
+      "reference": {
+        "class": "illustrative",
+        "source": "CRR-RTS",
+        "locator": "Del. Reg. 2021/931 Art. 5 (am. 2025/855)",
+        "derivation": "Prototype TestCatalogue T23 (Negative commodity price: lambda = -(1 + 0.1) x min(P, K); Del. Reg. 2021/931 Art. 5 (am. 2025/855); hand calculation from the regulation; workbook reference NCO-1, Lambda). Value from a hand calculation from the regulation that has not been reviewed; illustrative until an independent derivation is committed and reviewed.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T23"
+    }
+  ]
+}

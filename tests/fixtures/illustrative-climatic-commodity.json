@@ -1,14 +1,14 @@
 {
   "schema_version": 1,
   "kind": "saccr-fixture",
-  "id": "illustrative-ir-swap-unmargined",
+  "id": "illustrative-climatic-commodity",
   "synthetic": true,
-  "description": "Illustrative only: one unmargined interest-rate swap with no collateral, showing the fixture format.",
+  "description": "Heating-degree-day swap mapped to its own climatic commodity hedging set under CRR.",
   "category": "nominal",
   "calculation_currency": "EUR",
-  "valuation_date": "2026-01-02",
+  "valuation_date": "2026-09-30",
   "netting_set": {
-    "id": "NS1",
+    "id": "CLIMATE",
     "margined": false,
     "cleared": false,
     "remargin_period_business_days": null,
@@ -23,27 +23,27 @@
   },
   "trades": [
     {
-      "id": "T1",
-      "asset_class": "interest_rate",
-      "sub_class": null,
-      "risk_factor": "EUR",
+      "id": "CL-1",
+      "asset_class": "commodity",
+      "sub_class": "CLIMATIC",
+      "risk_factor": "HDD LONDON",
       "instrument": "linear",
       "direction": "long",
       "option_type": null,
       "nature": "standard",
       "hedging_set_label": null,
-      "notional_amount": 10000000,
-      "market_value_amount": 100000,
-      "start_date": "2026-01-02",
-      "end_date": "2031-01-02",
-      "maturity_date": "2031-01-02",
+      "notional_amount": 1000,
+      "market_value_amount": 5,
+      "start_date": null,
+      "end_date": null,
+      "maturity_date": "2027-03-31",
       "option_expiry_date": null,
       "underlying_price": null,
       "strike_price": null,
       "lambda_price": null,
       "attachment_rate": null,
       "detachment_rate": null,
-      "description": "Five-year swap, format example"
+      "description": "Heating-degree-day swap"
     }
   ]
 }
