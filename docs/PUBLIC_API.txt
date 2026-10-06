@@ -1,4 +1,8 @@
 # Supported VBA declarations: <component><TAB><kind><TAB><name>
 # Only declarations in src/modules/ may be listed. See docs/REPOSITORY_STRUCTURE.md.
 # Normalized signatures use: # SIG<TAB><component><TAB><kind><TAB><name><TAB><signature>
-# No supported declarations yet: the first facade module adds the first rows.
+# SaccrScaffold is setup scaffolding for the regression harness (#7), replaced by the SA-CCR facade.
+SaccrScaffold	Const	SACCR_ERROR_ZERO_DENOMINATOR
+# SIG	SaccrScaffold	Const	SACCR_ERROR_ZERO_DENOMINATOR	Public Const SACCR_ERROR_ZERO_DENOMINATOR As Long = CoreScaffold.ERR_ZERO_DENOMINATOR
+SaccrScaffold	Function	ScaffoldRatio
+# SIG	SaccrScaffold	Function	ScaffoldRatio	Public Function ScaffoldRatio( ByVal numerator As Double, ByVal denominator As Double) As Double

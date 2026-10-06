@@ -5,11 +5,14 @@
 
 | Location | Contents | Defined in |
 | --- | --- | --- |
-| `modules/` | Regression modules and the harness entry point | #7 |
+| `modules/` | Regression modules; `TestHarness.bas` is the harness and its entry point | #7 |
 | `fixtures/` | Synthetic inputs: trades, netting sets, collateral terms | #8 |
 | `expected/` | Reviewed expected values with their independent source | #8 |
 
-No tests exist yet. Each subdirectory is created with its first real file.
+The harness entry point is `TestHarness.RunTests`. How to run it and what a
+passing log looks like is in
+[`INSTALLATION.md`](../INSTALLATION.md#running-the-harness). Each other
+subdirectory is created with its first real file.
 
 Rules:
 

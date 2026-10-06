@@ -26,7 +26,7 @@ sequence**. Day-to-day contribution is owned by
 | Active branch | `release/0.0.1` |
 | Version file | Not present; version semantics are defined in issue #13 |
 | Release evidence tooling | Not present; static checks only (`tools/check.py`) |
-| Excel certification procedure | To be defined with the harness (#7) and Excel evidence (#9) |
+| Excel certification procedure | Harness defined (`TestHarness.RunTests`); evidence format in #9 |
 
 Steps below marked *(to be defined)* depend on those issues. Until they land, a
 release cannot be certified and none will be made.
@@ -103,8 +103,9 @@ Confirm the hosted **Repository integrity** check is green on the same SHA.
 
 Import the exact candidate into a clean workbook, compile, run the full
 regression harness and the release scenarios. Record the evidence using the
-[validation record](INSTALLATION.md#validation-record). The concrete harness
-commands and pass criteria come from issues #7 and #9.
+[validation record](INSTALLATION.md#validation-record). The harness and its pass
+line are in [running the harness](INSTALLATION.md#running-the-harness); the
+evidence format comes from issue #9.
 
 ### 5. Build artifacts *(to be defined)*
 
