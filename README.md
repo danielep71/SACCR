@@ -28,11 +28,14 @@ workbook driven by exported, reviewable VBA source.
 ## 🧭 Status
 
 The project is in its **repository-setup milestone, v0.0.1**. No calculation
-code exists yet. The current work establishes:
+code exists yet. SACCR uses the **application** profile: the deliverable is a
+workbook built from the exported source, around a host-independent calculation
+core ([repository structure](docs/REPOSITORY_STRUCTURE.md)). The current work
+establishes:
 
 - repository conventions, static checks and CI;
 - governance, issue metadata and labels;
-- the VBA layout and import conventions (#3, #4);
+- the VBA import conventions and host support (#4);
 - the methodology sources and numerical test-case contract (#8); and
 - the regression harness and Excel evidence (#7, #9).
 
@@ -63,6 +66,7 @@ Requirements, the import procedure and troubleshooting are in
 | --- | --- |
 | [`INSTALLATION.md`](INSTALLATION.md) | Developer setup, checks, Excel import and validation record |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Workflow, commit messages, evidence and pull requests |
+| [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) | Profile decision, source layout, public API boundary |
 | [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) | Branches, issue metadata, review checklist, GitHub controls |
 | [`tools/README.md`](tools/README.md) | Static checks and the CI workflow |
 | [`docs/LABELS.md`](docs/LABELS.md) | Issue-label catalogue and its workflows |
