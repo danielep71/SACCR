@@ -172,8 +172,9 @@ Rules the validator applies:
   `completeness` set to `INCOMPLETE` when the run stopped early. Its log must
   still be one normal-mode report whose `CASE` lines follow the policy order and
   whose counts, `CLEANUP` and `RESULT=FAIL` lines match the record; a `FAIL`
-  record cannot cite a passing report. A `TIMEOUT` keeps the partial log, which
-  must not contain `RESULT=PASS`.
+  record cannot cite a passing report. A `TIMEOUT` keeps the partial log: the
+  lines it printed must agree with the record, and it has no `RESULT=` line; a
+  run that printed one finished and is recorded as `PASS` or `FAIL`.
 - The expected-error result is inferred from the complete passing suite, which
   includes the error-number, source and description assertions; it is not a
   separate observation.
