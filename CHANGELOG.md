@@ -159,8 +159,8 @@ Use only the categories needed by a release.
 
 ### Known limitations
 
-- The repository contains no VBA source yet, so the VBA checks have nothing to
-  inspect. No check compiles VBA or runs Excel.
+- The only VBA is the neutral scaffold and the regression harness; there is no
+  SA-CCR calculation yet. No automated check compiles VBA or runs Excel.
 
 ---
 
