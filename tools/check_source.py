@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import sys
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +18,7 @@ OPTION_EXPLICIT = re.compile(r"^[ \t]*Option[ \t]+Explicit[ \t]*(?:'.*)?$", re.M
 FRX_REFERENCE = re.compile(r'"([^"\r\n]+\.frx)":([0-9A-Fa-f]+)')
 SEMVER = r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
 VERSION_HEADING = re.compile(r"^## \[([^\]]+)\](.*)$", re.M)
-RELEASE_SUFFIX = re.compile(r" - \d{4}-\d{2}-\d{2}")
+RELEASE_SUFFIX = re.compile(r" - (\d{4}-\d{2}-\d{2})")
 
 
 def index_eol(root: Path) -> dict[str, tuple[str, str]]:
@@ -41,6 +42,9 @@ def check_storage(root: Path) -> list[str]:
     for path, (eol, attr) in sorted(index_eol(root).items()):
         if eol in {"crlf", "mixed"}:
             findings.append(f"{path}: stored with {eol.upper()} in Git; renormalize to LF")
+        # Git reports lone CR line endings as non-text; that is a defect only for declared text.
+        elif eol == "-text" and attr.split()[:1] == ["text"]:
+            findings.append(f"{path}: declared text but Git classifies the blob as non-text (lone CR?)")
         if Path(path).suffix.lower() in VBA_SUFFIXES and "eol=crlf" not in attr:
             findings.append(f"{path}: .gitattributes must check VBA source out as CRLF")
     return findings
@@ -76,6 +80,14 @@ def check_component(root: Path, path: str, tracked: set[str], names: dict[str, s
     return findings
 
 
+def valid_date(text: str) -> bool:
+    try:
+        date.fromisoformat(text)
+    except ValueError:
+        return False
+    return True
+
+
 def check_changelog(root: Path) -> list[str]:
     path = root / "CHANGELOG.md"
     if not path.is_file():
@@ -92,8 +104,11 @@ def check_changelog(root: Path) -> list[str]:
         seen.add(label)
         if label == "Unreleased":
             continue
-        if not re.fullmatch(SEMVER, label) or not RELEASE_SUFFIX.fullmatch(suffix):
+        dated = RELEASE_SUFFIX.fullmatch(suffix)
+        if not re.fullmatch(SEMVER, label) or not dated:
             findings.append(f"CHANGELOG.md: release heading must be '## [X.Y.Z] - YYYY-MM-DD': [{label}]{suffix}")
+        elif not valid_date(dated.group(1)):
+            findings.append(f"CHANGELOG.md: [{label}] date {dated.group(1)} is not a calendar date")
         if not re.search(rf"^\[{re.escape(label)}\]: \S+$", text, re.M):
             findings.append(f"CHANGELOG.md: missing link reference for [{label}]")
     if "Unreleased" in seen and not re.search(r"^\[Unreleased\]: \S+$", text, re.M):

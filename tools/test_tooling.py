@@ -68,6 +68,13 @@ class SourceGateTests(unittest.TestCase):
         found = self.findings()
         self.assertIn("notes.txt: stored with CRLF in Git; renormalize to LF", found)
 
+    def test_lone_cr_in_declared_text_is_rejected(self):
+        self.write("notes.md", "a\rb\r")
+        (self.root / "blob.dat").write_bytes(b"a\rb\r")
+        found = self.findings()
+        self.assertIn("notes.md: declared text but Git classifies the blob as non-text (lone CR?)", found)
+        self.assertFalse(any(f.startswith("blob.dat") for f in found))
+
     def test_vba_without_crlf_checkout_attribute_is_rejected(self):
         (self.root / ".gitattributes").write_text("* text=auto eol=lf\n")
         self.write("src/M_Test.bas", MODULE.replace("\r\n", "\n"))
@@ -82,6 +89,13 @@ class SourceGateTests(unittest.TestCase):
     def test_changelog_release_heading_format(self):
         self.write("CHANGELOG.md", CHANGELOG + "\n## [v0.0.1] 2026-01-01\n\n[v0.0.1]: x\n")
         self.assertTrue(any("release heading must be" in f for f in self.findings()))
+
+    def test_changelog_release_date_must_exist(self):
+        for bad in ("2026-02-31", "2026-99-99"):
+            self.write("CHANGELOG.md", CHANGELOG + f"\n## [0.0.1] - {bad}\n\n[0.0.1]: x\n")
+            self.assertIn(f"CHANGELOG.md: [0.0.1] date {bad} is not a calendar date", self.findings())
+        self.write("CHANGELOG.md", CHANGELOG + "\n## [0.0.1] - 2028-02-29\n\n[0.0.1]: x\n")
+        self.assertEqual(self.findings(), [])
 
     def test_missing_changelog(self):
         (self.root / "CHANGELOG.md").unlink()
