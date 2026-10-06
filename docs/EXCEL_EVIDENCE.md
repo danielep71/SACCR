@@ -167,14 +167,16 @@ Rules the validator applies:
 - `references` must be exactly the policy's required references, in any order.
 - A stage that did not run has `"status": "NOT_RUN"` and `"log": null`. Compile
   cannot run after a failed import, nor the regression after a failed compile.
-  When the regression did not run, `harness` is `null`.
-- A failed or interrupted regression keeps the observed counts, with
-  `completeness` set to `INCOMPLETE` when the run stopped early. Its log must
-  still be one normal-mode report whose `CASE` lines follow the policy order and
-  whose counts, `CLEANUP` and `RESULT=FAIL` lines match the record; a `FAIL`
-  record cannot cite a passing report. A `TIMEOUT` keeps the partial log: the
-  lines it printed must agree with the record, and it has no `RESULT=` line; a
-  run that printed one finished and is recorded as `PASS` or `FAIL`.
+  When the regression did not run or timed out, `harness` is `null`.
+- A failed regression keeps the observed counts, with `completeness` set to
+  `INCOMPLETE` when the harness stopped early but still printed its report. Its
+  log must be one normal-mode report whose `CASE` lines follow the policy order
+  and whose counts, `CLEANUP` and `RESULT=FAIL` lines match the record; a `FAIL`
+  record cannot cite a passing report.
+- A regression abandoned as hung is `TIMEOUT`: keep whatever it printed as its
+  log, set `harness` to `null`, and claim no counts. The log is hashed but not
+  parsed, and it must have no `RESULT=` line: a run that printed one finished
+  and is recorded as `PASS` or `FAIL`.
 - The expected-error result is inferred from the complete passing suite, which
   includes the error-number, source and description assertions; it is not a
   separate observation.
@@ -231,7 +233,8 @@ Keep non-passing bundles too until the finding is resolved.
 (`tool-tests`). It uses synthetic records and a temporary Git repository to
 cover a valid record and wrong source identity, a different candidate,
 incomplete and interrupted execution, failed cleanup, import, compile and test
-failures, failure and timeout records that contradict their logs,
+failures, failure records that contradict their logs, timeouts that claim
+results or cite a finished log,
 injected-failure or repeated logs, tampered, missing, escaping or
 symlinked logs, environment and reference mismatches, unavailable records and
 the command-line exit codes. Those tests are not Excel evidence.
