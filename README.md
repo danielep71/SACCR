@@ -35,7 +35,8 @@ establishes:
 
 - repository conventions, static checks and CI;
 - governance, issue metadata and labels;
-- the methodology sources and numerical test-case contract (#8); and
+- the methodology basis, CRR with Basel CRE52 also supported, and the numerical
+  test-case format ([`docs/methodology/`](docs/methodology/README.md)); and
 - Excel evidence bound to a commit ([`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md))
   and the first real Excel smoke test (#9).
 

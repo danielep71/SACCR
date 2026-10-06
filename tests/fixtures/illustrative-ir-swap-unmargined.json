@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "kind": "saccr-fixture",
+  "id": "illustrative-ir-swap-unmargined",
+  "synthetic": true,
+  "description": "Illustrative only: one unmargined interest-rate swap with no collateral, showing the fixture format.",
+  "category": "nominal",
+  "calculation_currency": "EUR",
+  "valuation_date": "2026-01-02",
+  "netting_set": {
+    "id": "NS1",
+    "margined": false,
+    "collateral_net_amount": 0
+  },
+  "trades": [
+    {
+      "id": "T1",
+      "asset_class": "interest_rate",
+      "currency": "EUR",
+      "notional_amount": 10000000,
+      "start_date": "2026-01-02",
+      "end_date": "2031-01-02",
+      "market_value_amount": 100000
+    }
+  ]
+}
