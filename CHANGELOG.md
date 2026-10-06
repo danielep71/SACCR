@@ -87,7 +87,8 @@ Use only the categories needed by a release.
 
 ## [Unreleased]
 
-> Not yet released. Work is staged on `release/0.0.1`.
+> Not yet released. All development and setup work takes place on `release/0.0.1`
+> until milestone v0.0.1 closes; changes to `main` require an explicit owner instruction.
 
 ### Added
 
@@ -103,6 +104,10 @@ Use only the categories needed by a release.
   `main` and `release/**`, plus manual execution. Reports and logs identify the
   checked commit and are retained for 30 days, including failed checks.
 - This changelog.
+- Repository governance and agent instructions record the active release branch,
+  issue metadata requirements, manual review process and current platform limits.
+- Label catalogue, synchronization/drift scripts and workflows are available on
+  the release branch as well as main; existing trigger behavior is preserved.
 
 ### Known limitations
 
