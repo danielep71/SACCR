@@ -127,6 +127,14 @@ Use only the categories needed by a release.
   with an empty [`docs/PUBLIC_API.txt`](docs/PUBLIC_API.txt) manifest.
   `python tools/check.py` now rejects VBA components outside those locations and
   core modules without `Option Private Module`.
+- VBA conventions and host support:
+  [`docs/VBA_HOUSE_STYLE.md`](docs/VBA_HOUSE_STYLE.md) defines naming, units and
+  domains, error contracts, Excel-state cleanup that preserves the original
+  error, and export rules (cp1252, LF in Git and CRLF on checkout, forms,
+  workbook policy). [`INSTALLATION.md`](INSTALLATION.md) declares the supported
+  hosts (Excel 2016+/Microsoft 365 on Windows, 64-bit supported, 32-bit best
+  effort, default references only) and gives the step-by-step build-from-source
+  and export procedure.
 
 ### Known limitations
 

@@ -35,7 +35,6 @@ establishes:
 
 - repository conventions, static checks and CI;
 - governance, issue metadata and labels;
-- the VBA import conventions and host support (#4);
 - the methodology sources and numerical test-case contract (#8); and
 - the regression harness and Excel evidence (#7, #9).
 
@@ -67,6 +66,7 @@ Requirements, the import procedure and troubleshooting are in
 | [`INSTALLATION.md`](INSTALLATION.md) | Developer setup, checks, Excel import and validation record |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Workflow, commit messages, evidence and pull requests |
 | [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) | Profile decision, source layout, public API boundary |
+| [`docs/VBA_HOUSE_STYLE.md`](docs/VBA_HOUSE_STYLE.md) | VBA naming, contracts, errors, Excel-state cleanup, export rules |
 | [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) | Branches, issue metadata, review checklist, GitHub controls |
 | [`tools/README.md`](tools/README.md) | Static checks and the CI workflow |
 | [`docs/LABELS.md`](docs/LABELS.md) | Issue-label catalogue and its workflows |

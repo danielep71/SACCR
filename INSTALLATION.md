@@ -37,13 +37,13 @@ VBA source, workbook or add-in.
 | Topic | Status |
 | --- | --- |
 | VBA source layout | Defined in [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) |
-| Import/export conventions and host support | To be defined in issue #4 |
+| Import/export conventions and host support | Defined below and in [`docs/VBA_HOUSE_STYLE.md`](docs/VBA_HOUSE_STYLE.md) |
 | Regression harness | To be defined in issue #7 |
 | Excel evidence and smoke test | To be defined in issue #9 |
 | Released versions | None |
 
-The Excel sections below state the rules that will apply. They will be
-completed with concrete component lists and commands as those issues land.
+The Excel sections below state the rules that will apply. The concrete
+component list and import order are added with the first VBA source.
 
 ## 🧰 Prerequisites
 
@@ -52,7 +52,29 @@ completed with concrete component lists and commands as those issues land.
 | Git | Cloning and all repository work |
 | Python 3.10 or later | `python tools/check.py`; standard library only, no packages |
 | Node.js 20 or later | Optional: local label-catalogue checks |
-| Microsoft Excel for Windows | Importing, compiling and running VBA, once source exists |
+| Microsoft Excel for Windows | Importing, compiling and running VBA, once source exists; see [supported hosts](#supported-hosts) |
+
+<a id="supported-hosts"></a>
+
+## 🖥️ Supported hosts
+
+Decided by the owner on 2026-10-06 in issue #4.
+
+| Host | Support level |
+| --- | --- |
+| Microsoft 365 or Excel 2016 and later, **Windows, 64-bit** | Supported target |
+| Same versions, Windows, 32-bit | Best effort: kept compiling, not certified |
+| Excel for Mac, Excel for the web, Excel 2013 and earlier | Not supported |
+
+**References:** only the four defaults of a new workbook: *Visual Basic For
+Applications*, *Microsoft Excel 16.0 Object Library*, *OLE Automation* and
+*Microsoft Office 16.0 Object Library*. Adding any other reference needs an
+issue and an update to this section.
+
+**Evidence:** this table is a support **commitment**, not a test result. No
+version has been verified in Excel yet. Host evidence is recorded per change
+under [Validation record](#validation-record) and, from #9, as Excel evidence
+bound to a commit.
 
 ## 📥 Get the source
 
@@ -106,31 +128,57 @@ node .github/scripts/labels-drift.mjs --policy .github/label-policy.json --self-
 The gates are described in [`tools/README.md`](tools/README.md). They are static
 checks: they never compile VBA or run Excel.
 
+<a id="importing-vba-into-excel"></a>
+
 ## 📂 Importing VBA into Excel
 
-These rules apply once VBA source exists. The component list and import order
-will be added with issue #4.
+The layout and file conventions are defined in
+[`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) and
+[`docs/VBA_HOUSE_STYLE.md`](docs/VBA_HOUSE_STYLE.md#export-compatibility).
+The exact component list is added here with the first VBA source.
 
-1. Back up the destination workbook or add-in and any user data.
-2. Use one exact commit from a Git checkout. Never mix components from
-   different commits or local exports.
-3. Import every required component through the VBE (**File → Import File**).
-   Import the `.frm`; its adjacent `.frx` is loaded with it and must never be
-   imported or edited as text.
-4. Run **Debug → Compile VBAProject**.
-5. Save in a macro-enabled format.
-6. Close and reopen the host when a clean session is required.
-7. Run the regression harness and the specific scenario under test.
+### Building a workbook from source
 
-Do not paste source into arbitrarily named modules. Component identity
-(`VB_Name`) and form resources are part of a reproducible import.
+1. Start from one exact commit in a Git checkout, so `.bas`, `.cls` and `.frm`
+   files have CRLF line endings. Never mix components from different commits.
+2. Create a new blank workbook and save it as **Excel Macro-Enabled Workbook
+   (`.xlsm`)** outside the checkout, or in an ignored location such as
+   `test-results/`. Workbooks are never committed.
+3. Open the VBE (**Alt+F11**) and check **Tools → References** shows only the
+   four default references listed under [supported hosts](#supported-hosts).
+4. Import with **File → Import File**, in this order:
+   1. every file in `src/core/`;
+   2. every file in `src/classes/`;
+   3. every file in `src/modules/`;
+   4. every `.frm` in `src/forms/` (its `.frx` loads with it; never import a
+      `.frx`);
+   5. for a development workbook only: `tests/` and `examples/` modules.
+5. **Document modules** in `src/workbook/` (`ThisWorkbook.cls` and sheet
+   modules) cannot be imported: the VBE would create a new class such as
+   `ThisWorkbook1`. Instead, open the `.cls` file in a text editor, copy the code
+   below the `Attribute` lines, and paste it into the existing `ThisWorkbook` or
+   sheet module. Sheet code names must match the file names.
+6. Run **Debug → Compile VBAProject**; it must complete with no error.
+7. Save, close and reopen when a clean session is needed, then run the harness
+   and the specific scenario under test.
+
+Do not paste source into arbitrarily named modules: the component name
+(`VB_Name`) is part of the contract, and `tools/check_source.py` requires it to
+match the file name.
 
 ### Exporting changes back
 
-Export changed components from the VBE over their files in the checkout, then
-let Git normalize line endings on commit. Run `python tools/check.py` before
-committing: it verifies `VB_Name`, `Option Explicit`, form resources and line
-endings.
+1. In the VBE, right-click each changed component → **Export File**, and save
+   it over its file in the checkout, in the same folder. For a document module,
+   copy its code back into the matching `src/workbook/` file below the existing
+   `Attribute` lines instead.
+2. Review `git diff`. The VBE silently changes the capitalization of an
+   identifier everywhere it appears when one declaration changes case; revert
+   case-only changes you did not intend.
+3. Run `python tools/check.py`. It verifies placement, `VB_Name`,
+   `Option Explicit`, `Option Private Module`, form resources, encoding and
+   line endings.
+4. Commit. Git stores the files with LF; you do not convert anything by hand.
 
 <a id="validation-record"></a>
 

@@ -29,7 +29,7 @@ Suspected vulnerabilities must never be disclosed in an issue or pull request.
 > [!NOTE]
 > SACCR is in its repository-setup milestone, **v0.0.1**. The SA-CCR engine
 > and the regression harness do not exist yet; their contracts are being defined
-> in issues #4, #7 and #8. The source layout is set in
+> in issues #7 and #8. The source layout is set in
 > [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md). Sections below
 > that refer to VBA describe the rules those changes must follow.
 
@@ -104,8 +104,10 @@ The repository-control files define how source is stored:
 Where each component belongs, the dependency direction and the public-API
 boundary are defined in
 [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md); supported
-declarations are listed in [`docs/PUBLIC_API.txt`](docs/PUBLIC_API.txt). Import
-conventions are being defined in issue #4.
+declarations are listed in [`docs/PUBLIC_API.txt`](docs/PUBLIC_API.txt). Naming,
+contracts, errors and Excel-state handling follow
+[`docs/VBA_HOUSE_STYLE.md`](docs/VBA_HOUSE_STYLE.md); import and export follow
+[`INSTALLATION.md`](INSTALLATION.md#importing-vba-into-excel).
 
 Do not weaken a calculation, numerical or packaging gate merely because the
 generic repository gate passes.
@@ -209,6 +211,7 @@ Discussion stays technical and respectful under the
 | Need | Document |
 | --- | --- |
 | Source layout and public API | [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) |
+| VBA naming, contracts and errors | [`docs/VBA_HOUSE_STYLE.md`](docs/VBA_HOUSE_STYLE.md) |
 | Branches, issues, review, GitHub controls | [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) |
 | Developer setup and import | [`INSTALLATION.md`](INSTALLATION.md) |
 | Static checks and CI | [`tools/README.md`](tools/README.md) |
