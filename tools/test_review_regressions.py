@@ -66,6 +66,17 @@ class ReviewRegressionTests(unittest.TestCase):
         self.assertEqual(public_api.split_statements('Public Const T As Date = #12:30:00#: Public X As Long'),
                          ['Public Const T As Date = #12:30:00#', 'Public X As Long'])
 
+    def test_hash_type_suffix_does_not_hide_declarations(self) -> None:
+        source = ('Attribute VB_Name = "Facade"\nOption Explicit\n'
+                  'Public Visible#: Public Hidden As Long\n')
+        manifest = ['Facade\tVariable\tVisible',
+                    '# SIG\tFacade\tVariable\tVisible\tPublic Visible#: Public Hidden As Long']
+        result = public_api.fixture(source, manifest)
+        self.assertEqual(result['status'], 'fail')
+        self.assertTrue(any('Hidden' in str(f) for f in result['findings']))
+        self.assertEqual(public_api.split_statements('Public Const X = 1#: Public Y#'),
+                         ['Public Const X = 1#', 'Public Y#'])
+
     def test_colon_procedures_and_continuations(self) -> None:
         source = ('Attribute VB_Name = "Facade"\nOption Explicit\n'
                   'Public Sub A(): End Sub: Public Sub B(): End Sub\n'

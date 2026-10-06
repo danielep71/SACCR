@@ -100,6 +100,17 @@ def strip_vba(raw: str) -> str:
     return "" if re.match(r"^\s*Rem(?:\s|$)", text, re.I) else text.rstrip()
 
 
+def is_date_delimiter(code: str, index: int, in_date: bool) -> bool:
+    if in_date:
+        return True
+    # An adjacent identifier/numeric token owns its # type suffix.
+    previous = code[index - 1] if index else ""
+    if previous and (previous.isalnum() or previous in "_.)]"):
+        return False
+    # A literal needs a closing delimiter; e.g. Print #1 is not a date.
+    return "#" in code[index + 1:]
+
+
 def split_statements(code: str) -> list[str]:
     """Split colons outside VBA strings, preserving named arguments and Rem comments."""
     statements: list[str] = []
@@ -114,7 +125,7 @@ def split_statements(code: str) -> list[str]:
                 index += 2
                 continue
             in_string = not in_string
-        elif char == "#" and not in_string:
+        elif char == "#" and not in_string and is_date_delimiter(code, index, in_date):
             in_date = not in_date
         elif char == ":" and not (in_string or in_date) and code[index:index + 2] != ":=":
             statement = code[start:index].strip()
