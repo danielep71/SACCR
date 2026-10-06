@@ -120,6 +120,13 @@ Use only the categories needed by a release.
   [`RELEASING.md`](RELEASING.md), tailored to SACCR's pre-release state. The
   README now gives the project status, a getting-started path and a
   documentation map.
+- Repository structure for the **application** profile:
+  [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) records the
+  profile decision, where core, facade, workbook glue, tests, fixtures, examples
+  and methodology live, the dependency direction and the public-API boundary,
+  with an empty [`docs/PUBLIC_API.txt`](docs/PUBLIC_API.txt) manifest.
+  `python tools/check.py` now rejects VBA components outside those locations and
+  core modules without `Option Private Module`.
 
 ### Known limitations
 

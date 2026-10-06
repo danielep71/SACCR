@@ -15,6 +15,10 @@ VBA_SUFFIXES = {".bas", ".cls", ".frm"}
 VBA_ENCODING = "cp1252"
 VB_NAME = re.compile(r'^Attribute VB_Name = "([^"]+)"\s*$', re.M)
 OPTION_EXPLICIT = re.compile(r"^[ \t]*Option[ \t]+Explicit[ \t]*(?:'.*)?$", re.M | re.I)
+OPTION_PRIVATE = re.compile(r"^[ \t]*Option[ \t]+Private[ \t]+Module[ \t]*(?:'.*)?$", re.M | re.I)
+# Homes for VBA components; see docs/REPOSITORY_STRUCTURE.md.
+VBA_HOMES = ("src/core/", "src/modules/", "src/classes/", "src/workbook/", "src/forms/",
+             "tests/", "examples/")
 FRX_REFERENCE = re.compile(r'"([^"\r\n]+\.frx)":([0-9A-Fa-f]+)')
 SEMVER = r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
 VERSION_HEADING = re.compile(r"^## \[([^\]]+)\](.*)$", re.M)
@@ -67,6 +71,8 @@ def check_component(root: Path, path: str, tracked: set[str], names: dict[str, s
         names[matches[0].casefold()] = path
     if not OPTION_EXPLICIT.search(text):
         findings.append(f"{path}: missing Option Explicit")
+    if path.startswith("src/core/") and path.lower().endswith(".bas") and not OPTION_PRIVATE.search(text):
+        findings.append(f"{path}: core modules must declare Option Private Module")
     if path.lower().endswith(".frm"):
         companions = FRX_REFERENCE.findall(text)
         if not companions:
@@ -121,6 +127,9 @@ def run_check(root: Path) -> dict[str, Any]:
     findings = check_storage(root)
     names: dict[str, str] = {}
     components = sorted(p for p in tracked if Path(p).suffix.lower() in VBA_SUFFIXES)
+    findings.extend(f"{p}: VBA component outside the documented source locations"
+                    for p in sorted(tracked)
+                    if Path(p).suffix.lower() in VBA_SUFFIXES | {".frx"} and not p.startswith(VBA_HOMES))
     for path in components:
         findings.extend(check_component(root, path, tracked, names))
     findings.extend(check_changelog(root))

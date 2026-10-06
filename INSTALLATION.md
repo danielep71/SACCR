@@ -36,7 +36,7 @@ VBA source, workbook or add-in.
 
 | Topic | Status |
 | --- | --- |
-| VBA source layout | To be defined in issue #3 |
+| VBA source layout | Defined in [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) |
 | Import/export conventions and host support | To be defined in issue #4 |
 | Regression harness | To be defined in issue #7 |
 | Excel evidence and smoke test | To be defined in issue #9 |
