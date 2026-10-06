@@ -43,5 +43,5 @@ The workflow uses a read-only token, does not persist checkout credentials,
 and pins actions to full commit SHAs taken from the template.
 It uses GitHub-hosted Ubuntu and Python 3.10 with no additional Python packages.
 A successful job is static-check evidence only, not Excel validation.
-Whether GitHub blocks merging on this check depends on branch-protection
-availability and configuration.
+Whether GitHub blocks merging on this check depends on the repository's
+branch rulesets.
