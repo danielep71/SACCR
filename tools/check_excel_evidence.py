@@ -212,6 +212,9 @@ def report_cases(record: dict[str, Any], policy: dict[str, Any], log: str) -> li
         key, _, value = item.partition("=")
         reported[key] = value
     environment = record["environment"]
+    # Application.OperatingSystem, e.g. "Windows (64-bit) NT 10.00"; Excel for Mac is unsupported.
+    require(reported.get("os", "").startswith("Windows"),
+            "harness ENVIRONMENT os is not Windows")
     for key, field in (("version", "excel_version"), ("office", "office_bitness"),
                        ("runtime", "runtime")):
         require(reported.get(key) == environment[field],
