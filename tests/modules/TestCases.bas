@@ -37,7 +37,7 @@ Public Sub RunCaseTests()
 '   Run the 18 expected files in file-name order, then restore the workbook.
 '==============================================================================
 '
-        CaseRunner.BeginSuite 18
+        CaseRunner.BeginSuite 18, 30
         On Error GoTo Failed
         Case01
         Case02
