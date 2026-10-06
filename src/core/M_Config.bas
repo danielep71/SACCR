@@ -5,8 +5,9 @@ Attribute VB_Name = "M_Config"
 ' PURPOSE
 '   Hold every layout constant the SA-CCR engine depends on: sheet names,
 '   header and first data rows, the column of each input field, the width of
-'   each output table, parameter codes, regime and asset-class codes, and the
-'   severity labels written to the Checks sheet. When a sheet layout changes,
+'   each output table, parameter codes, regime and asset-class codes, the
+'   severity labels written to the Checks sheet, and the error numbers raised
+'   by the workbook macros. When a sheet layout changes,
 '   it changes here and nowhere else.
 '
 ' PUBLIC SURFACE
@@ -180,6 +181,16 @@ Attribute VB_Name = "M_Config"
         Public Const AC_CO      As Long = 5    'Commodity
         Public Const AC_OT      As Long = 6    'Other risks, CRR only
         Public Const AC_COUNT   As Long = 6    'Number of asset classes
+
+'------------------------------------------------------------------------------
+' ERROR NUMBERS
+'------------------------------------------------------------------------------
+    'Errors raised by the workbook macros, in the project range
+    'vbObjectError + 2048 to + 4095. The regression harness uses its own
+    'numbers from + 2060.
+        Public Const ERR_RUN_ACTIVE       As Long = vbObjectError + 2049    'An operation is already running
+        Public Const ERR_CLEANUP_FAILED   As Long = vbObjectError + 2050    'Excel settings were not restored
+        Public Const ERR_INJECTED_FAULT   As Long = vbObjectError + 2051    'Test seam: injected failure
 
 '------------------------------------------------------------------------------
 ' SEVERITY LABELS

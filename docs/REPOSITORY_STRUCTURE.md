@@ -128,7 +128,7 @@ its original structure until it is refactored:
 | --- | --- |
 | `src/core` never touches Excel | `M_Engine` and `M_Util` read the input sheets and write the output sheets |
 | `src/workbook` holds document modules | `M_Main`, a standard module, holds the sheet-button macros `RunSACCR`, `ValidateInputs` and `ClearOutputs` |
-| Naming and cleanup rules in `VBA_HOUSE_STYLE.md` | `M_` prefixes; `M_Main` resets screen updating and events instead of restoring the captured values |
+| Naming rules in `VBA_HOUSE_STYLE.md` | `M_` prefixes instead of `Core`, `Saccr` and the other role prefixes |
 
 Each deviation is removed by a reviewed change, not by reformatting.
 

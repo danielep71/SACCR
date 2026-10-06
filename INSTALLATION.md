@@ -239,6 +239,26 @@ The harness never changes Excel settings. It checks that `Calculation`,
 `DisplayAlerts`, `EnableEvents` and `ScreenUpdating` are the same after the run
 as before, and reports `cleanup=FAIL` if not.
 
+### Workbook macro state tests
+
+`tests/modules/TestMainState.bas` checks that **Run SA-CCR**, **Validate inputs**
+and **Clear outputs** put calculation mode, events and screen updating back as
+they found them, also when they were off, and that an operation failure and a
+cleanup failure are each raised and leave the workbook ready for the next run.
+Unlike the harness, it runs the real macros, which rewrite the output sheets,
+so use a development workbook. Run:
+
+```text
+TestMainState.RunMainStateTests
+```
+
+A passing run prints seven `CASE=` lines and ends with
+`RESULT=PASS; cases=7; checks=...; failures=0; caller_state=RESTORED`.
+
+For automation, `RunSACCR_Silent` returns a result line such as
+`RESULT=OK; operation=run; errors=0; warnings=0; trades_used=62; trades_read=65; total_ead=...; cleanup=PASS`
+and raises any failure instead of showing a message box.
+
 <a id="validation-record"></a>
 
 ## 🧪 Validation record
