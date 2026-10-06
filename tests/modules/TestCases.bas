@@ -34,10 +34,10 @@ Public Sub RunCaseTests()
 '                                 RunCaseTests
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Run the 18 expected files in file-name order, then restore the workbook.
+'   Run the 19 expected files in file-name order, then restore the workbook.
 '==============================================================================
 '
-        CaseRunner.BeginSuite 18, 30
+        CaseRunner.BeginSuite 19, 36
         On Error GoTo Failed
         Case01
         Case02
@@ -57,6 +57,7 @@ Public Sub RunCaseTests()
         Case16
         Case17
         Case18
+        Case19
         CaseRunner.EndSuite ""
         Exit Sub
 
@@ -213,6 +214,7 @@ Private Sub Case12()
         CaseRunner.AddTrade "NIR-C", "IR", "", "EUR", "Option", "Long", "Put", "Standard", "", "10000", "15", "2027-09-30", "2032-09-28", "2032-09-28", "2027-09-30", "-0.002", "0.001", "", "", ""
         CaseRunner.RunCase
         CaseRunner.ExpectText "T22", "NIR-C", "trade_status", "EXCLUDED", "illustrative"
+        CaseRunner.ExpectText "netting_set_status", "", "netting_set_status", "INCOMPLETE: 1 of 1 trade(s) rejected", "illustrative"
 End Sub
 
 
@@ -236,6 +238,7 @@ Private Sub Case14()
         CaseRunner.AddTrade "OT-3", "OT", "", "CAT LOSS INDEX Y", "Linear", "Long", "", "Standard", "", "5000", "0", "", "", "2028-03-31", "", "", "", "", "", ""
         CaseRunner.RunCase
         CaseRunner.ExpectText "T26", "OT-1", "trade_status", "EXCLUDED", "illustrative"
+        CaseRunner.ExpectText "netting_set_status", "", "netting_set_status", "INCOMPLETE: 3 of 3 trade(s) rejected", "illustrative"
 End Sub
 
 
@@ -249,10 +252,24 @@ Private Sub Case15()
         CaseRunner.RunCase
         CaseRunner.ExpectNumber "T24", "", "add_on.other", "880", "0.000000001", "0", "illustrative"
         CaseRunner.ExpectNumber "T25", "", "exposure_value", "1232", "0.000000001", "0", "illustrative"
+        CaseRunner.ExpectText "netting_set_status", "", "netting_set_status", "VALID", "illustrative"
 End Sub
 
 
 Private Sub Case16()
+    'tests/expected/illustrative-partly-rejected.crr.json
+        CaseRunner.BeginCase "illustrative-partly-rejected", "CRR", "2026-09-30", "EUR"
+        CaseRunner.AddNettingSet "PARTLY", "N", "N", "", "N", "N", "", "0", "0", "0", "0", ""
+        CaseRunner.AddTrade "PR-1", "IR", "", "EUR", "Linear", "Long", "", "Standard", "", "10000000", "100000", "", "2031-09-30", "2031-09-30", "", "", "", "", "", ""
+        CaseRunner.AddTrade "PR-2", "IR", "", "EUR", "Linear", "Long", "", "Standard", "", "10000000", "0", "", "2026-08-31", "2026-08-31", "", "", "", "", "", ""
+        CaseRunner.RunCase
+        CaseRunner.ExpectText "trade_status", "PR-1", "trade_status", "OK", "illustrative"
+        CaseRunner.ExpectText "trade_status", "PR-2", "trade_status", "EXCLUDED", "illustrative"
+        CaseRunner.ExpectText "netting_set_status", "", "netting_set_status", "INCOMPLETE: 1 of 2 trade(s) rejected", "illustrative"
+End Sub
+
+
+Private Sub Case17()
     'tests/expected/illustrative-posted-vm-cap.bcbs.json
         CaseRunner.BeginCase "illustrative-posted-vm-cap", "BCBS", "2026-09-30", "EUR"
         CaseRunner.AddNettingSet "VMCAP", "Y", "N", "1", "N", "N", "", "-1300000000", "0", "0", "0", ""
@@ -262,7 +279,7 @@ Private Sub Case16()
 End Sub
 
 
-Private Sub Case17()
+Private Sub Case18()
     'tests/expected/illustrative-posted-vm-cap.crr.json
         CaseRunner.BeginCase "illustrative-posted-vm-cap", "CRR", "2026-09-30", "EUR"
         CaseRunner.AddNettingSet "VMCAP", "Y", "N", "1", "N", "N", "", "-1300000000", "0", "0", "0", ""
@@ -273,7 +290,7 @@ Private Sub Case17()
 End Sub
 
 
-Private Sub Case18()
+Private Sub Case19()
     'tests/expected/illustrative-swaption-forward-1pct.crr.json
         CaseRunner.BeginCase "illustrative-swaption-forward-1pct", "CRR", "2026-09-30", "EUR"
         CaseRunner.AddNettingSet "EX1-1PCT", "N", "N", "", "N", "N", "", "0", "0", "0", "0", ""
