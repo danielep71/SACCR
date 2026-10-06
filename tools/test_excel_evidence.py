@@ -1,0 +1,286 @@
+"""Synthetic Excel evidence records; none of these tests runs Excel."""
+from __future__ import annotations
+
+import contextlib
+import copy
+import hashlib
+import io
+import json
+import shutil
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+from typing import Any
+
+import check_excel_evidence as evidence
+
+ROOT = Path(__file__).resolve().parents[1]
+SOURCES = {
+    "src/core/CoreScaffold.bas": "Attribute VB_Name = \"CoreScaffold\"\n",
+    "src/modules/SaccrScaffold.bas": "Attribute VB_Name = \"SaccrScaffold\"\n",
+    "src/forms/FSample.frm": "Attribute VB_Name = \"FSample\"\n",
+    "src/forms/FSample.frx": "binary resource\n",
+    "tests/modules/TestHarness.bas": "Attribute VB_Name = \"TestHarness\"\n",
+    "examples/ExampleUse.bas": "Attribute VB_Name = \"ExampleUse\"\n",
+    "README.md": "fixture\n",
+}
+
+
+class ExcelEvidenceTests(unittest.TestCase):
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.area = Path(temporary.name)
+        self.root = self.area / "candidate"
+        self.bundle = self.area / "bundle"
+        self.bundle.mkdir()
+        self.path = self.bundle / "host.json"
+        self.git("init", "-q", str(self.root))
+        (self.root / ".github").mkdir()
+        shutil.copy(ROOT / evidence.POLICY, self.root / evidence.POLICY)
+        for name, text in SOURCES.items():
+            target = self.root / name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(text)
+        self.commit("Synthetic candidate")
+        self.sha = self.git("-C", str(self.root), "rev-parse", "HEAD").strip()
+        self.policy: dict[str, Any] = json.loads((ROOT / evidence.POLICY).read_text())
+        self.session = f"Candidate {self.sha}\nImported 4 components; compiled clean.\n"
+        self.log = "\n".join([
+            "SACCR TESTS", "MODE=NORMAL",
+            "ENVIRONMENT=host=Microsoft Excel; version=16.0; os=Windows (64-bit) NT 10.00; "
+            "office=64-bit; runtime=VBA7+",
+            *("CASE=" + case for case in self.policy["cases"]),
+            "CASES=4", "ASSERTIONS=6", "FAILURES=0",
+            "CLEANUP=PASS; detail=Calculation, DisplayAlerts, EnableEvents and ScreenUpdating unchanged",
+            "RESULT=PASS; completeness=COMPLETE; cases=4; assertions=6; failures=0; cleanup=PASS", "",
+        ])
+        self.record: dict[str, Any] = {
+            "schema_version": 1, "repository": "danielep71/SACCR", "candidate_sha": self.sha,
+            "execution": "manual", "availability_reason": None,
+            "started_at": "2026-10-06T09:00:00+02:00", "finished_at": "2026-10-06T09:10:00+02:00",
+            "operator": "Synthetic operator, synthetic workstation",
+            "environment": {"excel_version": "16.0", "excel_build": "16.0.20326.20072",
+                            "office_bitness": "64-bit", "os": "Windows 11 Pro 24H2",
+                            "os_architecture": "x64", "runtime": "VBA7+",
+                            "references": list(self.policy["required_references"]),
+                            "macro_policy": "Disable with notification", "vba_project_access": "Off",
+                            "trust_changes": False},
+            "sources": evidence.source_inventory(self.root, self.sha),
+            "stages": {
+                "import": self.stage("session.log", self.session),
+                "compile": self.stage("session.log", self.session),
+                "regression": self.stage("harness.log", self.log),
+                "cleanup": self.stage("session.log", self.session),
+            },
+            "harness": {"entry_point": "TestHarness.RunTests", "cases": 4, "assertions": 6,
+                        "failures": 0, "completeness": "COMPLETE", "expected_errors": [
+                            {"case": "ratio.zero-denominator", "status": "PASS",
+                             "detail": "Implied by the complete passing suite"}]},
+        }
+
+    def git(self, *args: str) -> str:
+        return subprocess.run(["git", *args], check=True, capture_output=True, text=True).stdout
+
+    def commit(self, message: str) -> None:
+        self.git("-C", str(self.root), "add", "--all")
+        self.git("-C", str(self.root), "-c", "user.name=Fixture", "-c", "user.email=fixture@invalid",
+                 "-c", "commit.gpgsign=false", "commit", "-q", "-m", message)
+
+    def stage(self, name: str, text: str) -> dict[str, Any]:
+        (self.bundle / name).write_text(text)
+        return {"status": "PASS", "detail": "Synthetic",
+                "log": {"path": name, "sha256": hashlib.sha256(text.encode()).hexdigest()}}
+
+    def not_run(self) -> dict[str, Any]:
+        return {"status": "NOT_RUN", "detail": "Earlier stage failed", "log": None}
+
+    def evaluate(self) -> dict[str, Any]:
+        self.path.write_text(json.dumps(self.record))
+        return evidence.evaluate(self.root, self.sha, self.path)
+
+    def assertInvalid(self, fragment: str = "") -> None:
+        report = self.evaluate()
+        self.assertIn("EVIDENCE_INVALID", report["outcomes"], report)
+        self.assertIn(fragment, " ".join(report["findings"]), report)
+
+    def test_inventory_is_exact_import_set(self) -> None:
+        paths = [item["path"] for item in self.record["sources"]]
+        self.assertEqual(paths, ["src/core/CoreScaffold.bas", "src/forms/FSample.frm",
+                                 "src/forms/FSample.frx", "src/modules/SaccrScaffold.bas",
+                                 "tests/modules/TestHarness.bas"])
+        expected = hashlib.sha256(SOURCES["tests/modules/TestHarness.bas"].encode()).hexdigest()
+        self.assertEqual(self.record["sources"][-1]["sha256"], expected)
+
+    def test_valid_manual_record_passes_repeatably(self) -> None:
+        first = self.evaluate()
+        self.assertEqual(first["status"], "pass", first)
+        self.assertEqual(first["outcomes"], ["PASS"])
+        self.assertEqual(first, self.evaluate())
+
+    def test_crlf_log_and_uppercase_digest_accepted(self) -> None:
+        crlf = self.log.replace("\n", "\r\n")
+        self.record["stages"]["regression"] = self.stage("harness.log", crlf)
+        log = self.record["stages"]["regression"]["log"]
+        log["sha256"] = log["sha256"].upper()
+        self.assertEqual(self.evaluate()["status"], "pass")
+
+    def test_wrong_source_identity(self) -> None:
+        self.record["sources"][0]["sha256"] = "0" * 64
+        self.assertInvalid("source inventory")
+
+    def test_source_changed_after_candidate(self) -> None:
+        (self.root / "src/core/CoreScaffold.bas").write_text("changed\n")
+        self.commit("Later change")
+        self.record["candidate_sha"] = self.git("-C", str(self.root), "rev-parse", "HEAD").strip()
+        self.path.write_text(json.dumps(self.record))
+        report = evidence.evaluate(self.root, self.record["candidate_sha"], self.path)
+        self.assertIn("EVIDENCE_INVALID", report["outcomes"])
+
+    def test_record_for_another_candidate(self) -> None:
+        self.record["candidate_sha"] = "f" * 40
+        self.assertInvalid("candidate_sha")
+        self.record["candidate_sha"] = self.sha
+        self.path.write_text(json.dumps(self.record))
+        report = evidence.evaluate(self.root, "e" * 40, self.path)
+        self.assertIn("not in this repository", " ".join(report["findings"]))
+
+    def test_import_log_must_name_candidate(self) -> None:
+        self.record["stages"]["import"] = self.stage("import.log", "Imported something\n")
+        self.assertInvalid("candidate SHA")
+
+    def test_environment_fields_required(self) -> None:
+        original = copy.deepcopy(self.record)
+        for key in self.record["environment"]:
+            self.record = copy.deepcopy(original)
+            self.record["environment"][key] = True if key == "trust_changes" else ""
+            self.assertInvalid()
+
+    def test_references_must_be_the_defaults(self) -> None:
+        self.record["environment"]["references"].append("Microsoft Scripting Runtime")
+        self.assertInvalid("references")
+
+    def test_harness_environment_must_match_record(self) -> None:
+        self.record["environment"]["office_bitness"] = "32-bit"
+        self.assertInvalid("office")
+
+    def test_incomplete_execution(self) -> None:
+        self.record["stages"]["regression"] = self.not_run()
+        self.record["harness"] = None
+        self.assertEqual(self.evaluate()["outcomes"], ["INCOMPLETE"])
+        self.record["harness"] = {"cases": 2}
+        self.assertInvalid()
+
+    def test_interrupted_run_cannot_pass(self) -> None:
+        self.record["harness"]["completeness"] = "INCOMPLETE"
+        self.assertInvalid("contradicts")
+        self.record["harness"]["completeness"] = "COMPLETE"
+        partial = self.log.replace("CASE=ratio.repeatability\n", "")
+        self.record["stages"]["regression"] = self.stage("harness.log", partial)
+        self.assertInvalid("CASE")
+
+    def test_failed_cleanup(self) -> None:
+        self.record["stages"]["cleanup"]["status"] = "FAIL"
+        self.assertEqual(self.evaluate()["outcomes"], ["CLEANUP_FAILED"])
+
+    def test_harness_cleanup_failure_must_be_recorded(self) -> None:
+        failed = self.log.replace("CLEANUP=PASS", "CLEANUP=FAIL").replace(
+            "RESULT=PASS", "RESULT=FAIL").replace("cleanup=PASS", "cleanup=FAIL")
+        self.record["stages"]["regression"] = self.stage("harness.log", failed)
+        self.assertInvalid("cleanup")
+        self.record["stages"]["cleanup"]["status"] = "FAIL"
+        self.assertEqual(self.evaluate()["outcomes"], ["CLEANUP_FAILED"])
+
+    def test_test_failure(self) -> None:
+        self.record["stages"]["regression"]["status"] = "FAIL"
+        self.record["harness"]["failures"] = 1
+        self.assertEqual(self.evaluate()["outcomes"], ["TEST_FAILED"])
+
+    def test_compile_and_import_failures(self) -> None:
+        self.record["stages"]["compile"]["status"] = "FAIL"
+        self.assertInvalid("regression cannot run")
+        self.record["stages"]["regression"] = self.not_run()
+        self.record["harness"] = None
+        self.assertEqual(self.evaluate()["outcomes"], ["COMPILE_FAILED", "INCOMPLETE"])
+        self.record["stages"]["import"]["status"] = "TIMEOUT"
+        self.assertInvalid("compile cannot run")
+        self.record["stages"]["compile"] = self.not_run()
+        self.assertEqual(self.evaluate()["outcomes"], ["EXECUTION_TIMEOUT", "INCOMPLETE"])
+
+    def test_injected_failure_or_repeated_runs_rejected(self) -> None:
+        for raw in (self.log.replace("MODE=NORMAL", "MODE=INJECTED_FAILURE"), self.log + self.log):
+            self.record["stages"]["regression"] = self.stage("harness.log", raw)
+            self.assertInvalid()
+
+    def test_counts_and_expected_errors(self) -> None:
+        original = copy.deepcopy(self.record)
+        for field, value in (("cases", 3), ("assertions", True), ("failures", 1),
+                             ("entry_point", "TestHarness.RunTestsWithInjectedFailure"),
+                             ("expected_errors", [])):
+            self.record = copy.deepcopy(original)
+            self.record["harness"][field] = value
+            self.assertInvalid()
+        self.record = copy.deepcopy(original)
+        self.record["harness"]["expected_errors"][0]["status"] = "FAIL"
+        self.assertInvalid()
+
+    def test_log_tamper_missing_traversal_and_symlink(self) -> None:
+        (self.bundle / "harness.log").write_text("changed")
+        self.assertInvalid("digest mismatch")
+        (self.bundle / "harness.log").unlink()
+        self.assertInvalid("missing log")
+        self.record["stages"]["regression"]["log"]["path"] = "../outside.log"
+        self.assertInvalid("unsafe")
+        outside = self.area / "outside.log"
+        outside.write_text(self.log)
+        (self.bundle / "harness.log").symlink_to(outside)
+        self.record["stages"]["regression"]["log"]["path"] = "harness.log"
+        self.assertInvalid("symlink")
+
+    def test_unavailable_is_never_pass(self) -> None:
+        self.record.update(execution="unavailable", availability_reason="No Excel host",
+                           operator=None, environment=None, harness=None, sources=[], stages={})
+        report = self.evaluate()
+        self.assertEqual((report["status"], report["outcomes"]), ("fail", ["UNAVAILABLE"]))
+        self.record["harness"] = {"cases": 4}
+        self.assertInvalid()
+
+    def test_automated_execution_not_supported(self) -> None:
+        self.record["execution"] = "automated"
+        self.assertInvalid("manual")
+
+    def test_timestamps_need_order_and_timezone(self) -> None:
+        self.record["finished_at"] = "2026-10-06T08:00:00+02:00"
+        self.assertInvalid("precedes")
+        self.record["finished_at"] = "2026-10-06T09:10:00"
+        self.assertInvalid("timezone")
+
+    def test_duplicate_keys_rejected(self) -> None:
+        text = json.dumps(self.record)
+        self.path.write_text(text[:-1] + ', "execution": "manual"}')
+        report = evidence.evaluate(self.root, self.sha, self.path)
+        self.assertIn("duplicate JSON key", " ".join(report["findings"]))
+
+    def test_cli_exit_codes_inventory_and_output_guard(self) -> None:
+        self.path.write_text(json.dumps(self.record))
+        base = ["--root", str(self.root), "--candidate-sha", self.sha]
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(evidence.main(base + ["--inventory"]), 0)
+        self.assertEqual(json.loads(out.getvalue()), self.record["sources"])
+        report = self.area / "report.json"
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(evidence.main(base + ["--evidence", str(self.path),
+                                                   "--output", str(report)]), 0)
+        self.assertEqual(json.loads(report.read_text())["outcomes"], ["PASS"])
+        self.record["stages"]["cleanup"]["status"] = "FAIL"
+        self.path.write_text(json.dumps(self.record))
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(evidence.main(base + ["--evidence", str(self.path)]), 1)
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            evidence.main(base + ["--evidence", str(self.path),
+                                  "--output", str(self.bundle / "report.json")])
+
+
+if __name__ == "__main__":
+    unittest.main()

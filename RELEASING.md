@@ -26,7 +26,7 @@ sequence**. Day-to-day contribution is owned by
 | Active branch | `release/0.0.1` |
 | Version file | Not present; version semantics are defined in issue #13 |
 | Release evidence tooling | Not present; static checks only (`tools/check.py`) |
-| Excel certification procedure | Harness defined (`TestHarness.RunTests`); evidence format in #9 |
+| Excel certification procedure | Harness `TestHarness.RunTests`; evidence bundle and validator in [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) |
 
 Steps below marked *(to be defined)* depend on those issues. Until they land, a
 release cannot be certified and none will be made.
@@ -99,13 +99,19 @@ python tools/check.py --ci
 
 Confirm the hosted **Repository integrity** check is green on the same SHA.
 
-### 4. Certify in Excel *(to be defined)*
+### 4. Certify in Excel
 
 Import the exact candidate into a clean workbook, compile, run the full
-regression harness and the release scenarios. Record the evidence using the
-[validation record](INSTALLATION.md#validation-record). The harness and its pass
-line are in [running the harness](INSTALLATION.md#running-the-harness); the
-evidence format comes from issue #9.
+regression harness and the release scenarios, following the manual procedure in
+[`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md#manual-procedure). Validate the
+bundle against the candidate SHA:
+
+```sh
+python tools/check_excel_evidence.py --candidate-sha FULL_SHA --evidence ../bundle/host.json
+```
+
+Only exit code 0 (`PASS`) certifies the candidate. The release scenarios are
+recorded alongside it until the harness covers them.
 
 ### 5. Build artifacts *(to be defined)*
 
