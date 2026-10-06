@@ -255,6 +255,28 @@ TestMainState.RunMainStateTests
 A passing run prints seven `CASE=` lines and ends with
 `RESULT=PASS; cases=7; checks=...; failures=0; caller_state=RESTORED`.
 
+<a id="numerical-test-cases"></a>
+
+### Numerical test cases
+
+`tests/modules/TestCases.bas` is generated from `tests/fixtures` and
+`tests/expected`; never edit it by hand. After changing a JSON file, run
+`python tools/generate_case_tests.py` and import the regenerated module.
+Import it with `tests/modules/CaseRunner.bas`, then run:
+
+```text
+TestCases.RunCaseTests
+```
+
+Each case writes its fixture into the NettingSets and Trades rows and the
+AsOfDate and ReportingCcy parameters, runs the engine and checks the outputs;
+the other Params values must be the template's. At the end the inputs and
+parameters are written back, the engine is run once more and Excel settings
+are restored. A passing run prints one `CASE=` line per expected file, the
+results per reference class, and
+`RESULT=PASS; cases=18; checks=30; failures=0; restore=PASS`. Illustrative
+results are counted separately and validate nothing.
+
 For automation, `RunSACCR_Silent` returns a result line such as
 `RESULT=OK; operation=run; errors=0; warnings=0; trades_used=62; trades_read=65; total_ead=...; cleanup=PASS`
 and raises any failure instead of showing a message box.

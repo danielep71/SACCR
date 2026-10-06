@@ -218,6 +218,13 @@ Use only the categories needed by a release.
   and `tools/check_test_cases.py` validates the files in `python
   tools/check.py`. The harness does not run the cases yet.
 
+- The numerical test cases run against the engine in Excel (#44, decision 7):
+  `tools/generate_case_tests.py` generates `tests/modules/TestCases.bas` from
+  the JSON files, checked in `python tools/check.py`, and
+  `tests/modules/CaseRunner.bas` writes each fixture into the input sheets,
+  runs the engine, compares the outputs and restores the workbook. Results
+  are reported per reference class.
+
 ### Fixed
 
 - The workbook macros restore calculation mode, events and screen updating to

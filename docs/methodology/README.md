@@ -55,6 +55,7 @@ before citing a new one.
 | Units | Amounts in the netting set's calculation currency, unscaled; rates and factors as decimals; periods in years. See [`VBA_HOUSE_STYLE.md`](../VBA_HOUSE_STYLE.md#units-and-domains) |
 | Inputs | Trade-level data supplied by the caller; SACCR does not price trades or source market data |
 | Supervisory parameters | Taken from the cited regime text and recorded in the parameter table below, never typed in code without a reference |
+| Running test cases | Decided 2026-10-06 (decision 7, #44): VBA generated from the JSON by a checked tool; cases feed the engine through its input sheets. See [`TEST_CASES.md`](TEST_CASES.md#consumption) |
 
 <a id="open-decisions"></a>
 
@@ -71,7 +72,6 @@ moved into the tables above; none may be assumed by code or tests meanwhile.
 | 4 | Margined netting sets and collateral (NICA, thresholds, MPOR) in the first engine milestone | Unmargined first is the smallest useful scope |
 | 5 | Date and maturity conventions: business days, day count, floors | Part of each rule's parameter entry |
 | 6 | Calculation currency and FX conversion of trade amounts | Caller-supplied converted amounts is the simplest contract |
-| 7 | How the VBA harness reads test cases: JSON parser in VBA, or modules generated from the JSON by a checked tool | Decided with the first real case; see [`TEST_CASES.md`](TEST_CASES.md#consumption) |
 
 <a id="regime-differences"></a>
 

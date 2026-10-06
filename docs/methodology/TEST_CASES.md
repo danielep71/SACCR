@@ -8,8 +8,9 @@ the suite counts as complete. Sources and rule IDs come from the
 > [!IMPORTANT]
 > The prototype's 28 TestCatalogue checks are ported as cases (#59): 14 values
 > printed in BCBS 279 Annex 4 are `published`; the other 14 are `illustrative`.
-> The VBA harness does not yet run any case ([consumption](#consumption)), so
-> no rule is validated by them yet. The mapping is in
+> They run in Excel through `TestCases.RunCaseTests` ([consumption](#consumption));
+> no rule is validated until a run passes and its published values are checked
+> against the source. The mapping is in
 > [`tests/README.md`](../../tests/README.md#ported-prototype-catalogue).
 
 ## 📁 Files
@@ -262,10 +263,16 @@ Each fixture declares one `category`:
 
 ## ⚙️ Consumption
 
-How the VBA harness reads these files is still open
-([decision 7](README.md#open-decisions)): a JSON parser in VBA, or VBA test
-modules generated from the JSON by a checked tool. Until it is decided, no case
-runs against the engine.
+Decided by the owner on 2026-10-06 (decision 7, #44):
+`tools/generate_case_tests.py` generates `tests/modules/TestCases.bas` from the
+JSON files, and `python tools/check.py` fails when the committed module is out
+of date. The generated module holds data only; the hand-written
+`tests/modules/CaseRunner.bas` writes each fixture into the NettingSets and
+Trades sheets and the AsOfDate and ReportingCcy parameters, runs the engine
+with the case's regime as the netting set's override, compares the output
+cells with the tolerance rule above, and restores the workbook. Running the
+cases is described in
+[`INSTALLATION.md`](../../INSTALLATION.md#numerical-test-cases).
 
 The file format is enforced by `tools/check_test_cases.py`, part of
 `python tools/check.py`: envelopes, field names, types and units, quantity

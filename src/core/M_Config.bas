@@ -191,6 +191,7 @@ Attribute VB_Name = "M_Config"
         Public Const ERR_RUN_ACTIVE       As Long = vbObjectError + 2049    'An operation is already running
         Public Const ERR_CLEANUP_FAILED   As Long = vbObjectError + 2050    'Excel settings were not restored
         Public Const ERR_INJECTED_FAULT   As Long = vbObjectError + 2051    'Test seam: injected failure
+        Public Const ERR_TEST_SETUP       As Long = vbObjectError + 2052    'Test runner: workbook not set up
 
 '------------------------------------------------------------------------------
 ' SEVERITY LABELS
