@@ -94,7 +94,7 @@ closeout. Each must return no results. Closed issues are included because the
 metadata rule applies to every issue, not only ongoing work. Keep the missing-
 milestone search repository-wide: filtering by milestone would hide orphans.
 
-- [Issues without a milestone](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20no%3Amilestone)
+- [Issues without a milestone](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20no%3Amilestone%20-author%3Aapp%2Fgithub-actions), excluding traffic alerts, which the workflow opens as `github-actions`
 - [Issues without an assignee](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20no%3Aassignee)
 - [Issues without a priority label](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20-label%3AP1%20-label%3AP2%20-label%3AP3)
 
