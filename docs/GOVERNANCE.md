@@ -133,8 +133,9 @@ release. Main stayed at the recorded tip at that point. The changelog states
 release is the active setup branch, and the README links this policy.
 
 PR #14 later merged the release branch into main with merge commit
-`ff714896eabfb32a91659b7d80aa9ad9b5607496`; both branches now point to that
-commit, and hosted checks passed on it for both.
+`ff714896eabfb32a91659b7d80aa9ad9b5607496`. Immediately after that merge both
+branches pointed to that commit, and hosted checks passed on it for both; the
+release branch has moved on since.
 
 The accepted integration commit, hosted run, branch comparison and settings
 observations are recorded in issue #2. Retain necessary closeout evidence
