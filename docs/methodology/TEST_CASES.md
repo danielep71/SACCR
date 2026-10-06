@@ -61,7 +61,7 @@ counterparties, collateral agreements or portfolio extracts.
 | Rule | Detail |
 | --- | --- |
 | Envelope | `schema_version`, `kind`, `id` (equal to the file name), `synthetic: true`, `description` and `category` are required |
-| Units | A field's suffix states its unit: `_amount` in `calculation_currency`, unscaled; `_date` as ISO `YYYY-MM-DD`; `_years` in years; `_rate` and `_factor` as decimals. No other numeric field without a unit suffix |
+| Units | In `netting_set` and `trades`, a field's suffix states its unit: `_amount` in `calculation_currency`, unscaled; `_date` as ISO `YYYY-MM-DD`; `_years` in years; `_rate` and `_factor` as decimals. A quantity there never lacks a unit suffix. Envelope fields such as `schema_version` are metadata, not quantities |
 | Signs | Market values are from the bank's side: positive is an asset. `collateral_net_amount` is collateral held minus collateral posted |
 | Vocabulary | Trade and netting-set fields beyond the envelope are **provisional** and are fixed with the first engine milestone; adding one updates this table |
 
@@ -159,7 +159,7 @@ Each fixture declares one `category`:
 | --- | --- |
 | `nominal` | Typical inputs within the domain |
 | `boundary` | Values on a domain edge: zero notional or market value, results that should be exactly zero (fully offsetting trades, negative net value floored at zero), maturity at a regulatory floor or cap, a single trade, a single hedging set |
-| `invalid` | Inputs the facade must reject: missing or unknown fields, negative amounts where not allowed, end date before start date, unknown asset class or currency, non-finite numbers. Expected results are errors, not values |
+| `invalid` | Inputs the facade must reject: missing or unknown fields, negative amounts where not allowed, end date before start date, unknown asset class or currency. Expected results are errors, not values. JSON cannot hold NaN or infinity, so non-finite inputs are tested directly in a VBA test module instead of a fixture |
 | `regime` | Inputs chosen to show a recorded [regime difference](README.md#regime-differences), with a `crr` and a `bcbs` expected file |
 
 <a id="completeness-policy"></a>
@@ -170,7 +170,8 @@ Each fixture declares one `category`:
   for a regime only when at least one `published` or `independent` case passes
   for it in that regime.
 - Each implemented rule also has at least one `boundary` case, and each public
-  input domain has at least one `invalid` case.
+  input domain has at least one `invalid` case, as a fixture or, for inputs
+  JSON cannot express, as a direct test in a VBA test module.
 - Every recorded regime difference has a `regime` case.
 - A release states which rules are validated, for which regime, and lists
   every rule that is implemented but not validated. Illustrative cases never

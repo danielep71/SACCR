@@ -21,12 +21,11 @@ Decided by the owner on 2026-10-06 in issue #8.
 | EU Capital Requirements Regulation, SA-CCR | `CRR` | **Baseline.** Default for every calculation and test case |
 | Basel Framework, CRE52 | `BCBS` | Also supported; implemented as differences from the baseline |
 
-Every calculation and every expected result names its regime. Where the two
-texts agree, the engine has one implementation tagged with both rule
-identifiers. Where they differ, the difference is recorded in
-[Regime differences](#regime-differences) before any code depends on it, and
-the facade selects the regime explicitly; there is no silent default other than
-`CRR`.
+A caller may choose the regime; when it does not, the facade uses `CRR`. Every
+result reports the regime it was calculated under, and every expected result
+names its regime. Where the two texts agree, the engine has one implementation
+tagged with both rule identifiers. Where they differ, the difference is recorded
+in [Regime differences](#regime-differences) before any code depends on it.
 
 <a id="source-register"></a>
 
