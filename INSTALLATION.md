@@ -30,20 +30,20 @@ and removal**. Contribution workflow is owned by
 
 ## 🧭 Current status
 
-SACCR is in its repository-setup milestone, **v0.0.1**. There is **nothing to
-install into Excel yet**: the repository holds tooling and documentation, but no
-VBA source, workbook or add-in.
+SACCR is in its repository-setup milestone, **v0.0.1**. There is **no SA-CCR
+calculation yet**: the only VBA is a neutral scaffold and the regression harness
+that tests it. There is no workbook or add-in to install.
 
 | Topic | Status |
 | --- | --- |
 | VBA source layout | Defined in [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) |
 | Import/export conventions and host support | Defined below and in [`docs/VBA_HOUSE_STYLE.md`](docs/VBA_HOUSE_STYLE.md) |
-| Regression harness | To be defined in issue #7 |
+| Regression harness | `tests/modules/TestHarness.bas`; see [running the harness](#running-the-harness) |
 | Excel evidence and smoke test | To be defined in issue #9 |
 | Released versions | None |
 
-The Excel sections below state the rules that will apply. The concrete
-component list and import order are added with the first VBA source.
+The only VBA so far is the setup scaffold and the regression harness; the
+component list below grows as the SA-CCR engine is added.
 
 ## 🧰 Prerequisites
 
@@ -52,7 +52,7 @@ component list and import order are added with the first VBA source.
 | Git | Cloning and all repository work |
 | Python 3.10 or later | `python tools/check.py`; standard library only, no packages |
 | Node.js 20 or later | Optional: local label-catalogue checks |
-| Microsoft Excel for Windows | Importing, compiling and running VBA, once source exists; see [supported hosts](#supported-hosts) |
+| Microsoft Excel for Windows | Importing, compiling and running the VBA; see [supported hosts](#supported-hosts) |
 
 <a id="supported-hosts"></a>
 
@@ -153,6 +153,14 @@ The exact component list is added here with the first VBA source.
    4. every `.frm` in `src/forms/` (its `.frx` loads with it; never import a
       `.frx`);
    5. for a development workbook only: `tests/` and `examples/` modules.
+
+   Current components, in import order:
+
+   | # | File | Component | Role |
+   | ---: | --- | --- | --- |
+   | 1 | `src/core/CoreScaffold.bas` | `CoreScaffold` | Internal; neutral checked division for the scaffold |
+   | 2 | `src/modules/SaccrScaffold.bas` | `SaccrScaffold` | Public facade (`docs/PUBLIC_API.txt`) |
+   | 3 | `tests/modules/TestHarness.bas` | `TestHarness` | Regression harness; development workbook only |
 5. **Document modules** in `src/workbook/` (`ThisWorkbook.cls` and sheet
    modules) cannot be imported: the VBE would create a new class such as
    `ThisWorkbook1`. Instead, open the `.cls` file in a text editor, copy the code
@@ -179,6 +187,44 @@ match the file name.
    `Option Explicit`, `Option Private Module`, form resources, encoding and
    line endings.
 4. Commit. Git stores the files with LF; you do not convert anything by hand.
+
+<a id="running-the-harness"></a>
+
+## ▶️ Running the harness
+
+After importing the three components above and compiling, open the Immediate
+window (**Ctrl+G**) and run:
+
+```text
+TestHarness.RunTests
+```
+
+A passing run prints a `MODE=NORMAL` line, the environment, one `CASE=` line per
+case, the counts, the cleanup verdict and finally:
+
+```text
+RESULT=PASS; completeness=COMPLETE; cases=4; assertions=6; failures=0; cleanup=PASS
+```
+
+Anything else is a failure, including a run that stops early: the harness
+requires exactly 4 cases and 6 assertions before it can report `PASS`, and it
+raises an error after printing a failed result.
+
+To see the failure path, run:
+
+```text
+TestHarness.RunTestsWithInjectedFailure
+```
+
+It runs the same suite with one deliberately wrong expectation and must print
+`MODE=INJECTED_FAILURE` and
+`RESULT=FAIL; completeness=COMPLETE; cases=4; assertions=6; failures=1; cleanup=PASS`,
+followed by the suite failure error. If a run is interrupted, run
+`TestHarness.ResetTests` before running again.
+
+The harness never changes Excel settings. It checks that `Calculation`,
+`DisplayAlerts`, `EnableEvents` and `ScreenUpdating` are the same after the run
+as before, and reports `cleanup=FAIL` if not.
 
 <a id="validation-record"></a>
 

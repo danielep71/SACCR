@@ -36,7 +36,7 @@ establishes:
 - repository conventions, static checks and CI;
 - governance, issue metadata and labels;
 - the methodology sources and numerical test-case contract (#8); and
-- the regression harness and Excel evidence (#7, #9).
+- Excel evidence and the first real Excel smoke test (#9).
 
 Nothing has been released. See the [changelog](CHANGELOG.md) for what has been
 added so far.

@@ -149,6 +149,13 @@ Use only the categories needed by a release.
   checksum-verified actionlint. Dependabot proposes weekly GitHub Actions
   updates to the release branch for manual review; nothing merges
   automatically.
+- A deterministic VBA regression harness, `tests/modules/TestHarness.bas`, run
+  with `TestHarness.RunTests`. It supports exact, tolerance and expected-error
+  assertions with stable case names, refuses to report `PASS` unless all
+  expected cases and assertions ran, verifies Excel settings are unchanged, and
+  prints a machine-readable `RESULT=` line. `RunTestsWithInjectedFailure`
+  demonstrates the failure path. It exercises a neutral scaffold
+  (`CoreScaffold`, `SaccrScaffold`) that the SA-CCR engine will replace.
 
 ### Known limitations
 

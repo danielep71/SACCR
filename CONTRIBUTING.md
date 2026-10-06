@@ -28,8 +28,9 @@ Suspected vulnerabilities must never be disclosed in an issue or pull request.
 
 > [!NOTE]
 > SACCR is in its repository-setup milestone, **v0.0.1**. The SA-CCR engine
-> and the regression harness do not exist yet; their contracts are being defined
-> in issues #7 and #8. The source layout is set in
+> does not exist yet; its numerical test-case contract is being defined in
+> issue #8. The regression harness is `TestHarness.RunTests`
+> ([running the harness](INSTALLATION.md#running-the-harness)). The source layout is set in
 > [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md). Sections below
 > that refer to VBA describe the rules those changes must follow.
 

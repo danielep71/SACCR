@@ -115,7 +115,7 @@ A VBA `Public` declaration is not automatically supported API.
 - **Never supported:** test and example modules. They are not part of the
   workbook.
 
-The manifest is empty until the first facade module is added.
+The manifest currently lists only the setup scaffold, `SaccrScaffold`.
 
 ## 🚦 Placement rules
 
