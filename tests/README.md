@@ -24,7 +24,9 @@ Rules:
   illustrative values: they show a behaviour and validate nothing.
 - Run output, logs and generated workbooks are not committed.
 - `python tools/check.py` validates every fixture and expected file against
-  the format (`check_test_cases`). The harness does not run the cases yet.
+  the format (`check_test_cases`) and checks that the generated
+  `modules/TestCases.bas` is current. `TestCases.RunCaseTests` runs them in
+  Excel through `modules/CaseRunner.bas`.
 
 <a id="ported-prototype-catalogue"></a>
 
