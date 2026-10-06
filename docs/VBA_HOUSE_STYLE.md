@@ -128,7 +128,7 @@ error catalogue before this pattern is used in production.
 ```vb
 Public Sub RunCalculation(ByRef cleanupSucceeded As Boolean, _
                           ByRef cleanupDetails As String)
-    Const ERR_CLEANUP As Long = vbObjectError + 2048
+    Const ERR_CLEANUP As Long = vbObjectError + 4095    'Illustrative only
     Dim savedScreen As Boolean
     Dim savedCalculation As Long
     Dim errNumber As Long
@@ -255,8 +255,9 @@ Source decorations are ASCII only.
 - A formatting-only change must leave names, signatures, visibility, constants,
   calculations, tests and error behavior unchanged; a discovered defect goes in
   a separate change.
-- `python tools/check.py` must pass. It checks storage, naming, placement and
-  `Option Explicit` / `Option Private Module`. It does not compile VBA.
+- `python tools/check.py` must pass. It checks storage, naming, placement,
+  `Option Explicit` / `Option Private Module`, jump targets, conditional
+  compilation and the public-API manifest. It does not compile VBA.
 - Changed VBA is merged only after it has been compiled and tested in Excel, as
   described in [`CONTRIBUTING.md`](../CONTRIBUTING.md#validation-and-evidence).
 

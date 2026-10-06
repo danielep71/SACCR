@@ -5,7 +5,7 @@
 ### Counterparty credit risk under SA-CCR, built in Excel/VBA
 
 [![Excel VBA](https://img.shields.io/badge/Excel_VBA-Windows-217346?style=for-the-badge&logo=microsoft-excel&logoColor=white)](#status)
-[![Status](https://img.shields.io/badge/Status-Repository_setup-6e7781?style=for-the-badge)](#status)
+[![Status](https://img.shields.io/badge/Status-Pre--release-6e7781?style=for-the-badge)](#status)
 [![Branch](https://img.shields.io/badge/Branch-release%2F1.0.0-6f42c1?style=for-the-badge)](https://github.com/danielep71/SACCR/tree/release/1.0.0)
 [![License](https://img.shields.io/badge/License-MIT-2ea44f?style=for-the-badge)](LICENSE)
 
@@ -71,8 +71,9 @@ Requirements, the import procedure and troubleshooting are in
 | [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) | Profile decision, source layout, public API boundary |
 | [`docs/VBA_HOUSE_STYLE.md`](docs/VBA_HOUSE_STYLE.md) | VBA naming, contracts, errors, Excel-state cleanup, export rules |
 | [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) | Manual Excel run record, procedure and validator |
+| [`docs/methodology/`](docs/methodology/README.md) | Regulatory basis, source register, numerical test-case format |
 | [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) | Branches, issue metadata, review checklist, GitHub controls |
-| [`tools/README.md`](tools/README.md) | Static checks and the CI workflow |
+| [`tools/README.md`](tools/README.md) | Static checks, CI, evidence validator and traffic export |
 | [`docs/LABELS.md`](docs/LABELS.md) | Issue-label catalogue and its workflows |
 | [`RELEASING.md`](RELEASING.md) | Integration into `main` and the release sequence |
 | [`SECURITY.md`](SECURITY.md) | Private vulnerability reporting and data handling |

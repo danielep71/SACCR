@@ -105,7 +105,9 @@ The repository-control files define how source is stored:
   and
 - test data and examples are synthetic.
 
-`tools/check_source.py` enforces the storage, naming and `Option Explicit` rules.
+`python tools/check.py` enforces the storage, naming, placement and
+`Option Explicit` rules, plus the VBA jump, conditional-compilation and
+public-API checks.
 Where each component belongs, the dependency direction and the public-API
 boundary are defined in
 [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md); supported
@@ -219,6 +221,8 @@ Discussion stays technical and respectful under the
 | --- | --- |
 | Source layout and public API | [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) |
 | VBA naming, contracts and errors | [`docs/VBA_HOUSE_STYLE.md`](docs/VBA_HOUSE_STYLE.md) |
+| Regulatory basis and test cases | [`docs/methodology/`](docs/methodology/README.md) |
+| Commit-bound Excel evidence | [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) |
 | Branches, issues, review, GitHub controls | [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) |
 | Developer setup and import | [`INSTALLATION.md`](INSTALLATION.md) |
 | Static checks and CI | [`tools/README.md`](tools/README.md) |
