@@ -29,6 +29,8 @@ OUTCOMES = {"import": "IMPORT_FAILED", "compile": "COMPILE_FAILED",
 # Imported components: production and tests, never examples (docs/REPOSITORY_STRUCTURE.md).
 SOURCE_ROOTS = ("src", "tests")
 VBA_SUFFIXES = (".bas", ".cls", ".frm")
+# The macro-free workbook that holds the sheets; the build starts from it (issue #58).
+WORKBOOK_TEMPLATE = "src/workbook/SACCR_Template.xlsx"
 SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"[0-9a-fA-F]{64}")
 SCOPE = ("Checks a retained manual record and its source and log bindings; "
@@ -92,7 +94,11 @@ def committed(root: Path, sha: str, path: str) -> bytes:
 
 
 def source_inventory(root: Path, sha: str) -> list[dict[str, str]]:
-    """Return the imported components at ``sha`` with SHA-256 of their exact Git bytes."""
+    """Return the build inputs at ``sha`` with SHA-256 of their exact Git bytes.
+
+    These are the imported VBA components, each form's resource and, when
+    tracked, the workbook template the build starts from.
+    """
     listing = git_bytes(root, "ls-tree", "-r", "-z", "--name-only", sha, "--", *SOURCE_ROOTS)
     require(listing.returncode == 0, "cannot list candidate source")
     tracked = {item.decode("utf-8") for item in listing.stdout.split(b"\0") if item}
@@ -102,6 +108,8 @@ def source_inventory(root: Path, sha: str) -> list[dict[str, str]]:
         if path.lower().endswith(".frm") and path[:-4] + ".frx" in tracked:
             paths.add(path[:-4] + ".frx")
     require(bool(paths), "candidate has no importable VBA source")
+    if WORKBOOK_TEMPLATE in tracked:
+        paths.add(WORKBOOK_TEMPLATE)
     return [{"path": path, "sha256": hashlib.sha256(committed(root, sha, path)).hexdigest()}
             for path in sorted(paths)]
 

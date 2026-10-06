@@ -33,8 +33,8 @@ and removal**. Contribution workflow is owned by
 Repository setup, milestone **v0.0.1**, is complete. There is **no SA-CCR
 release yet**: the VBA is the prototype engine imported from
 `SACCR_Calculator.xlsm`, plus the scaffold and the regression harness. The
-engine's sheets are not in the repository yet, so a workbook cannot be built
-from source alone.
+workbook is built from the macro-free template `src/workbook/SACCR_Template.xlsx`
+and the VBA in `src/` and `tests/`.
 
 | Topic | Status |
 | --- | --- |
@@ -143,9 +143,11 @@ The exact component list is added here with the first VBA source.
 
 1. Start from one exact commit in a Git checkout, so `.bas`, `.cls` and `.frm`
    files have CRLF line endings. Never mix components from different commits.
-2. Create a new blank workbook and save it as **Excel Macro-Enabled Workbook
-   (`.xlsm`)** outside the checkout, or in an ignored location such as
-   `test-results/`. Workbooks are never committed.
+2. Open `src/workbook/SACCR_Template.xlsx` from the checkout and save it with
+   **File → Save As** as **Excel Macro-Enabled Workbook (`.xlsm`)** outside the
+   checkout, or in an ignored location such as `test-results/`. The template
+   holds the 12 sheets, named ranges, formulas and buttons, and no VBA. Built
+   workbooks are never committed.
 3. Open the VBE (**Alt+F11**) and check **Tools → References** shows only the
    four default references listed under [supported hosts](#supported-hosts).
 4. Import with **File → Import File**, in this order:
@@ -169,10 +171,8 @@ The exact component list is added here with the first VBA source.
    | 7 | `src/workbook/M_Main.bas` | `M_Main` | Sheet-button macros `RunSACCR`, `ValidateInputs`, `ClearOutputs` |
    | 8 | `tests/modules/TestHarness.bas` | `TestHarness` | Regression harness; development workbook only |
 
-   Until the sheets are in the repository, the host is the prototype workbook
-   `SACCR_Calculator.xlsm`: remove its five standard modules (`M_Config`,
-   `M_Engine`, `M_Formulas`, `M_Main`, `M_Util`), then import the files above.
-   Its document modules hold only `Option Explicit`, matching `src/workbook/`.
+   The sheet buttons call `RunSACCR`, `ValidateInputs` and `ClearOutputs`, so
+   they work once `M_Main` is imported.
 5. **Document modules** in `src/workbook/` (`ThisWorkbook.cls` and sheet
    modules) cannot be imported: the VBE would create a new class such as
    `ThisWorkbook1`. Instead, open the `.cls` file in a text editor, copy the code

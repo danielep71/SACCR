@@ -52,7 +52,7 @@ tools/      static checks and evidence tooling; later, build tooling
 
 | Directory | Owns | Must not own |
 | --- | --- | --- |
-| `src/` | Production components that go into the workbook | Tests, examples, workbooks |
+| `src/` | Production components that go into the workbook, and the workbook template | Tests, examples, built workbooks |
 | `tests/` | Test modules, synthetic fixtures, reviewed expected values | Production entry points, run output |
 | `examples/` | Examples that use only the public API | Tests, real data |
 | `docs/` | Contracts, architecture, [methodology](methodology/README.md) | Copies of root documents |
@@ -130,7 +130,6 @@ its original structure until it is refactored:
 | `src/core` never touches Excel | `M_Engine` and `M_Util` read the input sheets and write the output sheets |
 | `src/workbook` holds document modules | `M_Main`, a standard module, holds the sheet-button macros `RunSACCR`, `ValidateInputs` and `ClearOutputs` |
 | Naming and cleanup rules in `VBA_HOUSE_STYLE.md` | `M_` prefixes; `M_Main` resets screen updating and events instead of restoring the captured values |
-| Workbook built from source | The 12 sheets (layout, formulas, named ranges, buttons) exist only in the prototype workbook, outside the repository |
 
 Each deviation is removed by a reviewed change, not by reformatting.
 
@@ -144,7 +143,9 @@ Each deviation is removed by a reviewed change, not by reformatting.
 4. Fixtures are synthetic; never commit real trades, counterparties or
    portfolios.
 5. Workbooks are built from source and never committed, except at an exact
-   path explicitly re-included in `.gitignore`.
+   path explicitly re-included in `.gitignore`. The one such path is
+   `src/workbook/SACCR_Template.xlsx`, the macro-free template that holds the
+   sheets, formulas, named ranges and buttons; it contains no VBA.
 6. A new location becomes contractual only when this document, the directory
    README, `INSTALLATION.md` and the checks are updated together.
 
