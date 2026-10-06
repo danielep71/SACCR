@@ -234,9 +234,22 @@ class ExcelEvidenceTests(unittest.TestCase):
         self.record["harness"]["cases"] = 4
         self.assertInvalid("CASE lines")
         self.record["harness"]["cases"] = 2
-        self.record["stages"]["regression"] = self.stage("harness.log", self.log)
+        for finished in (self.log, self.log.replace("RESULT=PASS", "RESULT=FAIL")):
+            self.record["stages"]["regression"] = self.stage("harness.log", finished)
+            self.record["stages"]["regression"]["status"] = "TIMEOUT"
+            self.assertInvalid("not TIMEOUT")
+
+    def test_timeout_within_preamble(self) -> None:
+        self.record["harness"].update(cases=0, assertions=0, completeness="INCOMPLETE")
+        for kept in (0, 1, 2):
+            truncated = "\n".join([*self.log.splitlines()[:kept], ""])
+            self.record["stages"]["regression"] = self.stage("harness.log", truncated)
+            self.record["stages"]["regression"]["status"] = "TIMEOUT"
+            self.assertEqual(self.evaluate()["outcomes"], ["EXECUTION_TIMEOUT"], kept)
+        wrong = self.log.splitlines()[0] + "\nMODE=INJECTED_FAILURE\n"
+        self.record["stages"]["regression"] = self.stage("harness.log", wrong)
         self.record["stages"]["regression"]["status"] = "TIMEOUT"
-        self.assertInvalid("cannot report PASS")
+        self.assertInvalid("normal-mode")
 
     def test_compile_and_import_failures(self) -> None:
         self.record["stages"]["compile"]["status"] = "FAIL"
