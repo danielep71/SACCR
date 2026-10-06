@@ -6,3 +6,24 @@ SaccrScaffold	Const	SACCR_ERROR_ZERO_DENOMINATOR
 # SIG	SaccrScaffold	Const	SACCR_ERROR_ZERO_DENOMINATOR	Public Const SACCR_ERROR_ZERO_DENOMINATOR As Long = CoreScaffold.ERR_ZERO_DENOMINATOR
 SaccrScaffold	Function	ScaffoldRatio
 # SIG	SaccrScaffold	Function	ScaffoldRatio	Public Function ScaffoldRatio( ByVal numerator As Double, ByVal denominator As Double) As Double
+# M_Formulas holds the SA-CCR worksheet functions imported from the prototype workbook.
+M_Formulas	Function	SACCR_NormCDF
+# SIG	M_Formulas	Function	SACCR_NormCDF	Public Function SACCR_NormCDF(ByVal x As Double) As Double
+M_Formulas	Function	SACCR_SupervisoryDuration
+# SIG	M_Formulas	Function	SACCR_SupervisoryDuration	Public Function SACCR_SupervisoryDuration(ByVal S As Double, ByVal E As Double, Optional ByVal FloorYears As Double = 0#) As Double
+M_Formulas	Function	SACCR_MaturityFactor
+# SIG	M_Formulas	Function	SACCR_MaturityFactor	Public Function SACCR_MaturityFactor(ByVal M As Double, Optional ByVal Margined As Boolean = False, Optional ByVal MPOR_BD As Double = 10#, Optional ByVal MinBD As Double = 10#, Optional ByVal BDPerYear As Double = 250#) As Double
+M_Formulas	Function	SACCR_OptionDelta
+# SIG	M_Formulas	Function	SACCR_OptionDelta	Public Function SACCR_OptionDelta(ByVal P As Double, ByVal K As Double, ByVal T As Double, ByVal Vol As Double, ByVal IsCall As Boolean, ByVal IsBought As Boolean, Optional ByVal Lambda As Double = 0#) As Variant
+M_Formulas	Function	SACCR_LambdaCRR
+# SIG	M_Formulas	Function	SACCR_LambdaCRR	Public Function SACCR_LambdaCRR(ByVal P As Double, ByVal K As Double, ByVal IsInterestRate As Boolean, Optional ByVal Threshold As Variant) As Double
+M_Formulas	Function	SACCR_CDODelta
+# SIG	M_Formulas	Function	SACCR_CDODelta	Public Function SACCR_CDODelta(ByVal A As Double, ByVal D As Double, ByVal IsLong As Boolean) As Variant
+M_Formulas	Function	SACCR_IREffectiveNotional
+# SIG	M_Formulas	Function	SACCR_IREffectiveNotional	Public Function SACCR_IREffectiveNotional(ByVal D1 As Double, ByVal D2 As Double, ByVal D3 As Double, Optional ByVal Rho12 As Double = 0.7, Optional ByVal Rho23 As Double = 0.7, Optional ByVal Rho13 As Double = 0.3) As Double
+M_Formulas	Function	SACCR_Multiplier
+# SIG	M_Formulas	Function	SACCR_Multiplier	Public Function SACCR_Multiplier(ByVal VminusC As Double, ByVal AddOn As Double, Optional ByVal FloorPct As Double = 0.05) As Double
+M_Formulas	Function	SACCR_ReplacementCost
+# SIG	M_Formulas	Function	SACCR_ReplacementCost	Public Function SACCR_ReplacementCost(ByVal V As Double, ByVal C As Double, Optional ByVal Margined As Boolean = False, Optional ByVal TH As Double = 0#, Optional ByVal MTA As Double = 0#, Optional ByVal NICA As Double = 0#) As Double
+M_Formulas	Function	SACCR_FactorAggregation
+# SIG	M_Formulas	Function	SACCR_FactorAggregation	Public Function SACCR_FactorAggregation(ByVal AddOns As Variant, ByVal Rhos As Variant) As Variant

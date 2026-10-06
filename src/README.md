@@ -12,9 +12,17 @@ workbook is built. Layout, visibility and dependency rules are defined in
 | `workbook/` | Exported `ThisWorkbook` and sheet modules; host glue only. |
 | `forms/` | UserForms with `.frm` beside `.frx`, only if one is ever needed. |
 
-The only source so far is the setup scaffold that the regression harness tests:
-`core/CoreScaffold.bas` and `modules/SaccrScaffold.bas`. It is replaced by the
-SA-CCR engine. Each other subdirectory is created with its first real
-component.
+Current source:
+
+- the prototype engine imported from `SACCR_Calculator.xlsm`: `core/M_Config`,
+  `core/M_Util`, `core/M_Engine`, the worksheet functions in
+  `modules/M_Formulas`, and `workbook/M_Main` with the 13 document modules;
+- the setup scaffold the regression harness tests: `core/CoreScaffold.bas` and
+  `modules/SaccrScaffold.bas`.
+
+The imported engine does not yet follow every rule here: `M_Engine` and
+`M_Util` read and write worksheets from `src/core`, and `M_Main` is a standard
+module kept with the workbook glue because the sheet buttons call it. See
+[known deviations](../docs/REPOSITORY_STRUCTURE.md#known-deviations).
 
 Do not place tests, examples, workbooks or generated output here.

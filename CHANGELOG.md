@@ -188,6 +188,16 @@ Use only the categories needed by a release.
   identity, static checks, Excel evidence, regression coverage, risk,
   provenance and SA-CCR-specific review.
 
+- Prototype SA-CCR engine imported from the owner's `SACCR_Calculator.xlsm`
+  (engine v1.1.0): `M_Config`, `M_Engine` and `M_Util` in `src/core`, the ten
+  `SACCR_*` worksheet functions in `src/modules/M_Formulas` (added to
+  `docs/PUBLIC_API.txt`), and the sheet-button macros in `src/workbook/M_Main`
+  with the 13 document modules. It covers both regimes (CRR default, Basel
+  CRE52 per netting set), the CRR other-risks class and the margined-EAD cap.
+  The code is unchanged except `Option Private Module` in the three core
+  modules. Its 12 sheets, tests and Basel-vs-CRR table remain in the workbook,
+  outside the repository.
+
 ### Fixed
 
 - Allow scheduled traffic exports without relying on a webhook payload, while
@@ -209,8 +219,10 @@ Use only the categories needed by a release.
 
 ### Known limitations
 
-- The only VBA is the neutral scaffold and the regression harness; there is no
-  SA-CCR calculation yet. No automated check compiles VBA or runs Excel.
+- The imported engine is not yet validated under the repository's test-case
+  policy, keeps the deviations listed in `docs/REPOSITORY_STRUCTURE.md`, and
+  cannot be built from source until its sheets are versioned. No automated
+  check compiles VBA or runs Excel.
 - Excel evidence is manual and covers one 64-bit host; 32-bit is untested.
 - The methodology sources are registered but not yet verified against their
   official texts.
