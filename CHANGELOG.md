@@ -220,6 +220,15 @@ Use only the categories needed by a release.
 
 ### Fixed
 
+- The workbook macros restore calculation mode, events and screen updating to
+  the values they found, including settings that were off, instead of
+  switching events and screen updating on (#43). Each setting is restored
+  independently; the original error is kept and a cleanup failure is reported
+  separately (`ERR_CLEANUP_FAILED`). A second operation started while one is
+  running is refused. `RunSACCR_Silent` restores the previous silent flag,
+  returns a machine-readable result line and raises failures instead of
+  printing them. `tests/modules/TestMainState.bas` covers these cases in Excel.
+
 - Allow scheduled traffic exports without relying on a webhook payload, while
   retaining the default-branch restriction for manual dispatches (review #53).
   The analytics environment also restricts access to main independently.
