@@ -3,14 +3,14 @@
   "repository": "danielep71/SACCR",
   "entry_point": "TestHarness.RunTests",
   "cases": [
-    "ratio.exact",
-    "ratio.tolerance",
-    "ratio.zero-denominator",
-    "ratio.repeatability"
+    "replacement-cost.exact",
+    "maturity-factor.tolerance",
+    "cdo-delta.invalid-tranche",
+    "option-delta.repeatability"
   ],
   "assertions": 6,
   "expected_error_cases": [
-    "ratio.zero-denominator"
+    "cdo-delta.invalid-tranche"
   ],
   "required_references": [
     "Visual Basic For Applications",

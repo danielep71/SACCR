@@ -154,7 +154,7 @@ Replace every value with what was observed. This shape is not evidence.
     "failures": 0,
     "completeness": "COMPLETE",
     "expected_errors": [
-      {"case": "ratio.zero-denominator", "status": "PASS", "detail": "Implied by the complete passing suite"}
+      {"case": "cdo-delta.invalid-tranche", "status": "PASS", "detail": "Implied by the complete passing suite"}
     ]
   }
 }
@@ -179,8 +179,8 @@ Rules the validator applies:
   parsed, and it must have no `RESULT=` line: a run that printed one finished
   and is recorded as `PASS` or `FAIL`.
 - The expected-error result is inferred from the complete passing suite, which
-  includes the error-number, source and description assertions; it is not a
-  separate observation.
+  includes the assertion that an invalid CDO tranche returns `#NUM!`; it is not
+  a separate observation.
 - If the harness reports `cleanup=FAIL`, the cleanup stage must be `FAIL`.
 
 When Excel was not run, use the same identity and time fields with

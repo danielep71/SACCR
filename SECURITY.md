@@ -135,7 +135,7 @@ an issue, unless it creates concrete security impact.
   input sheets and writes its own output sheets, shows message boxes, and
   switches screen updating, events and calculation mode during a run. It uses
   no files, network, native code (`Declare`), `Shell` or `CreateObject`. The
-  scaffold and harness only read Excel settings.
+  harness only reads Excel settings.
 - **Automation.** Every workflow checkout that can run code under review sets
   `persist-credentials: false`, so that code never receives Git credentials.
   The one exception is the daily traffic export, whose job runs only on the
