@@ -105,11 +105,27 @@ class SourceGateTests(unittest.TestCase):
         self.write("CHANGELOG.md", CHANGELOG + "\n## [v0.0.1] 2026-01-01\n\n[v0.0.1]: x\n")
         self.assertTrue(any("release heading must be" in f for f in self.findings()))
 
+    def test_version_file_tracks_newest_release(self) -> None:
+        self.assertEqual(self.findings(), [])
+        self.write("VERSION", "0.1.0\n")
+        self.assertIn("VERSION exists but CHANGELOG.md has no release heading", self.findings())
+        released = CHANGELOG.replace("[Unreleased]: ", "## [0.2.0] - 2026-02-01\n\n## [0.1.0] - 2026-01-01\n\n"
+                                     "[0.2.0]: x\n[0.1.0]: x\n[Unreleased]: ")
+        self.write("CHANGELOG.md", released)
+        self.assertIn("VERSION 0.1.0 differs from the newest CHANGELOG.md release [0.2.0]", self.findings())
+        self.write("VERSION", "v0.2.0\n")
+        self.assertIn("VERSION must contain one X.Y.Z line ending in a newline", self.findings())
+        self.write("VERSION", "0.2.0\n")
+        self.assertEqual(self.findings(), [])
+        (self.root / "VERSION").unlink()
+        self.assertIn("VERSION is missing; CHANGELOG.md releases [0.2.0]", self.findings())
+
     def test_changelog_release_date_must_exist(self) -> None:
         for bad in ("2026-02-31", "2026-99-99"):
             self.write("CHANGELOG.md", CHANGELOG + f"\n## [0.0.1] - {bad}\n\n[0.0.1]: x\n")
             self.assertIn(f"CHANGELOG.md: [0.0.1] date {bad} is not a calendar date", self.findings())
         self.write("CHANGELOG.md", CHANGELOG + "\n## [0.0.1] - 2028-02-29\n\n[0.0.1]: x\n")
+        self.write("VERSION", "0.0.1\n")
         self.assertEqual(self.findings(), [])
 
     def test_missing_changelog(self) -> None:

@@ -64,7 +64,7 @@ Until then the VBA compiler in Excel is the call-resolution check.
 
 `.github/workflows/static-checks.yml` runs the same command with `--ci` on
 pull requests targeting `main` or `release/**`, pushes to those branches, and
-manual dispatch. It is installed on both `main` and `release/0.0.1`.
+manual dispatch. It is installed on both `main` and the active release branch.
 The job is named **Repository integrity**.
 
 Pull requests pass their base SHA through `--base` to check the complete

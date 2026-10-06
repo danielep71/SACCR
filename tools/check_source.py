@@ -122,6 +122,24 @@ def check_changelog(root: Path) -> list[str]:
     return findings
 
 
+def check_version(root: Path) -> list[str]:
+    """VERSION exists from the first release on and names the newest dated changelog release."""
+    changelog = root / "CHANGELOG.md"
+    text = changelog.read_text(encoding="utf-8") if changelog.is_file() else ""
+    released = [label for label, _ in VERSION_HEADING.findall(text) if label != "Unreleased"]
+    path = root / "VERSION"
+    if not path.is_file():
+        return [f"VERSION is missing; CHANGELOG.md releases [{released[0]}]"] if released else []
+    raw = path.read_text(encoding="utf-8")
+    if not re.fullmatch(SEMVER + r"\n", raw):
+        return ["VERSION must contain one X.Y.Z line ending in a newline"]
+    if not released:
+        return ["VERSION exists but CHANGELOG.md has no release heading"]
+    if raw.strip() != released[0]:
+        return [f"VERSION {raw.strip()} differs from the newest CHANGELOG.md release [{released[0]}]"]
+    return []
+
+
 def run_check(root: Path) -> dict[str, Any]:
     tracked = tracked_files(root)
     findings = check_storage(root)
@@ -133,6 +151,7 @@ def run_check(root: Path) -> dict[str, Any]:
     for path in components:
         findings.extend(check_component(root, path, tracked, names))
     findings.extend(check_changelog(root))
+    findings.extend(check_version(root))
     return {"schema_version": 1, "status": "fail" if findings else "pass",
             "components": len(components), "findings": findings}
 

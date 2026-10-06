@@ -91,8 +91,9 @@ Use only the categories needed by a release.
 
 ## [Unreleased]
 
-> Not yet released. All development and setup work takes place on `release/0.0.1`
-> until milestone v0.0.1 closes; changes to `main` require an explicit owner instruction.
+> Not yet released. Development takes place on the active release branch,
+> `release/1.0.0`; changes to `main` require an explicit owner instruction.
+> Repository setup (milestone v0.0.1) closed without a release.
 
 ### Added
 
@@ -186,6 +187,12 @@ Use only the categories needed by a release.
   expected-result files, reference classes (published, independent,
   illustrative), tolerances, case categories and the completeness policy, with
   one clearly illustrative case. No SA-CCR formula is implemented.
+
+- Versioning conventions in [`RELEASING.md`](RELEASING.md#versioning): a root
+  `VERSION` file is created when the first release is prepared, and
+  `python tools/check.py` then requires it to match the newest dated changelog
+  release. Release branches are `release/X.Y.Z`; tags are annotated `vX.Y.Z`.
+  Development continues on `release/1.0.0`.
 
 ### Known limitations
 
