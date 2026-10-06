@@ -115,7 +115,24 @@ A VBA `Public` declaration is not automatically supported API.
 - **Never supported:** test and example modules. They are not part of the
   workbook.
 
-The manifest currently lists only the setup scaffold, `SaccrScaffold`.
+The manifest lists the setup scaffold, `SaccrScaffold`, and the ten `SACCR_*`
+worksheet functions in `M_Formulas`.
+
+<a id="known-deviations"></a>
+
+### Known deviations: imported prototype engine
+
+The engine imported from the prototype workbook `SACCR_Calculator.xlsm` keeps
+its original structure until it is refactored:
+
+| Rule | Deviation |
+| --- | --- |
+| `src/core` never touches Excel | `M_Engine` and `M_Util` read the input sheets and write the output sheets |
+| `src/workbook` holds document modules | `M_Main`, a standard module, holds the sheet-button macros `RunSACCR`, `ValidateInputs` and `ClearOutputs` |
+| Naming and cleanup rules in `VBA_HOUSE_STYLE.md` | `M_` prefixes; `M_Main` resets screen updating and events instead of restoring the captured values |
+| Workbook built from source | The 12 sheets (layout, formulas, named ranges, buttons) exist only in the prototype workbook, outside the repository |
+
+Each deviation is removed by a reviewed change, not by reformatting.
 
 ## 🚦 Placement rules
 

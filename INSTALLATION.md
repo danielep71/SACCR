@@ -31,8 +31,10 @@ and removal**. Contribution workflow is owned by
 ## 🧭 Current status
 
 Repository setup, milestone **v0.0.1**, is complete. There is **no SA-CCR
-calculation yet**: the only VBA is a neutral scaffold and the regression harness
-that tests it. There is no workbook or add-in to install.
+release yet**: the VBA is the prototype engine imported from
+`SACCR_Calculator.xlsm`, plus the scaffold and the regression harness. The
+engine's sheets are not in the repository yet, so a workbook cannot be built
+from source alone.
 
 | Topic | Status |
 | --- | --- |
@@ -159,8 +161,18 @@ The exact component list is added here with the first VBA source.
    | # | File | Component | Role |
    | ---: | --- | --- | --- |
    | 1 | `src/core/CoreScaffold.bas` | `CoreScaffold` | Internal; neutral checked division for the scaffold |
-   | 2 | `src/modules/SaccrScaffold.bas` | `SaccrScaffold` | Public facade (`docs/PUBLIC_API.txt`) |
-   | 3 | `tests/modules/TestHarness.bas` | `TestHarness` | Regression harness; development workbook only |
+   | 2 | `src/core/M_Config.bas` | `M_Config` | Internal; sheet layout and parameter constants |
+   | 3 | `src/core/M_Engine.bas` | `M_Engine` | Internal; SA-CCR calculation run |
+   | 4 | `src/core/M_Util.bas` | `M_Util` | Internal; conversions and sheet helpers |
+   | 5 | `src/modules/M_Formulas.bas` | `M_Formulas` | Public worksheet functions `SACCR_*` (`docs/PUBLIC_API.txt`) |
+   | 6 | `src/modules/SaccrScaffold.bas` | `SaccrScaffold` | Public facade (`docs/PUBLIC_API.txt`) |
+   | 7 | `src/workbook/M_Main.bas` | `M_Main` | Sheet-button macros `RunSACCR`, `ValidateInputs`, `ClearOutputs` |
+   | 8 | `tests/modules/TestHarness.bas` | `TestHarness` | Regression harness; development workbook only |
+
+   Until the sheets are in the repository, the host is the prototype workbook
+   `SACCR_Calculator.xlsm`: remove its five standard modules (`M_Config`,
+   `M_Engine`, `M_Formulas`, `M_Main`, `M_Util`), then import the files above.
+   Its document modules hold only `Option Explicit`, matching `src/workbook/`.
 5. **Document modules** in `src/workbook/` (`ThisWorkbook.cls` and sheet
    modules) cannot be imported: the VBE would create a new class such as
    `ThisWorkbook1`. Instead, open the `.cls` file in a text editor, copy the code
@@ -192,7 +204,7 @@ match the file name.
 
 ## ▶️ Running the harness
 
-After importing the three components above and compiling, open the Immediate
+After importing the components above and compiling, open the Immediate
 window (**Ctrl+G**) and run:
 
 ```text

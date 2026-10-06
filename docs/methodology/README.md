@@ -6,9 +6,10 @@ decisions, and the trace from each rule to code and tests. The numerical
 test-case format is in [`TEST_CASES.md`](TEST_CASES.md).
 
 > [!IMPORTANT]
-> No SA-CCR formula is implemented yet. Nothing here claims a complete or
-> validated implementation, and every source below is still to be verified
-> against its official text before the first rule is implemented.
+> The prototype engine imported from `SACCR_Calculator.xlsm` implements CRR and
+> Basel CRE52, but no rule is yet validated under [`TEST_CASES.md`](TEST_CASES.md)
+> and the traceability table below is still empty. Every source is still to be
+> verified against its official text.
 
 <a id="regulatory-basis"></a>
 

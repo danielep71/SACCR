@@ -55,10 +55,9 @@ targets. It reports anything it cannot resolve (calls through `Object` or
 repository runs it as advisory only, because it needs a per-project manifest of
 VBA projects and its value grows with the number of modules.
 
-SACCR's only VBA so far is a three-module scaffold and harness, so there is
-little for it to resolve. It should be adopted, advisory first, once the engine
-spans several core modules and a facade.
-Until then the VBA compiler in Excel is the call-resolution check.
+The imported prototype engine now spans three core modules, a facade and the
+workbook macros, so adopting it, advisory first, is due with the engine
+refactor. Until then the VBA compiler in Excel is the call-resolution check.
 
 ## GitHub Actions
 
