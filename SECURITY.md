@@ -136,8 +136,14 @@ an issue, unless it creates concrete security impact.
   only reads Excel settings to verify they are unchanged. This section will
   describe the engine's file, network, native-code and UI behavior when it
   exists.
-- **Automation.** Every workflow checkout sets `persist-credentials: false`,
-  so code under review never receives Git credentials. The static-check and
+- **Automation.** Every workflow checkout that can run code under review sets
+  `persist-credentials: false`, so that code never receives Git credentials.
+  The one exception is the daily traffic export, whose job runs only on the
+  default branch, on a schedule or manual dispatch, executes no repository code,
+  and keeps credentials to push its data to the `traffic-history` branch. Its
+  `TRAFFIC_TOKEN`, a fine-grained token with `Administration: read` on this
+  repository only, lives in the `analytics` environment; rotate it every 90
+  days and immediately if the workflow is changed by anyone but the owner. The static-check and
   pull-request label jobs run with a read-only token. The label-sync workflow
   grants `issues: write` only to its reconciliation job, which runs on pushes to
   `main` and manual dispatch, never on pull requests. All actions are pinned to full

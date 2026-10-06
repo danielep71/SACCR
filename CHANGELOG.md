@@ -125,7 +125,7 @@ Use only the categories needed by a release.
   [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) records the
   profile decision, where core, facade, workbook glue, tests, fixtures, examples
   and methodology live, the dependency direction and the public-API boundary,
-  with an empty [`docs/PUBLIC_API.txt`](docs/PUBLIC_API.txt) manifest.
+  with the [`docs/PUBLIC_API.txt`](docs/PUBLIC_API.txt) manifest.
   `python tools/check.py` now rejects VBA components outside those locations and
   core modules without `Option Private Module`.
 - VBA conventions and host support:
@@ -157,6 +157,36 @@ Use only the categories needed by a release.
   prints a machine-readable `RESULT=` line. `RunTestsWithInjectedFailure`
   demonstrates the failure path. It exercises a neutral scaffold
   (`CoreScaffold`, `SaccrScaffold`) that the SA-CCR engine will replace.
+- Excel evidence bound to an exact commit:
+  [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) gives the manual
+  Windows/Excel procedure and record format, and
+  `tools/check_excel_evidence.py` checks a record against the candidate's
+  source digests, `.github/excel-evidence-policy.json`, the default references
+  and the retained harness log, including failed reports. It
+  reports import, compile, test, cleanup, incomplete and unavailable outcomes
+  separately and never runs Excel.
+- Methodology basis and numerical test-case format: the EU CRR is the baseline
+  regime and Basel CRE52 is also supported, as recorded differences.
+  [`docs/methodology/`](docs/methodology/README.md) holds the source register,
+  assumptions, open decisions and traceability table;
+  [`TEST_CASES.md`](docs/methodology/TEST_CASES.md) defines fixture and
+  expected-result files, reference classes (published, independent,
+  illustrative), tolerances, case categories and the completeness policy, with
+  one clearly illustrative case. No SA-CCR formula is implemented.
+- Versioning conventions in [`RELEASING.md`](RELEASING.md#versioning): a root
+  `VERSION` file is created when the first release is prepared, and
+  `python tools/check.py` then requires it to match the newest dated changelog
+  release. Release branches are `release/X.Y.Z`; tags are annotated `vX.Y.Z`.
+  Development continues on `release/1.0.0`.
+- Daily traffic export, as in VBA-DATETIMEPICKER: GitHub's 14-day traffic data
+  is kept on the orphan `traffic-history` branch, with alert issues on spikes
+  and new referrers. See [`tools/README.md`](tools/README.md#traffic-history).
+- Issue forms and the pull-request template rewritten in the style of the
+  Excel VBA project template: bug and feature forms ask for the regime (CRR,
+  Basel CRE52 or both), evidence and alternatives; the issue chooser links to
+  installation help and the methodology; the PR template covers candidate
+  identity, static checks, Excel evidence, regression coverage, risk,
+  provenance and SA-CCR-specific review.
 
 ### Fixed
 
@@ -169,35 +199,17 @@ Use only the categories needed by a release.
 - The cleanup example reports restoration failures separately from the primary
   error and attempts both restorations. Metadata triage includes closed issues
   and documents the maintainer blank-issue bypass (PRs #18 and #19).
-
-- Excel evidence bound to an exact commit:
-  [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) gives the manual
-  Windows/Excel procedure and record format, and
-  `tools/check_excel_evidence.py` checks a record against the candidate's
-  source digests, `.github/excel-evidence-policy.json`, the default references
-  and the retained harness log, including failed reports. It
-  reports import, compile, test, cleanup, incomplete and unavailable outcomes
-  separately and never runs Excel.
-
-- Methodology basis and numerical test-case format: the EU CRR is the baseline
-  regime and Basel CRE52 is also supported, as recorded differences.
-  [`docs/methodology/`](docs/methodology/README.md) holds the source register,
-  assumptions, open decisions and traceability table;
-  [`TEST_CASES.md`](docs/methodology/TEST_CASES.md) defines fixture and
-  expected-result files, reference classes (published, independent,
-  illustrative), tolerances, case categories and the completeness policy, with
-  one clearly illustrative case. No SA-CCR formula is implemented.
-
-- Versioning conventions in [`RELEASING.md`](RELEASING.md#versioning): a root
-  `VERSION` file is created when the first release is prepared, and
-  `python tools/check.py` then requires it to match the newest dated changelog
-  release. Release branches are `release/X.Y.Z`; tags are annotated `vX.Y.Z`.
-  Development continues on `release/1.0.0`.
+- Validation hardening: a failed Excel run must cite a matching failure report, a
+  timed-out run claims no results, the harness must report a Windows host, and
+  changelog releases must be listed newest first (PRs #28, #30, #47 and #49).
 
 ### Known limitations
 
 - The only VBA is the neutral scaffold and the regression harness; there is no
   SA-CCR calculation yet. No automated check compiles VBA or runs Excel.
+- Excel evidence is manual and covers one 64-bit host; 32-bit is untested.
+- The methodology sources are registered but not yet verified against their
+  official texts.
 
 ---
 

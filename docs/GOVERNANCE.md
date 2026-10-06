@@ -22,12 +22,11 @@ must agree the final integration and subsequent working branch.
 
 Task PRs into the release branch are squash-merged. Integration of the release
 branch into main uses a PR merged with a merge commit once hosted checks are
-green, so provenance remains visible; afterwards the release branch is
-fast-forwarded to main, so both point to the merge commit. Never force-push or
-reset shared branches. Merged task branches are deleted automatically; preserve
-the active release branch, and if a release-to-main merge deletes it, recreate
-it from main at the merge commit. Do not open a release-to-main PR just to
-record progress during this setup phase.
+green, so provenance remains visible. Automatic head-branch deletion removes the
+release branch when that PR merges; recreate it from main at the merge commit,
+or, at a milestone closeout, open the next release branch there instead, so the
+active branch and main start level. Never force-push or reset shared branches.
+Do not open a release-to-main PR just to record progress.
 
 ## Ownership, authorization and review
 
@@ -67,6 +66,9 @@ the issue. Never rewrite shared history to conceal the failed candidate.
 Every issue must have assignee **danielep71**, at least one priority label
 **P1/P2/P3**, and a reference milestone; use one clear priority unless a
 documented reason requires otherwise. Each issue belongs to the milestone of the release branch it targets.
+Exception: traffic alert issues opened by the daily traffic export get the
+assignee and **P3** automatically and no milestone; they are operational
+analytics, not development work, and are closed once reviewed.
 Include objective, acceptance checklist, dependencies and required evidence.
 
 ### What is automatic and what is not
@@ -92,7 +94,7 @@ closeout. Each must return no results. Closed issues are included because the
 metadata rule applies to every issue, not only ongoing work. Keep the missing-
 milestone search repository-wide: filtering by milestone would hide orphans.
 
-- [Issues without a milestone](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20no%3Amilestone)
+- [Issues without a milestone](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20no%3Amilestone%20-author%3Aapp%2Fgithub-actions), excluding traffic alerts, which the workflow opens as `github-actions`
 - [Issues without an assignee](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20no%3Aassignee)
 - [Issues without a priority label](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20-label%3AP1%20-label%3AP2%20-label%3AP3)
 
@@ -105,7 +107,7 @@ into `main`.
 Close an issue only when every acceptance criterion has linked evidence: the
 merged PR, the green check run and, for VBA, the Excel result. Record that
 evidence in a closing comment. A blocked Excel run keeps the issue open.
-Milestone closeout is tracked in
+Each milestone closes through its own closeout issue; v0.0.1 closed in
 [issue #13](https://github.com/danielep71/SACCR/issues/13).
 
 ## Current GitHub controls and limitations
@@ -128,6 +130,7 @@ historical, not a current blocker. Availability and activation are distinct.
 | Automatic Dependabot updates | Weekly update PRs for GitHub Actions, aimed at the active release branch, from `.github/dependabot.yml`; Dependabot reads it from `main`. Every update is reviewed and merged manually; see [tools/README.md](../tools/README.md#dependency-updates). Alerts and update PRs are separate features. |
 | Repository integrity CI | Runs on main/release pushes and PRs, read-only token and full-SHA action pins. Also lints the Python tooling (Ruff, strict mypy) and the workflows (actionlint). Reports are retained for 30 days. Static checks only; no Excel execution. |
 | Labels | Twenty-label catalogue with sync and read-only drift workflows. See LABELS.md for permissions and triggers. |
+| Traffic history | Daily export of GitHub's 14-day traffic data to the orphan `traffic-history` branch, from `.github/workflows/daily-traffic.yml`, with an alert issue on a spike or new referrer. Needs `TRAFFIC_TOKEN` in the `analytics` environment and runs only once the workflow is on main. Analytics only, never CI. |
 
 GitHub Pro enables capabilities such as protected branches, required reviewers
 and Wiki in private personal repositories. It does not automatically configure
@@ -172,6 +175,6 @@ branches pointed to that commit, and hosted checks passed on it for both; the
 release branch has moved on since.
 
 The accepted integration commit, hosted run, branch comparison and settings
-observations are recorded in issue #2. Retain necessary closeout evidence
-before the workflow artifacts expire; final reproducibility and release
-certification remain the responsibility of issue #13.
+observations are recorded in issue #2. The final setup baseline is merge commit
+`69209c4386733e934da5bbb1f8b2c2c6ae7bb059` (PR #48), recorded with its
+evidence in issue #13; `release/1.0.0` was opened from it.

@@ -103,6 +103,23 @@ ruff check tools
 mypy
 ```
 
+## Traffic history
+
+`.github/workflows/daily-traffic.yml`, adapted from VBA-DATETIMEPICKER, runs
+daily at 06:00 UTC and on manual dispatch, from the default branch only. It
+reads GitHub's traffic API, which keeps just 14 days, and appends the snapshot
+to CSV files under `data/` on the orphan `traffic-history` branch: totals,
+daily views and clones, referrers and popular paths. The first run creates the
+branch. It also opens an alert issue, assigned and labelled **P3**, on a views
+or clones spike, a new star or fork, or a new referrer with at least five
+views.
+
+It needs a fine-grained personal access token with `Administration: read` on
+this repository, stored as `TRAFFIC_TOKEN` in the `analytics` environment;
+without it the run fails with a clear error. The badge files it writes under
+`data/badges/` work in a README only once the repository is public. This is
+analytics, not CI: it runs no repository code and must never be extended to.
+
 ## Dependency updates
 
 `.github/dependabot.yml` asks Dependabot for weekly version updates of the

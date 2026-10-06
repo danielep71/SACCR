@@ -7,14 +7,19 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use synthetic data only. Never paste real trades, netting sets, counterparty or collateral data, credentials or private workbooks. Report vulnerabilities privately as described in `SECURITY.md`.
+        ## 🐛 Bug report
 
-        Triage sets the milestone and confirms the priority (default `P2`).
+        **Reproducible · Exact commit · Independent reference · Synthetic data**
+
+        A useful report names the exact commit, gives steps anyone can repeat, and states where the expected value comes from. Triage sets the milestone and confirms the priority (default `P2`).
+
+        > [!CAUTION]
+        > Use synthetic data only. Never paste real trades, netting sets, counterparty or collateral data, credentials or private workbooks. Report vulnerabilities privately as described in [`SECURITY.md`](https://github.com/danielep71/SACCR/blob/main/SECURITY.md).
 
   - type: dropdown
     id: area
     attributes:
-      label: Affected area
+      label: "🎚️ Affected area"
       options:
         - Calculation engine (src/core)
         - Public API (src/modules)
@@ -25,10 +30,23 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: regime
+    attributes:
+      label: "⚖️ Regime"
+      description: Which regulatory regime the defect affects.
+      options:
+        - CRR (baseline)
+        - Basel CRE52 (BCBS)
+        - Both
+        - Not regime-specific
+    validations:
+      required: true
+
   - type: textarea
     id: summary
     attributes:
-      label: Defect and impact
+      label: "🎯 Defect and impact"
       description: What is wrong, who is affected and what the consequence is. For a calculation defect, name the affected quantity (RC, PFE, add-on, multiplier, EAD).
     validations:
       required: true
@@ -36,7 +54,7 @@ body:
   - type: input
     id: source
     attributes:
-      label: Exact commit
+      label: "🔖 Exact commit"
       description: Full 40-character commit SHA, or release tag, that reproduces the defect.
       placeholder: 0123456789abcdef0123456789abcdef01234567
     validations:
@@ -45,7 +63,7 @@ body:
   - type: textarea
     id: reproduction
     attributes:
-      label: Minimal reproduction
+      label: "🔁 Minimal reproduction"
       description: Deterministic steps and synthetic inputs.
       placeholder: |
         1. Build the workbook from the commit above (INSTALLATION.md)
@@ -57,7 +75,7 @@ body:
   - type: textarea
     id: expected
     attributes:
-      label: Expected behavior
+      label: "✅ Expected behavior"
       description: The expected result, error or state, with its independent source (regulatory paragraph, published example or independent calculation).
     validations:
       required: true
@@ -65,15 +83,16 @@ body:
   - type: textarea
     id: actual
     attributes:
-      label: Observed behavior
-      description: Exact values or error messages, and whether the failure is repeatable.
+      label: "❌ Observed behavior"
+      description: Exact values or error messages, and whether the failure is repeatable. Paste the harness `RESULT=` line if it is relevant.
+      render: text
     validations:
       required: true
 
   - type: textarea
     id: environment
     attributes:
-      label: Environment
+      label: "🖥️ Environment"
       value: |
         Excel version/build:
         Office bitness:
@@ -83,19 +102,32 @@ body:
       required: true
 
   - type: textarea
+    id: evidence
+    attributes:
+      label: "🧯 Evidence, workaround and recovery"
+      description: Sanitized diagnostics, workarounds and how to recover. Write "None" if there are none.
+    validations:
+      required: true
+
+  - type: textarea
     id: acceptance
     attributes:
-      label: Acceptance criteria
+      label: "🏁 Acceptance criteria"
       description: What must be true for this to be fixed, including the regression test that must pass.
+      placeholder: |
+        - [ ] ...
+        - [ ] Regression case with an independent expected value
     validations:
       required: true
 
   - type: checkboxes
     id: checks
     attributes:
-      label: Submission checks
+      label: "☑️ Submission checks"
       options:
         - label: I searched open and closed issues for an equivalent report.
+          required: true
+        - label: I reproduced this on the exact commit stated above.
           required: true
         - label: This report contains only synthetic data and no vulnerability details, secrets or private links.
           required: true

@@ -90,7 +90,10 @@ Done only when the owner asks. This is an integration, not a release.
 4. Bring the release branch back level with `main`:
    - if the release branch still exists, fast-forward it to `main`;
    - if automatic branch deletion removed it, recreate it from `main` at the
-     merge commit.
+     merge commit;
+   - at a milestone closeout, open the next `release/X.Y.Z` branch from the
+     merge commit instead, and point Dependabot's `target-branch` and the docs
+     at it.
 5. Verify both branches point to the merge commit and that CI passed on it.
 
 Never force-push or reset either branch.
@@ -109,8 +112,8 @@ version. Verify that the branch rulesets are still active in Settings → Rules.
 Move the `[Unreleased]` entries into `## [X.Y.Z] - YYYY-MM-DD`, add the link
 reference for the new version, keep an empty `[Unreleased]` section, and create
 or update `VERSION` to `X.Y.Z` in the same PR.
-`tools/check_source.py` enforces the heading format, real calendar dates and
-link references. Merge this through a task PR into the release branch.
+`tools/check_source.py` enforces the heading format, real calendar dates, link
+references, newest-first order and the `VERSION` match. Merge this through a task PR into the release branch.
 
 ### 3. Run the static gates
 

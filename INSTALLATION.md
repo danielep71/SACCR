@@ -42,8 +42,8 @@ that tests it. There is no workbook or add-in to install.
 | Excel evidence | Record and validator defined in [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) |
 | Released versions | None |
 
-The only VBA so far is the setup scaffold and the regression harness; the
-component list below grows as the SA-CCR engine is added.
+The component list under [importing](#importing-vba-into-excel) grows as the
+SA-CCR engine is added.
 
 ## 🧰 Prerequisites
 
