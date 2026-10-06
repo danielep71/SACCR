@@ -67,11 +67,39 @@ Every issue must have assignee **danielep71**, at least one priority label
 documented reason requires otherwise. Current setup work belongs to v0.0.1.
 Include objective, acceptance checklist, dependencies and required evidence.
 
-These are mandatory working rules, not currently an automated metadata gate.
-Check them at creation and review. Template and enforcement improvements are
-tracked in [issue #11](https://github.com/danielep71/SACCR/issues/11).
-Close an issue only when its checklist and evidence agree. A blocked Excel
-run remains pending. Milestone closeout is tracked separately in
+### What is automatic and what is not
+
+| Field | How it is set |
+| --- | --- |
+| Assignee `danielep71` | Set by every issue form |
+| Type label (`bug`, `enhancement`, `documentation`) | Set by the form |
+| Priority | Each form sets a default (`P2`, or `P3` for documentation); triage confirms or changes it |
+| Milestone | **Manual.** GitHub issue forms cannot set a milestone |
+
+Forms apply only to issues opened in the web interface; blank issues are
+disabled there. Issues created through the API, the CLI or another tool bypass
+the forms and get no metadata automatically. Nothing blocks an issue that lacks
+metadata: this is a **manual rule backed by the check below**, not enforcement.
+
+### Triage check
+
+Run these three searches when an issue is opened and before closing a
+milestone. Each must return no results.
+
+- [Open issues without a milestone](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20is%3Aopen%20no%3Amilestone)
+- [Open issues without an assignee](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20is%3Aopen%20no%3Aassignee)
+- [Open issues without a priority label](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20is%3Aopen%20-label%3AP1%20-label%3AP2%20-label%3AP3)
+
+The issue forms and the pull-request template are read by GitHub from the
+default branch, so a change to them takes effect after the next integration
+into `main`.
+
+### Closing an issue
+
+Close an issue only when every acceptance criterion has linked evidence: the
+merged PR, the green check run and, for VBA, the Excel result. Record that
+evidence in a closing comment. A blocked Excel run keeps the issue open.
+Milestone closeout is tracked in
 [issue #13](https://github.com/danielep71/SACCR/issues/13).
 
 ## Current GitHub controls and limitations

@@ -44,9 +44,12 @@ Suspected vulnerabilities must never be disclosed in an issue or pull request.
 | ⚙️ Tooling or governance | Explain failure behavior, portability, trust boundary and maintenance cost. |
 | 🔐 Security concern | Follow [`SECURITY.md`](SECURITY.md) privately. |
 
+Open issues with the forms (bug, feature or calculation change, documentation).
 Every issue is assigned to `danielep71`, carries one priority label (`P1`, `P2`
-or `P3`) and has the relevant milestone. See
+or `P3`) and has the relevant milestone; the forms set the first two, and triage
+sets the milestone. See
 [issue metadata and completion](docs/GOVERNANCE.md#issue-metadata-and-completion).
+Pull requests follow [the PR template](.github/PULL_REQUEST_TEMPLATE.md).
 
 <a id="development-workflow"></a>
 

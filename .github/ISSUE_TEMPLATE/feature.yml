@@ -1,0 +1,93 @@
+name: "✨ Feature or calculation change"
+description: "Propose new behavior, a calculation change or a tooling improvement."
+title: "[Feature]: "
+labels: ["enhancement", "P2"]
+assignees: ["danielep71"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use synthetic data only. Triage sets the milestone and confirms the priority (default `P2`).
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Calculation engine (src/core)
+        - Public API (src/modules)
+        - Workbook and user interface
+        - Tests and fixtures
+        - Tooling and CI
+        - Documentation
+        - Repository and governance
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and user
+      description: What need is unmet, and for whom.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Requested behavior
+      description: The observable result. For a calculation change, cite the regulatory paragraph or published example and state units and valid input domains.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] ...
+        - [ ] Regression test with an independent expected value
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope and non-goals
+      description: What is in and out of this change.
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Issues or decisions this depends on. Write "None" if there are none.
+    validations:
+      required: true
+
+  - type: textarea
+    id: compatibility
+    attributes:
+      label: Compatibility impact
+      description: Effect on the public API (docs/PUBLIC_API.txt), computed results, input or output layouts and supported hosts. Write "None" if there is none.
+    validations:
+      required: true
+
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation evidence required
+      description: Static checks, Excel compile, harness and the specific scenario that prove the change.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Submission checks
+      options:
+        - label: I searched open and closed issues for an equivalent proposal.
+          required: true
+        - label: This proposal contains only synthetic data and no secrets or private links.
+          required: true
