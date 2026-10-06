@@ -138,7 +138,9 @@ an issue, unless it creates concrete security impact.
   pull-request label jobs run with a read-only token. The label-sync workflow
   grants `issues: write` only to its reconciliation job, which runs on pushes to
   `main` and manual dispatch, never on pull requests. All actions are pinned to full
-  commit SHAs. See [`tools/README.md`](tools/README.md#github-actions) and
+  commit SHAs; the CI quality tools install from hash-locked requirements, and the
+  actionlint binary is checksum-verified. Dependabot proposes action updates for
+  manual review. See [`tools/README.md`](tools/README.md#github-actions) and
   [`docs/LABELS.md`](docs/LABELS.md).
 - **Artifacts.** No workbook, add-in or other binary is distributed. Office
   packages are ignored by Git unless an exact path is re-included.

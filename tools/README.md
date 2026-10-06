@@ -1,7 +1,7 @@
 # SACCR tooling
 
-Requirements: Git and Python 3.10+ on PATH. No Python packages or Excel
-installation are needed. Run from the repository root before every push:
+Requirements: Git and Python 3.10+ on PATH. `check.py` needs no Python packages
+and no Excel. Run from the repository root before every push:
 
 ```sh
 python tools/check.py
@@ -71,7 +71,50 @@ candidate SHA. Missing evidence fails the upload step.
 
 The workflow uses a read-only token, does not persist checkout credentials,
 and pins actions to full commit SHAs taken from the template.
-It uses GitHub-hosted Ubuntu and Python 3.10 with no additional Python packages.
+It uses GitHub-hosted Ubuntu and Python 3.10.
 A successful job is static-check evidence only, not Excel validation.
+
+After `check.py`, the same job runs three quality steps. Each runs even if an
+earlier step failed, so one run reports every problem, and each failure fails the
+job:
+
+| Step | Checks |
+| --- | --- |
+| Ruff | `ruff check tools` with the rules in `pyproject.toml`; a probe proves the complexity ceiling of 15 is active |
+| mypy | `mypy --strict` over every module in `tools/`, tests included; a probe proves an unannotated function is rejected |
+| actionlint | Every workflow in `.github/workflows/`, including shellcheck on `run:` scripts |
+
+Ruff and mypy install from `tools/requirements-quality-ci.txt` with
+`--require-hashes --only-binary=:all:`. The actionlint archive is downloaded at a
+pinned version and verified against its SHA-256 before use. Their outputs are in
+the uploaded report. To run Ruff and mypy locally, with Python 3.10:
+
+```sh
+python -m pip install --require-hashes --only-binary=:all: -r tools/requirements-quality-ci.txt
+ruff check tools
+mypy
+```
+
+## Dependency updates
+
+`.github/dependabot.yml` asks Dependabot for weekly version updates of the
+GitHub Actions pinned in the workflows. They are opened against the active
+release branch (`target-branch`) and labelled `ci` and `P3`. Dependabot reads
+this file from the default branch, so it takes effect after the next integration
+into `main`. Update `target-branch` whenever a new release branch is opened.
+
+Review each update pull request like any other:
+
+1. Check the new version's release notes and the commit it pins. The pin must
+   stay a full 40-character SHA with the version as a trailing comment.
+2. Let **Repository integrity** run, including actionlint, and confirm it is
+   green.
+3. Squash-merge it yourself. Nothing is merged or approved automatically, and
+   Dependabot alerts are never dismissed automatically.
+
+The quality tools are not covered by Dependabot. To change Ruff, mypy or
+actionlint, update the version and its hash or checksum in
+`tools/requirements-quality-ci.txt` or the workflow `env` in one reviewed pull
+request.
 Whether GitHub blocks merging on this check depends on the repository's
 branch rulesets.
