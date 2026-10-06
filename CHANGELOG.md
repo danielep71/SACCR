@@ -144,6 +144,11 @@ Use only the categories needed by a release.
   conditional compilation is balanced and uses known symbols with `PtrSafe`
   declarations, and every public facade declaration matches
   `docs/PUBLIC_API.txt`. None of them compiles VBA or checks SA-CCR results.
+- The **Repository integrity** job also lints the Python tooling with Ruff and
+  strict mypy, from hash-locked versions, and the workflows with a
+  checksum-verified actionlint. Dependabot proposes weekly GitHub Actions
+  updates to the release branch for manual review; nothing merges
+  automatically.
 
 ### Known limitations
 

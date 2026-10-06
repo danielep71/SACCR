@@ -118,8 +118,8 @@ historical, not a current blocker. Availability and activation are distinct.
 | Advanced code/secret scanning | Not offered in the current repository security settings. Do not claim CodeQL, secret scanning or push protection are active. Review code and credentials manually; this is not equivalent automated coverage. |
 | Dependency graph and Dependabot alerts | Enabled. Review alerts rather than assuming a clean dependency graph proves application security. |
 | Low-impact development-dependency alert auto-dismissal | Disabled by explicit owner decision. Keep those alerts visible. |
-| Automatic Dependabot updates | Not configured in this baseline; Actions update configuration is tracked by issue #6. Alerts and automated update PRs are separate features. |
-| Repository integrity CI | Runs on main/release pushes and PRs, read-only token and full-SHA action pins. Reports are retained for 30 days. Static checks only; no Excel execution. |
+| Automatic Dependabot updates | Weekly update PRs for GitHub Actions, aimed at the active release branch, from `.github/dependabot.yml` once it is on `main`. Every update is reviewed and merged manually; see [tools/README.md](../tools/README.md#dependency-updates). Alerts and update PRs are separate features. |
+| Repository integrity CI | Runs on main/release pushes and PRs, read-only token and full-SHA action pins. Also lints the Python tooling (Ruff, strict mypy) and the workflows (actionlint). Reports are retained for 30 days. Static checks only; no Excel execution. |
 | Labels | Twenty-label catalogue with sync and read-only drift workflows. See LABELS.md for permissions and triggers. |
 
 GitHub Pro enables capabilities such as protected branches, required reviewers
