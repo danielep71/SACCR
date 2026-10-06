@@ -225,31 +225,20 @@ class ExcelEvidenceTests(unittest.TestCase):
         self.failed_regression(injected, failures=0)
         self.assertInvalid("normal-mode")
 
-    def test_timeout_keeps_partial_log(self) -> None:
-        partial = "\n".join([*self.log.splitlines()[:5], ""])
-        self.record["stages"]["regression"] = self.stage("harness.log", partial)
-        self.record["stages"]["regression"]["status"] = "TIMEOUT"
-        self.record["harness"].update(cases=2, assertions=2, completeness="INCOMPLETE")
-        self.assertEqual(self.evaluate()["outcomes"], ["EXECUTION_TIMEOUT"])
-        self.record["harness"]["cases"] = 4
-        self.assertInvalid("CASE lines")
-        self.record["harness"]["cases"] = 2
+    def test_timeout_keeps_log_without_claims(self) -> None:
+        for kept in (0, 1, 5, 11):
+            partial = "\n".join([*self.log.splitlines()[:kept], ""])
+            self.record["stages"]["regression"] = self.stage("harness.log", partial)
+            self.record["stages"]["regression"]["status"] = "TIMEOUT"
+            self.record["harness"] = None
+            self.assertEqual(self.evaluate()["outcomes"], ["EXECUTION_TIMEOUT"], kept)
+        self.record["harness"] = {"cases": 2}
+        self.assertInvalid("no harness results")
+        self.record["harness"] = None
         for finished in (self.log, self.log.replace("RESULT=PASS", "RESULT=FAIL")):
             self.record["stages"]["regression"] = self.stage("harness.log", finished)
             self.record["stages"]["regression"]["status"] = "TIMEOUT"
             self.assertInvalid("not TIMEOUT")
-
-    def test_timeout_within_preamble(self) -> None:
-        self.record["harness"].update(cases=0, assertions=0, completeness="INCOMPLETE")
-        for kept in (0, 1, 2):
-            truncated = "\n".join([*self.log.splitlines()[:kept], ""])
-            self.record["stages"]["regression"] = self.stage("harness.log", truncated)
-            self.record["stages"]["regression"]["status"] = "TIMEOUT"
-            self.assertEqual(self.evaluate()["outcomes"], ["EXECUTION_TIMEOUT"], kept)
-        wrong = self.log.splitlines()[0] + "\nMODE=INJECTED_FAILURE\n"
-        self.record["stages"]["regression"] = self.stage("harness.log", wrong)
-        self.record["stages"]["regression"]["status"] = "TIMEOUT"
-        self.assertInvalid("normal-mode")
 
     def test_compile_and_import_failures(self) -> None:
         self.record["stages"]["compile"]["status"] = "FAIL"

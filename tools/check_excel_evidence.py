@@ -202,36 +202,20 @@ def single(log: str, key: str) -> str:
     return values[0].strip()
 
 
-def lines(log: str, key: str, partial: bool) -> list[str]:
-    """Return the ``key=`` values; a full report has exactly one, a partial one at most one."""
-    values: list[str] = [value.strip() for value in
-                         re.findall(rf"^{re.escape(key)}=(.*)$", log, re.MULTILINE)]
-    require(len(values) <= 1 if partial else len(values) == 1,
-            f"harness log needs {'at most' if partial else 'exactly'} one {key}= line")
-    return values
-
-
-def report_cases(record: dict[str, Any], policy: dict[str, Any], log: str,
-                 partial: bool = False) -> list[str]:
-    """Check the report header and return its CASE lines, which must follow the policy order.
-
-    A partial report, kept from a timed-out run, is checked only on the lines it printed.
-    """
-    runs = re.findall(r"^SACCR TESTS[ \t]*$", log, re.MULTILINE)
-    require(len(runs) <= 1 if partial else len(runs) == 1,
+def report_cases(record: dict[str, Any], policy: dict[str, Any], log: str) -> list[str]:
+    """Check the report header and return its CASE lines, which must follow the policy order."""
+    require(re.findall(r"^SACCR TESTS[ \t]*$", log, re.MULTILINE) == ["SACCR TESTS"],
             "harness log must contain exactly one run")
-    require(all(mode == "NORMAL" for mode in lines(log, "MODE", partial)),
-            "harness log is not a normal-mode run")
+    require(single(log, "MODE") == "NORMAL", "harness log is not a normal-mode run")
+    reported: dict[str, str] = {}
+    for item in single(log, "ENVIRONMENT").split("; "):
+        key, _, value = item.partition("=")
+        reported[key] = value
     environment = record["environment"]
-    for summary in lines(log, "ENVIRONMENT", partial):
-        reported: dict[str, str] = {}
-        for item in summary.split("; "):
-            key, _, value = item.partition("=")
-            reported[key] = value
-        for key, field in (("version", "excel_version"), ("office", "office_bitness"),
-                           ("runtime", "runtime")):
-            require(reported.get(key) == environment[field],
-                    f"harness ENVIRONMENT {key} differs from the record's {field}")
+    for key, field in (("version", "excel_version"), ("office", "office_bitness"),
+                       ("runtime", "runtime")):
+        require(reported.get(key) == environment[field],
+                f"harness ENVIRONMENT {key} differs from the record's {field}")
     cases = [case.strip() for case in re.findall(r"^CASE=(.*)$", log, re.MULTILINE)]
     require(cases == policy["cases"][:len(cases)], "harness CASE lines differ from the policy")
     require(len(cases) == record["harness"]["cases"], "harness CASE lines differ from the record")
@@ -266,14 +250,6 @@ def validate_report(record: dict[str, Any], policy: dict[str, Any], log: str) ->
             "a harness cleanup failure must be recorded as cleanup FAIL")
 
 
-def validate_partial_report(record: dict[str, Any], policy: dict[str, Any], log: str) -> None:
-    """A timed-out run keeps what was printed before it stopped; it never reached RESULT."""
-    require(record["harness"]["completeness"] == "INCOMPLETE", "a timed-out run is INCOMPLETE")
-    require(not re.search(r"^RESULT=", log, re.MULTILINE),
-            "a log with a RESULT line finished; record it as PASS or FAIL, not TIMEOUT")
-    report_cases(record, policy, log, partial=True)
-
-
 def validate_harness(record: dict[str, Any], policy: dict[str, Any], log: str) -> None:
     harness = object_keys(record["harness"], "entry_point cases assertions failures "
                           "completeness expected_errors", "harness")
@@ -290,9 +266,6 @@ def validate_harness(record: dict[str, Any], policy: dict[str, Any], log: str) -
         observed.append(error["case"])
     require(observed == policy["expected_error_cases"], "expected-error results differ from policy")
     status = record["stages"]["regression"]["status"]
-    if status == "TIMEOUT":
-        validate_partial_report(record, policy, log)
-        return
     require(status == "FAIL" or all(error["status"] == "PASS" for error in harness["expected_errors"]),
             "regression PASS needs every expected-error result to pass")
     validate_report(record, policy, log)
@@ -313,8 +286,12 @@ def validate_manual(root: Path, sha: str, policy: dict[str, Any], record: dict[s
     require(record["sources"] == source_inventory(root, sha),
             "source inventory differs from the candidate's exact source")
     outcomes, logs = validate_stages(record, directory)
-    if record["stages"]["regression"]["status"] == "NOT_RUN":
-        require(record["harness"] is None, "a regression that did not run has no harness results")
+    regression = record["stages"]["regression"]["status"]
+    if regression in ("NOT_RUN", "TIMEOUT"):
+        # An unfinished run is non-green; its log is retained and hashed but makes no claims.
+        require(record["harness"] is None, "an unfinished regression has no harness results")
+        require(regression == "NOT_RUN" or not re.search(r"^RESULT=", logs["regression"], re.M),
+                "a log with a RESULT line finished; record it as PASS or FAIL, not TIMEOUT")
     else:
         validate_harness(record, policy, logs["regression"])
     return outcomes

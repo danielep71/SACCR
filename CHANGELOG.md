@@ -174,7 +174,7 @@ Use only the categories needed by a release.
   Windows/Excel procedure and record format, and
   `tools/check_excel_evidence.py` checks a record against the candidate's
   source digests, `.github/excel-evidence-policy.json`, the default references
-  and the retained harness log, including failed and timed-out reports. It
+  and the retained harness log, including failed reports. It
   reports import, compile, test, cleanup, incomplete and unavailable outcomes
   separately and never runs Excel.
 
