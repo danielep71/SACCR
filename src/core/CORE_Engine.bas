@@ -191,6 +191,13 @@ Attribute VB_Name = "CORE_Engine"
         Private mHSCount      As Long            'Hedging sets used
         Private mHSIndex      As Collection      'Netting set # hedging set to position
 
+    'Sub-class of each credit or equity entity and commodity per netting set,
+    'so that one reference cannot get two factors depending on row order.
+        Private mRefClass()   As String          'Factor-table key of the reference, e.g. CR_AA
+        Private mRefConflict() As Boolean        'A conflict was already reported
+        Private mRefCount     As Long            'References used
+        Private mRefIndex     As Collection      'Netting set | asset class | reference to position
+
         Private mAddOnU()     As Double          'Asset-class add-ons (netting set, asset class), unmargined
         Private mAddOnM()     As Double          'Asset-class add-ons (netting set, asset class), margined
 
@@ -538,6 +545,7 @@ Private Sub ResetState()
         mFXCount = 0
         mBkCount = 0
         mHSCount = 0
+        mRefCount = 0
         mLogCount = 0
         mErrCount = 0
         mWarnCount = 0
@@ -557,11 +565,14 @@ Private Sub ResetState()
         Set mFXIndex = New Collection
         Set mBkIndex = New Collection
         Set mHSIndex = New Collection
+        Set mRefIndex = New Collection
         ReDim mNS(1 To 16)
         ReDim mSF(1 To 32)
         ReDim mFXRate(1 To 32)
         ReDim mBk(1 To 64)
         ReDim mHS(1 To 32)
+        ReDim mRefClass(1 To 32)
+        ReDim mRefConflict(1 To 32)
         ReDim mLog(1 To CK_NCOLS, 1 To 64)
 
 End Sub
@@ -1969,6 +1980,12 @@ Private Sub ProcessTrades( _
             subCls = UTxt(data(i, TR_SUB))
             rf = UTxt(data(i, TR_RF))
             If Len(rf) = 0 Then AddErr ok, msg, "risk factor / reference missing"
+            If InStr(rf, "|") > 0 Or InStr(rf, "#") > 0 Then
+                AddErr ok, msg, "risk factor / reference must not contain '|' or '#'"
+            End If
+            If ac = AC_IR And Len(rf) > 0 And Not (rf Like "[A-Z][A-Z][A-Z]") Then
+                AddErr ok, msg, "interest-rate risk factor must be a 3-letter currency code such as EUR"
+            End If
 
             instType = UTxt(data(i, TR_INSTR))
             If Len(instType) = 0 Then instType = "LINEAR"
@@ -1990,6 +2007,9 @@ Private Sub ProcessTrades( _
             nature = UTxt(data(i, TR_NATURE))
             If Len(nature) = 0 Then nature = "STANDARD"
             lbl = UTxt(data(i, TR_LABEL))
+            If InStr(lbl, "|") > 0 Or InStr(lbl, "#") > 0 Then
+                AddErr ok, msg, "hedging-set label must not contain '|' or '#'"
+            End If
             Select Case nature
                 Case "STANDARD"
                     natFactor = 1#
@@ -1997,11 +2017,11 @@ Private Sub ProcessTrades( _
                 Case "BASIS"
                     natFactor = pBasisF
                     natTag = "BASIS:" & lbl
-                    If Len(lbl) = 0 Then AddWarn warn, "basis trade without hedging-set label"
+                    If Len(lbl) = 0 Then AddErr ok, msg, "basis trade needs a hedging-set label"
                 Case "VOLATILITY"
                     natFactor = pVolF
                     natTag = "VOL:" & lbl
-                    If Len(lbl) = 0 Then AddWarn warn, "volatility trade without hedging-set label"
+                    If Len(lbl) = 0 Then AddErr ok, msg, "volatility trade needs a hedging-set label"
                 Case Else
                     AddErr ok, msg, "nature must be Standard, Basis or Volatility"
             End Select
@@ -2248,6 +2268,9 @@ Private Sub ProcessTrades( _
                 End If
                 enU = delta * adjN * mfU
                 enM = delta * adjN * mfM
+                If ac = AC_CR Or ac = AC_EQ Or ac = AC_CO Then
+                    CheckReferenceClass nsIdx, ac, rf, sfKey, tid, rowNum
+                End If
                 AddToBucket nsIdx, ac, hsKey, subKey, sfEff, corrEff, enU, enM, tid, rowNum
                 mNS(nsIdx).V = mNS(nsIdx).V + mtmRep
                 mNS(nsIdx).Trades = mNS(nsIdx).Trades + 1
@@ -2375,6 +2398,69 @@ Private Function NormalizePair( _
 End Function
 
 
+Private Sub CheckReferenceClass( _
+    ByVal nsIdx As Long, _
+    ByVal ac As Long, _
+    ByVal rf As String, _
+    ByVal sfKey As String, _
+    ByVal tid As String, _
+    ByVal rowNum As Long)
+'
+'==============================================================================
+'                             CheckReferenceClass
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Make sure a credit or equity entity, or a commodity, has one sub-class
+'   in its netting set. Its bucket takes one supervisory factor and
+'   correlation; with two sub-classes the result would depend on which
+'   trade comes first (#37).
+'
+' INPUTS
+'   nsIdx, ac, rf: netting set, asset class and reference of the trade.
+'   sfKey: the factor-table key the trade's sub-class gives, such as CR_AA.
+'   tid, rowNum: trade ID and sheet row, for the message.
+'
+' STATE OWNERSHIP
+'   Adds to mRefClass, mRefCount and mRefIndex. On the first conflict for a
+'   reference, logs an error and adds an input error to the netting set,
+'   which makes it INVALID with its EAD withheld whatever the row order.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim key   As String    'Netting set | asset class | reference
+    Dim k     As Long      'Position of the reference; 0 when new
+
+'------------------------------------------------------------------------------
+' COMPARE
+'------------------------------------------------------------------------------
+    'References contain no "|" (checked in ProcessTrades), so the key is
+    'unambiguous.
+        key = CStr(nsIdx) & "|" & CStr(ac) & "|" & rf
+        k = KeyIndex(mRefIndex, key)
+        If k = 0 Then
+            mRefCount = mRefCount + 1
+            If mRefCount > UBound(mRefClass) Then
+                ReDim Preserve mRefClass(1 To mRefCount * 2)
+                ReDim Preserve mRefConflict(1 To mRefCount * 2)
+            End If
+            mRefClass(mRefCount) = sfKey
+            KeyAdd mRefIndex, key, mRefCount
+        ElseIf mRefClass(k) <> sfKey And Not mRefConflict(k) Then
+            mRefConflict(k) = True
+            mNS(nsIdx).InputErrors = mNS(nsIdx).InputErrors + 1
+            LogMsg SEV_ERROR, SH_TRADES, tid, "Reference '" & rf & "' is " & sfKey & " here but " & _
+                   mRefClass(k) & " on another trade of the netting set - netting set INVALID, EAD withheld.", rowNum
+        End If
+
+End Sub
+
+
 Private Sub AddToBucket( _
     ByVal nsIdx As Long, _
     ByVal ac As Long, _
@@ -2402,9 +2488,11 @@ Private Sub AddToBucket( _
 '   tid, rowNum: trade ID and sheet row, for messages.
 '
 ' STATE OWNERSHIP
-'   Adds to mBk, mBkCount and mBkIndex. A bucket keeps the factor and
-'   correlation of its first trade. For credit, equity and commodity a later
-'   trade with a different factor is warned about.
+'   Adds to mBk, mBkCount and mBkIndex. Every trade of a bucket has the
+'   same factor and correlation: the key holds the hedging set, which
+'   includes the nature, and CheckReferenceClass makes a netting set whose
+'   credit, equity or commodity reference has two sub-classes INVALID
+'   (#37).
 '
 ' UPDATED
 '   2026-10-06
@@ -2438,9 +2526,6 @@ Private Sub AddToBucket( _
             mBk(b).ENM = 0#
             mBk(b).Trades = 0
             KeyAdd mBkIndex, key, b
-        ElseIf (ac = AC_CR Or ac = AC_EQ Or ac = AC_CO) And Abs(mBk(b).SF - sfEff) > 0.0000000001 Then
-            LogMsg SEV_WARN, SH_TRADES, tid, "Sub-class differs from earlier trades on '" & subKey & _
-                   "' - supervisory factor of the first trade used.", rowNum
         End If
 
 '------------------------------------------------------------------------------

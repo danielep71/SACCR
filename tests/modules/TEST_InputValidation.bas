@@ -11,8 +11,11 @@ Attribute VB_Name = "TEST_InputValidation"
 '   a moved or renamed column, a broken parameter name, a parameter,
 '   supervisory factor or currency listed twice with different values, and
 '   a factor or rate the table loader would not read because of a blank
-'   row or key. A blank optional field, and a duplicate with the same
-'   values, must still be accepted.
+'   row or key; and, for aggregation (#37), a credit reference given two
+'   sub-classes in either order, a basis trade without a hedging-set label,
+'   a reserved character in a reference, and an interest-rate risk factor
+'   that is not a currency. A blank optional field, and a duplicate with
+'   the same values, must still be accepted.
 '
 ' PUBLIC SURFACE
 '   RunInputValidationTests is the entry point. Option Private Module keeps
@@ -52,8 +55,8 @@ Attribute VB_Name = "TEST_InputValidation"
 ' MODULE CONSTANTS
 '------------------------------------------------------------------------------
         Private Const VALUATION   As String = "2026-09-30"    'Valuation date of every case
-        Private Const CASES       As Long = 27                'Cases in a complete run
-        Private Const CHECKS      As Long = 27                'Checks in a complete run
+        Private Const CASES       As Long = 32                'Cases in a complete run
+        Private Const CHECKS      As Long = 32                'Checks in a complete run
 
 
 '
@@ -241,6 +244,31 @@ Public Sub RunInputValidationTests()
         AddSwap "T1"
         TEST_CaseRunner.PatchCell SH_PARAMS, ParamsRow("CHF"), 1, Empty
         ExpectStop "has a value but no key"
+
+    'Aggregation (#37): one reference, one sub-class, whatever the order.
+        StartCase "aggregation-reference-two-sub-classes", "N"
+        AddCredit "C1", "AA", "FIRM A"
+        AddCredit "C2", "BBB", "FIRM A"
+        ExpectStatus "INVALID: 1 input error(s)"
+
+        StartCase "aggregation-reference-two-sub-classes-reversed", "N"
+        AddCredit "C2", "BBB", "FIRM A"
+        AddCredit "C1", "AA", "FIRM A"
+        ExpectStatus "INVALID: 1 input error(s)"
+
+        StartCase "aggregation-basis-without-label", "N"
+        TEST_CaseRunner.AddTrade "B1", "IR", "", "EUR", "Linear", "Long", "", "Basis", "", _
+                                 "10000", "0", "", "2031-09-30", "2031-09-30", "", "", "", "", "", ""
+        ExpectStatus "INCOMPLETE: 1 of 1 trade(s) rejected"
+
+        StartCase "aggregation-reserved-character", "N"
+        AddCredit "C1", "AA", "FIRM|A"
+        ExpectStatus "INCOMPLETE: 1 of 1 trade(s) rejected"
+
+        StartCase "aggregation-ir-risk-factor-not-currency", "N"
+        TEST_CaseRunner.AddTrade "T1", "IR", "", "EURO", "Linear", "Long", "", "Standard", "", _
+                                 "10000", "0", "", "2031-09-30", "2031-09-30", "", "", "", "", "", ""
+        ExpectStatus "INCOMPLETE: 1 of 1 trade(s) rejected"
 
         TEST_CaseRunner.EndSuite ""
         Exit Sub
@@ -444,6 +472,28 @@ Private Sub ClearParamsRow( _
         For c = 1 To nCols
             TEST_CaseRunner.PatchCell SH_PARAMS, rowNum, c, Empty
         Next c
+
+End Sub
+
+
+Private Sub AddCredit( _
+    ByVal tradeId As String, _
+    ByVal subClass As String, _
+    ByVal reference As String)
+'
+'==============================================================================
+'                                  AddCredit
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Add a five-year single-name credit default swap, protection bought, to
+'   NS1.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        TEST_CaseRunner.AddTrade tradeId, "CR", subClass, reference, "Linear", "Long", "", "Standard", "", _
+                                 "10000", "0", "", "2031-09-30", "2031-09-30", "", "", "", "", "", ""
 
 End Sub
 
