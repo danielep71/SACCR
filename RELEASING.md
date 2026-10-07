@@ -30,7 +30,7 @@ sequence**. Day-to-day contribution is owned by
 
 Steps below marked *(to be defined)* are settled with the first distributed
 artifact. Repository setup, milestone v0.0.1, closed without a release; its
-baseline is recorded in [issue #13](https://github.com/danielep71/SACCR/issues/13).
+baseline is recorded in [issue #13](https://github.com/danielep71/VBA-SACCR-Toolkit/issues/13).
 
 ## 🌿 Branch model
 

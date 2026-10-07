@@ -6,7 +6,7 @@
 
 [![Excel VBA](https://img.shields.io/badge/Excel_VBA-Windows-217346?style=for-the-badge&logo=microsoft-excel&logoColor=white)](#status)
 [![Status](https://img.shields.io/badge/Status-Pre--release-6e7781?style=for-the-badge)](#status)
-[![Branch](https://img.shields.io/badge/Branch-release%2F1.0.0-6f42c1?style=for-the-badge)](https://github.com/danielep71/SACCR/tree/release/1.0.0)
+[![Branch](https://img.shields.io/badge/Branch-release%2F1.0.0-6f42c1?style=for-the-badge)](https://github.com/danielep71/VBA-SACCR-Toolkit/tree/release/1.0.0)
 [![License](https://img.shields.io/badge/License-MIT-2ea44f?style=for-the-badge)](LICENSE)
 
 <br>
@@ -36,7 +36,7 @@ calculation structure and validation approach.
 ## 🧭 Status
 
 Repository setup, milestone **v0.0.1**, is complete; its accepted baseline is
-recorded in [issue #13](https://github.com/danielep71/SACCR/issues/13). The
+recorded in [issue #13](https://github.com/danielep71/VBA-SACCR-Toolkit/issues/13). The
 prototype engine (CRR and Basel CRE52) has been imported as source; it is not
 yet validated under the repository's test-case policy. SACCR uses the **application** profile: the
 deliverable is a workbook built from the exported source, around a
@@ -62,8 +62,8 @@ to `main` require an explicit owner instruction.
 ## 🚀 Getting started
 
 ```sh
-git clone https://github.com/danielep71/SACCR.git
-cd SACCR
+git clone https://github.com/danielep71/VBA-SACCR-Toolkit.git
+cd VBA-SACCR-Toolkit
 git switch release/1.0.0
 python tools/check.py
 ```

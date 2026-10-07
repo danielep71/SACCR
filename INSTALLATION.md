@@ -83,8 +83,8 @@ or as an evidence bundle bound to a commit as described in
 Use a **Git clone**:
 
 ```sh
-git clone https://github.com/danielep71/SACCR.git
-cd SACCR
+git clone https://github.com/danielep71/VBA-SACCR-Toolkit.git
+cd VBA-SACCR-Toolkit
 git switch release/1.0.0
 ```
 
