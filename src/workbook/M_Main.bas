@@ -13,11 +13,15 @@ Attribute VB_Name = "M_Main"
 '   ClearOutputs: empty every output sheet.
 '   RunSACCR_Silent: RunSACCR for automation. Returns a machine-readable
 '   result line and raises errors instead of showing them.
+'   ResultsStatus: whether the results on the sheets match the current
+'   inputs (CURRENT, STALE or NONE).
+'   FlagStaleResults: mark the Results sheet when they do not; called when
+'   the Results sheet is activated.
 '   The sheet buttons call the first three by name. These macros are not
 '   listed in docs/PUBLIC_API.txt.
 '
 ' DEPENDENCIES
-'   M_Engine for the calculation and its run counters; M_Util and M_Config
+'   CORE_Engine for the calculation and its run counters; CORE_Util and CORE_Config
 '   for the output sheets and the error numbers.
 '
 ' STATE OWNERSHIP
@@ -38,7 +42,7 @@ Attribute VB_Name = "M_Main"
 ' TEST SEAM
 '   gTestFault = "operation" raises ERR_INJECTED_FAULT after the settings
 '   have been changed; gTestFault = "cleanup" makes the calculation-mode
-'   restoration fail. tests/modules/TestMainState.bas uses both. Production
+'   restoration fail. tests/modules/TEST_MainState.bas uses both. Production
 '   code never sets it.
 '
 ' KNOWN DEVIATION
@@ -49,7 +53,7 @@ Attribute VB_Name = "M_Main"
 '   Excel VBA; no references beyond the defaults.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '
 ' AUTHOR
 '   Daniele Penza
@@ -127,7 +131,9 @@ Public Function RunSACCR_Silent() As String
 ' RETURNS
 '   A result line such as "RESULT=OK; operation=run; errors=0; warnings=0;
 '   trades_used=62; trades_read=65; incomplete=0; total_ead=425197517.8;
-'   cleanup=PASS". incomplete counts netting sets whose EAD was withheld.
+'   inputs=5A428560; cleanup=PASS". incomplete counts netting sets whose
+'   EAD was withheld; inputs is the fingerprint of the inputs the results
+'   were calculated from, empty when there are none.
 '   RESULT=STOPPED means the inputs could not be loaded; see Checks.
 '
 ' STATE OWNERSHIP
@@ -224,6 +230,86 @@ Public Sub ClearOutputs()
 End Sub
 
 
+Public Function ResultsStatus() As String
+'
+'==============================================================================
+'                                ResultsStatus
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Tell whether the results on the output sheets were calculated from the
+'   inputs as they are now (#36).
+'
+' RETURNS
+'   CURRENT: the inputs match the last completed run.
+'   STALE: the inputs changed after it; the results are out of date.
+'   NONE: no completed run's results are on the sheets.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim stored   As String    'Fingerprint stored by the last completed run
+
+'------------------------------------------------------------------------------
+' COMPARE
+'------------------------------------------------------------------------------
+        stored = CORE_Engine.LastRunInputs()
+        If Len(stored) = 0 Then
+            ResultsStatus = "NONE"
+        ElseIf stored = CORE_Engine.InputFingerprint() Then
+            ResultsStatus = "CURRENT"
+        Else
+            ResultsStatus = "STALE"
+        End If
+
+End Function
+
+
+Public Sub FlagStaleResults()
+'
+'==============================================================================
+'                               FlagStaleResults
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Put an OUT OF DATE marker in front of the run summary in Results A2
+'   when the inputs changed after the last run (#36). The check runs when
+'   the Results sheet is activated rather than on every edit, because a
+'   macro that changes the workbook clears Excel's undo history.
+'
+' ERROR POLICY
+'   Contains every error: activating a sheet must never fail.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Const STALE_MARK As String = "OUT OF DATE - inputs changed since this run. "
+    Dim summary   As Range    'Results A2
+
+'------------------------------------------------------------------------------
+' MARK
+'------------------------------------------------------------------------------
+        On Error GoTo Failed
+        If ResultsStatus() = "STALE" Then
+            Set summary = GetSheet(SH_RESULTS).Range(RUNINFO_CELL)
+            If Left$(SafeStr(summary.Value), Len(STALE_MARK)) <> STALE_MARK Then
+                summary.Value = STALE_MARK & SafeStr(summary.Value)
+            End If
+        End If
+
+Failed:
+
+End Sub
+
+
 '
 '------------------------------------------------------------------------------
 '
@@ -312,9 +398,9 @@ Private Function ExecuteOperation( _
         End If
         Select Case operation
             Case OP_RUN
-                ok = M_Engine.Calculate(True)
+                ok = CORE_Engine.Calculate(True)
             Case OP_VALIDATE
-                ok = M_Engine.Calculate(False)
+                ok = CORE_Engine.Calculate(False)
             Case OP_CLEAR
                 ClearAllOutputs
                 ok = True
@@ -372,6 +458,7 @@ Private Sub ClearAllOutputs()
         ClearOutputBlock GetSheet(SH_HEDGING), FIRST_DATA_ROW, HS_NCOLS
         ClearOutputBlock GetSheet(SH_RESULTS), FIRST_DATA_ROW, RS_NCOLS
         ClearOutputBlock GetSheet(SH_CHECKS), FIRST_DATA_ROW, CK_NCOLS
+        CORE_Engine.ForgetRunInputs
         GetSheet(SH_RESULTS).Range(RUNINFO_CELL).Value = "Outputs cleared " & Format$(Now, "yyyy-mm-dd hh:mm:ss")
 
 End Sub
@@ -634,17 +721,17 @@ Private Function ReportOutcome( _
             Case OP_RUN
                 If ok Then
                     msg = "SA-CCR run completed." & vbCrLf & vbCrLf & _
-                          "Trades used: " & M_Engine.TradesUsed & " of " & M_Engine.TradesRead & vbCrLf & _
-                          "Total EAD: " & Format$(M_Engine.TotalEAD, "#,##0") & vbCrLf & _
-                          "Errors: " & M_Engine.ErrorCount & "   Warnings: " & M_Engine.WarningCount
-                    If M_Engine.IncompleteCount > 0 Then
-                        msg = msg & vbCrLf & "EAD withheld for " & M_Engine.IncompleteCount & _
-                              " netting set(s) with rejected trades."
+                          "Trades used: " & CORE_Engine.TradesUsed & " of " & CORE_Engine.TradesRead & vbCrLf & _
+                          "Total EAD: " & Format$(CORE_Engine.TotalEAD, "#,##0") & vbCrLf & _
+                          "Errors: " & CORE_Engine.ErrorCount & "   Warnings: " & CORE_Engine.WarningCount
+                    If CORE_Engine.IncompleteCount > 0 Then
+                        msg = msg & vbCrLf & "EAD withheld for " & CORE_Engine.IncompleteCount & _
+                              " netting set(s) with rejected trades or invalid inputs."
                     End If
-                    If M_Engine.ErrorCount > 0 Or M_Engine.WarningCount > 0 Then
+                    If CORE_Engine.ErrorCount > 0 Or CORE_Engine.WarningCount > 0 Then
                         msg = msg & vbCrLf & vbCrLf & "See the Checks sheet for details."
                     End If
-                    style = IIf(M_Engine.ErrorCount > 0, vbExclamation, vbInformation)
+                    style = IIf(CORE_Engine.ErrorCount > 0, vbExclamation, vbInformation)
                 Else
                     msg = "SA-CCR run stopped - see the Checks sheet."
                     style = vbCritical
@@ -652,9 +739,9 @@ Private Function ReportOutcome( _
                 End If
             Case OP_VALIDATE
                 ShowChecksSheet
-                msg = "Validation finished: " & M_Engine.ErrorCount & " error(s), " & _
-                      M_Engine.WarningCount & " warning(s)."
-                style = IIf(M_Engine.ErrorCount > 0, vbExclamation, vbInformation)
+                msg = "Validation finished: " & CORE_Engine.ErrorCount & " error(s), " & _
+                      CORE_Engine.WarningCount & " warning(s)."
+                style = IIf(CORE_Engine.ErrorCount > 0, vbExclamation, vbInformation)
             Case OP_CLEAR
                 msg = ""
                 style = vbInformation
@@ -668,12 +755,13 @@ Private Function ReportOutcome( _
         result = "RESULT=" & IIf(ok, "OK", "STOPPED") & "; operation=" & OperationName(operation)
         If operation <> OP_CLEAR Then
             result = result & _
-                     "; errors=" & CStr(M_Engine.ErrorCount) & _
-                     "; warnings=" & CStr(M_Engine.WarningCount) & _
-                     "; trades_used=" & CStr(M_Engine.TradesUsed) & _
-                     "; trades_read=" & CStr(M_Engine.TradesRead) & _
-                     "; incomplete=" & CStr(M_Engine.IncompleteCount) & _
-                     "; total_ead=" & Trim$(Str$(M_Engine.TotalEAD))
+                     "; errors=" & CStr(CORE_Engine.ErrorCount) & _
+                     "; warnings=" & CStr(CORE_Engine.WarningCount) & _
+                     "; trades_used=" & CStr(CORE_Engine.TradesUsed) & _
+                     "; trades_read=" & CStr(CORE_Engine.TradesRead) & _
+                     "; incomplete=" & CStr(CORE_Engine.IncompleteCount) & _
+                     "; total_ead=" & Trim$(Str$(CORE_Engine.TotalEAD)) & _
+                     "; inputs=" & CORE_Engine.RunInputs
         End If
         result = result & "; cleanup=" & IIf(Len(cleanupDetails) = 0, "PASS", "FAIL")
 
@@ -794,7 +882,7 @@ Private Sub ReportFailure( _
 '------------------------------------------------------------------------------
     'The project's own errors carry a readable description; anything else
     'is shown with its number.
-        If errNumber = ERR_RUN_ACTIVE Then
+        If errNumber = ERR_RUN_ACTIVE Or errNumber = ERR_CHECKS_WRITE Then
             msg = errDescription
         Else
             msg = "Unexpected error " & errNumber & ": " & errDescription

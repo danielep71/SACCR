@@ -1,12 +1,12 @@
 <div align="center">
 
-# 🏦 SACCR
+# 🏦 SA-CCR Benchmark — Independent Calculation and Validation Toolkit
 
 ### Counterparty credit risk under SA-CCR, built in Excel/VBA
 
 [![Excel VBA](https://img.shields.io/badge/Excel_VBA-Windows-217346?style=for-the-badge&logo=microsoft-excel&logoColor=white)](#status)
 [![Status](https://img.shields.io/badge/Status-Pre--release-6e7781?style=for-the-badge)](#status)
-[![Branch](https://img.shields.io/badge/Branch-release%2F1.0.0-6f42c1?style=for-the-badge)](https://github.com/danielep71/SACCR/tree/release/1.0.0)
+[![Branch](https://img.shields.io/badge/Branch-release%2F1.0.0-6f42c1?style=for-the-badge)](https://github.com/danielep71/VBA-SACCR-Toolkit/tree/release/1.0.0)
 [![License](https://img.shields.io/badge/License-MIT-2ea44f?style=for-the-badge)](LICENSE)
 
 <br>
@@ -19,16 +19,24 @@
 
 ## ✨ What this project is
 
-SACCR will calculate exposure at default for derivative netting sets under the
-Standardised Approach for Counterparty Credit Risk (SA-CCR), as an Excel
-workbook driven by exported, reviewable VBA source.
+**SA-CCR (Standardized Approach for Counterparty Credit Risk)** is the Basel
+regulatory framework for determining the exposure at default (EAD) of derivative
+transactions and long-settlement transactions. It is a standardized,
+non-modelled approach that reflects current exposure, potential future exposure,
+netting, collateral and margining arrangements.
+
+**SA-CCR Benchmark** is an independent Excel/VBA toolkit designed to reproduce,
+test and reconcile SA-CCR calculations under the Basel Framework and EU CRR.
+
+See [SA-CCR Overview](docs/wiki/SA-CCR-Overview.md) for the regulatory concepts,
+calculation structure and validation approach.
 
 <a id="status"></a>
 
 ## 🧭 Status
 
 Repository setup, milestone **v0.0.1**, is complete; its accepted baseline is
-recorded in [issue #13](https://github.com/danielep71/SACCR/issues/13). The
+recorded in [issue #13](https://github.com/danielep71/VBA-SACCR-Toolkit/issues/13). The
 prototype engine (CRR and Basel CRE52) has been imported as source; it is not
 yet validated under the repository's test-case policy. SACCR uses the **application** profile: the
 deliverable is a workbook built from the exported source, around a
@@ -54,8 +62,8 @@ to `main` require an explicit owner instruction.
 ## 🚀 Getting started
 
 ```sh
-git clone https://github.com/danielep71/SACCR.git
-cd SACCR
+git clone https://github.com/danielep71/VBA-SACCR-Toolkit.git
+cd VBA-SACCR-Toolkit
 git switch release/1.0.0
 python tools/check.py
 ```
@@ -67,12 +75,14 @@ Requirements, the import procedure and troubleshooting are in
 
 | Document | Covers |
 | --- | --- |
+| [`docs/wiki/SA-CCR-Overview.md`](docs/wiki/SA-CCR-Overview.md) | SA-CCR overview, EAD structure, scope, Basel/CRR framing and validation approach |
 | [`INSTALLATION.md`](INSTALLATION.md) | Developer setup, checks, Excel import and validation record |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Workflow, commit messages, evidence and pull requests |
 | [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) | Profile decision, source layout, public API boundary |
 | [`docs/VBA_HOUSE_STYLE.md`](docs/VBA_HOUSE_STYLE.md) | VBA naming, contracts, errors, Excel-state cleanup, export rules |
 | [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) | Manual Excel run record, procedure and validator |
 | [`docs/methodology/`](docs/methodology/README.md) | Regulatory basis, source register, numerical test-case format |
+| [`docs/WIKI_PUBLICATION.md`](docs/WIKI_PUBLICATION.md) | Versioned Wiki sources, publication and drift verification |
 | [`docs/GOVERNANCE.md`](docs/GOVERNANCE.md) | Branches, issue metadata, review checklist, GitHub controls |
 | [`tools/README.md`](tools/README.md) | Static checks, CI, evidence validator and traffic export |
 | [`docs/LABELS.md`](docs/LABELS.md) | Issue-label catalogue and its workflows |

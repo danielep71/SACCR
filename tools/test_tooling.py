@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 import check_source
@@ -10,7 +11,7 @@ import check_vba_public_api as public_api
 
 ROOT = Path(__file__).resolve().parents[1]
 CHANGELOG = "# Changelog\n\n## [Unreleased]\n\n[Unreleased]: https://example.invalid\n"
-MODULE = 'Attribute VB_Name = "M_Test"\r\nOption Explicit\r\n\r\nPublic Sub Run()\r\nEnd Sub\r\n'
+MODULE = 'Attribute VB_Name = "SACCR_Test"\r\nOption Explicit\r\n\r\nPublic Sub Run()\r\nEnd Sub\r\n'
 
 
 class SourceGateTests(unittest.TestCase):
@@ -37,26 +38,26 @@ class SourceGateTests(unittest.TestCase):
         return findings
 
     def test_clean_component_passes_and_is_stored_lf(self) -> None:
-        self.write("src/modules/M_Test.bas", MODULE)
+        self.write("src/modules/SACCR_Test.bas", MODULE)
         self.assertEqual(self.findings(), [])
-        self.assertEqual(self.git("ls-files", "--eol", "src/modules/M_Test.bas").split()[0], "i/lf")
+        self.assertEqual(self.git("ls-files", "--eol", "src/modules/SACCR_Test.bas").split()[0], "i/lf")
 
     def test_vb_name_must_match_filename(self) -> None:
         self.write("src/modules/M_Other.bas", MODULE)
         self.assertIn("src/modules/M_Other.bas: VB_Name must match the filename exactly", self.findings())
 
     def test_duplicate_component_name(self) -> None:
-        self.write("src/modules/M_Test.bas", MODULE)
-        self.write("tests/M_Test.bas", MODULE)
+        self.write("src/modules/SACCR_Test.bas", MODULE)
+        self.write("tests/SACCR_Test.bas", MODULE)
         self.assertTrue(any("duplicate component name" in f for f in self.findings()))
 
     def test_option_explicit_in_comment_does_not_count(self) -> None:
-        self.write("src/modules/M_Test.bas", MODULE.replace("Option Explicit", "' Option Explicit"))
-        self.assertIn("src/modules/M_Test.bas: missing Option Explicit", self.findings())
+        self.write("src/modules/SACCR_Test.bas", MODULE.replace("Option Explicit", "' Option Explicit"))
+        self.assertIn("src/modules/SACCR_Test.bas: missing Option Explicit", self.findings())
 
     def test_form_requires_tracked_frx_within_bounds(self) -> None:
         form = 'VERSION 5.00\r\nBegin {X} F_Test\r\n   OleObjectBlob = "F_Test.frx":0010\r\nEnd\r\n'
-        form += MODULE.replace("M_Test", "F_Test")
+        form += MODULE.replace("SACCR_Test", "F_Test")
         self.write("src/forms/F_Test.frm", form)
         self.assertIn("src/forms/F_Test.frm: missing or unsafe form resource F_Test.frx", self.findings())
         (self.root / "src/forms/F_Test.frx").write_bytes(b"\0" * 8)
@@ -72,10 +73,48 @@ class SourceGateTests(unittest.TestCase):
         self.assertIn("misc/Old.frx: VBA component outside the documented source locations", found)
 
     def test_core_module_requires_option_private_module(self) -> None:
-        self.write("src/core/M_Test.bas", MODULE)
-        self.assertIn("src/core/M_Test.bas: core modules must declare Option Private Module", self.findings())
-        self.write("src/core/M_Test.bas", MODULE.replace("Option Explicit", "Option Explicit\r\nOption Private Module"))
+        core = MODULE.replace("SACCR_Test", "CORE_Test")
+        self.write("src/core/CORE_Test.bas", core)
+        self.assertIn("src/core/CORE_Test.bas: core modules must declare Option Private Module", self.findings())
+        self.write("src/core/CORE_Test.bas", core.replace("Option Explicit", "Option Explicit\r\nOption Private Module"))
         self.assertEqual(self.findings(), [])
+
+    def write_workbook(self, path: str, parts: dict[str, str]) -> None:
+        target = self.root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(target, "w") as package:
+            for name, text in parts.items():
+                package.writestr(name, text)
+
+    def test_committed_workbook_without_metadata_passes(self) -> None:
+        self.write_workbook("src/workbook/T.xlsx", {"[Content_Types].xml": "<Types/>",
+                                                    "_rels/.rels": '<Relationships Target="xl/workbook.xml"/>',
+                                                    "xl/workbook.xml": "<workbook/>"})
+        self.assertEqual(self.findings(), [])
+
+    def test_committed_workbook_with_metadata_or_vba_is_rejected(self) -> None:
+        self.write_workbook("src/workbook/T.xlsx", {"[Content_Types].xml": "<Types/>",
+                                                    "_rels/.rels": '<Relationship Target="docProps/core.xml"/>',
+                                                    "docProps/core.xml": "<coreProperties/>",
+                                                    "xl/vbaProject.bin": "x"})
+        found = self.findings()
+        self.assertIn("src/workbook/T.xlsx: must not contain docProps/core.xml", found)
+        self.assertIn("src/workbook/T.xlsx: must not contain xl/vbaProject.bin", found)
+        self.assertIn("src/workbook/T.xlsx: package still references document properties or a VBA project", found)
+
+    def test_unreadable_workbook_is_rejected(self) -> None:
+        self.write("src/workbook/T.xlsx", "not a zip")
+        self.assertTrue(any("not a readable workbook package" in f for f in self.findings()))
+
+    def test_module_names_carry_their_role_prefix(self) -> None:
+        for path, name in (("src/core/Engine.bas", "Engine"), ("src/modules/Formulas.bas", "Formulas"),
+                           ("tests/modules/Harness.bas", "Harness")):
+            self.write(path, MODULE.replace("SACCR_Test", name).replace(
+                "Option Explicit", "Option Explicit\r\nOption Private Module"))
+        found = self.findings()
+        self.assertIn("src/core/Engine.bas: standard modules in src/core/ must be named CORE_<subject>", found)
+        self.assertIn("src/modules/Formulas.bas: standard modules in src/modules/ must be named SACCR_<subject>", found)
+        self.assertIn("tests/modules/Harness.bas: standard modules in tests/ must be named TEST_<subject>", found)
 
     def test_crlf_in_index_is_rejected(self) -> None:
         (self.root / ".gitattributes").write_text("* -text\n")
@@ -92,8 +131,8 @@ class SourceGateTests(unittest.TestCase):
 
     def test_vba_without_crlf_checkout_attribute_is_rejected(self) -> None:
         (self.root / ".gitattributes").write_text("* text=auto eol=lf\n")
-        self.write("src/modules/M_Test.bas", MODULE.replace("\r\n", "\n"))
-        self.assertIn("src/modules/M_Test.bas: .gitattributes must check VBA source out as CRLF", self.findings())
+        self.write("src/modules/SACCR_Test.bas", MODULE.replace("\r\n", "\n"))
+        self.assertIn("src/modules/SACCR_Test.bas: .gitattributes must check VBA source out as CRLF", self.findings())
 
     def test_changelog_requires_unreleased_first(self) -> None:
         self.write("CHANGELOG.md", "## [0.0.1] - 2026-01-01\n\n## [Unreleased]\n")

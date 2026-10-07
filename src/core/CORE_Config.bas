@@ -1,18 +1,18 @@
-Attribute VB_Name = "M_Config"
+Attribute VB_Name = "CORE_Config"
 '==============================================================================
-' MODULE: M_Config
+' MODULE: CORE_Config
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Hold every layout constant the SA-CCR engine depends on: sheet names,
 '   header and first data rows, the column of each input field, the width of
 '   each output table, parameter codes, regime and asset-class codes, the
-'   severity labels written to the Checks sheet, and the error numbers raised
-'   by the workbook macros. When a sheet layout changes,
-'   it changes here and nowhere else.
+'   severity labels written to the Checks sheet, the expected column
+'   headers, and the error numbers raised by the workbook macros. When a
+'   sheet layout changes, it changes here and nowhere else.
 '
 ' PUBLIC SURFACE
 '   None outside this VBA project. The constants are Public for in-project use
-'   by M_Util, M_Engine and M_Main; Option Private Module keeps them off the
+'   by CORE_Util, CORE_Engine and M_Main; Option Private Module keeps them off the
 '   supported external surface.
 '
 ' DEPENDENCIES
@@ -28,7 +28,7 @@ Attribute VB_Name = "M_Config"
 '   Excel VBA; no references beyond the defaults.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '
 ' AUTHOR
 '   Daniele Penza
@@ -69,7 +69,7 @@ Attribute VB_Name = "M_Config"
 '------------------------------------------------------------------------------
     'Each parameter is a row with its code in column A and its value in
     'column C. A workbook name equal to the code takes precedence (see
-    'M_Util.GetParam). BD = business days; SD = supervisory duration;
+    'CORE_Util.GetParam). BD = business days; SD = supervisory duration;
     'SF = supervisory factor; CO = commodity.
         Public Const PRM_CODE_COL     As Long = 1                          'Column of the code
         Public Const PRM_VALUE_COL    As Long = 3                          'Column of the value
@@ -93,6 +93,13 @@ Attribute VB_Name = "M_Config"
         Public Const PRM_REGIME       As String = "Regime"                 'Default regime
         Public Const PRM_LAMIR        As String = "LambdaThresholdIR"      'CRR lambda threshold, IR
         Public Const PRM_LAMCO        As String = "LambdaThresholdCO"      'CRR lambda threshold, CO
+
+'------------------------------------------------------------------------------
+' RUN FINGERPRINT
+'------------------------------------------------------------------------------
+    'Hidden workbook name holding the input fingerprint of the last
+    'completed run, so that results can be recognised as out of date (#36).
+        Public Const RUN_INPUTS_NAME   As String = "SACCR_RunInputs"    'Absent when no results exist
 
 '------------------------------------------------------------------------------
 ' REGIMES
@@ -160,6 +167,29 @@ Attribute VB_Name = "M_Config"
         Public Const TR_NCOLS      As Long = 24    'Number of input columns
 
 '------------------------------------------------------------------------------
+' EXPECTED HEADERS
+'------------------------------------------------------------------------------
+    'Header text of every column the engine reads, in column order and
+    'separated by "|"; an empty entry is a column the engine does not read.
+    'The engine reads by column number, so a header that differs (ignoring
+    'case and surrounding spaces) means a column was inserted, deleted or
+    'moved, and the run stops (#35).
+        Public Const NS_HEADERS As String = "NettingSetID|Counterparty|Margined (Y/N)|" & _
+            "Centrally cleared (Y/N)|Remargin frequency N (BD)|" & _
+            ">5,000 trades or illiquid collateral (Y/N)|Margin disputes (Y/N)|" & _
+            "MPOR override (BD)|Net VM held (+) / posted (-)|NICA|Threshold TH|MTA|" & _
+            "Alpha override|Regime override (blank = Params)"
+        Public Const TR_HEADERS As String = "TradeID|NettingSetID|Asset class|Sub-class|" & _
+            "Risk factor / reference|Instrument|Direction|Option type|Nature|" & _
+            "Basis / vol hedging-set label|Notional|Notional ccy|MtM|MtM ccy|" & _
+            "Start date (S)|End date (E)|Maturity date (M)|Option expiry (T)|" & _
+            "Underlying price P|Strike K|Lambda shift|Attachment A|Detachment D|"
+        Public Const PRM_HEADERS As String = "Code||Value"
+        Public Const SF_HEADERS As String = "SF_Key|Asset class|Category|Supervisory factor|" & _
+            "Correlation|Supervisory option vol|Commodity hedging set|Regimes"
+        Public Const FX_HEADERS As String = "FX_Ccy||Units of reporting ccy per 1 unit"
+
+'------------------------------------------------------------------------------
 ' OUTPUT TABLE WIDTHS
 '------------------------------------------------------------------------------
     'Number of columns the engine clears and writes on each output sheet.
@@ -193,6 +223,7 @@ Attribute VB_Name = "M_Config"
         Public Const ERR_CLEANUP_FAILED   As Long = vbObjectError + 2050    'Excel settings were not restored
         Public Const ERR_INJECTED_FAULT   As Long = vbObjectError + 2051    'Test seam: injected failure
         Public Const ERR_TEST_SETUP       As Long = vbObjectError + 2052    'Test runner: workbook not set up
+        Public Const ERR_CHECKS_WRITE     As Long = vbObjectError + 2053    'Checks sheet could not be written
 
 '------------------------------------------------------------------------------
 ' SEVERITY LABELS

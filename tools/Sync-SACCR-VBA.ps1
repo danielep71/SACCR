@@ -25,8 +25,7 @@ param(
     [string]$WorkbookPath,
 
     [Parameter(Mandatory = $false)]
-    [ValidateNotNullOrEmpty()]
-    [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),
+    [string]$RepoRoot,
 
     [Parameter(Mandatory = $false)]
     [switch]$NoBackup,
@@ -38,11 +37,24 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
+# Resolve the repository root after parameter binding. $PSScriptRoot is not
+# reliable as a parameter default in every Windows PowerShell invocation mode.
+if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
+    $scriptPath = $MyInvocation.MyCommand.Path
+    if ([string]::IsNullOrWhiteSpace($scriptPath)) {
+        throw "Cannot determine the script path. Supply -RepoRoot explicitly."
+    }
+
+    $scriptDirectory = Split-Path -Parent $scriptPath
+    $RepoRoot = Split-Path -Parent $scriptDirectory
+}
+
 $vbext_ct_StdModule = 1
 $vbext_ct_ClassModule = 2
 $vbext_ct_MSForm = 3
 $vbext_ct_Document = 100
 $xlCalculationManual = -4135
+$xlCalculationAutomatic = -4105
 $msoAutomationSecurityForceDisable = 3
 
 function Resolve-FullPath {
@@ -231,6 +243,7 @@ function Sync-VbaSource {
 $excel = $null
 $workbook = $null
 $saved = $false
+$backupPath = $null
 
 try {
     $workbookFullPath = Resolve-FullPath -PathValue $WorkbookPath
@@ -300,14 +313,18 @@ try {
     $excel.ScreenUpdating = $false
     $excel.AskToUpdateLinks = $false
     $excel.AutomationSecurity = $msoAutomationSecurityForceDisable
-    $excel.Calculation = $xlCalculationManual
-    $excel.CalculateBeforeSave = $false
 
+    # Some Excel builds reject Application.Calculation changes until at least
+    # one workbook is open (HRESULT 0x800A03EC). Open first, then disable
+    # calculation-before-save for this isolated Excel instance.
     $workbook = $excel.Workbooks.Open($workbookFullPath, 0, $false)
 
     if ($workbook.ReadOnly) {
         throw "Workbook opened read-only. Close any other Excel instance using it."
     }
+
+    $excel.Calculation = $xlCalculationManual
+    $excel.CalculateBeforeSave = $false
 
     $before = Get-SheetSnapshot -Workbook $workbook
 
@@ -330,8 +347,22 @@ try {
     $after = Get-SheetSnapshot -Workbook $workbook
     Assert-SheetSnapshotUnchanged -Before $before -After $after
 
+    # The synchronization uses manual calculation only to avoid recalculation
+    # while modules are being replaced. The development workbook must leave
+    # this isolated Excel instance in Automatic mode before it is saved.
+    $excel.Calculation = $xlCalculationAutomatic
+    $excel.CalculateBeforeSave = $true
+
     $workbook.Save()
     $saved = $true
+
+    # The backup is only a transactional safety copy. Remove it after a
+    # successful save so repeated synchronizations do not accumulate files.
+    if (-not [string]::IsNullOrWhiteSpace($backupPath) -and
+        (Test-Path -LiteralPath $backupPath -PathType Leaf)) {
+        Remove-Item -LiteralPath $backupPath -Force
+        Write-Host "Backup removed: $backupPath"
+    }
 
     Write-Host ""
     Write-Host "SUCCESS: VBA synchronized. Workbook sheets were not removed or recreated."
@@ -341,6 +372,12 @@ catch {
     if ($null -ne $workbook -and -not $saved) {
         Write-Warning "Synchronization failed. Workbook will close without saving."
     }
+
+    if (-not [string]::IsNullOrWhiteSpace($backupPath) -and
+        (Test-Path -LiteralPath $backupPath -PathType Leaf)) {
+        Write-Warning "Safety backup retained: $backupPath"
+    }
+
     exit 1
 }
 finally {

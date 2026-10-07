@@ -1,6 +1,6 @@
-Attribute VB_Name = "M_Engine"
+Attribute VB_Name = "CORE_Engine"
 '==============================================================================
-' MODULE: M_Engine
+' MODULE: CORE_Engine
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Calculate SA-CCR exposure at default (EAD) for every netting set on the
@@ -29,22 +29,24 @@ Attribute VB_Name = "M_Engine"
 '
 ' FLOW
 '   Calculate runs, in order:
+'     ClearOutputSheets, ValidateSchema: clear old results, check the layout;
 '     LoadParams, LoadSFTable, LoadFXTable, LoadNettingSets: read the inputs;
 '     ProcessTrades: one row per trade, collected into buckets;
 '     ComputeHedgingSets: buckets into hedging-set and asset-class add-ons;
 '     ComputeNettingSets: RC, multiplier, PFE and EAD per netting set;
 '     WriteBuckets, WriteHedgingSets, WriteChecks, WriteRunInfo: outputs.
 '   Each trade, bucket and hedging set is stored once in an array, with a
-'   Collection (see M_Util.KeyIndex) mapping its key to its array position.
+'   Collection (see CORE_Util.KeyIndex) mapping its key to its array position.
 '
 ' PUBLIC SURFACE
-'   None outside this VBA project. Calculate and the five run counters are
-'   Public for M_Main; Option Private Module keeps them off the supported
-'   external surface.
+'   None outside this VBA project. Calculate, the run counters and the
+'   run-fingerprint procedures (InputFingerprint, LastRunInputs,
+'   ForgetRunInputs) are Public for M_Main; Option Private Module keeps them
+'   off the supported external surface.
 '
 ' DEPENDENCIES
-'   M_Config for the layout, M_Util for conversions and sheet access, and
-'   M_Formulas for every regulatory formula.
+'   CORE_Config for the layout, CORE_Util for conversions and sheet access, and
+'   SACCR_Formulas for every regulatory formula.
 '
 ' STATE OWNERSHIP
 '   Owns the module state below. ResetState clears it at the start of each
@@ -56,8 +58,11 @@ Attribute VB_Name = "M_Engine"
 '   Invalid inputs are not VBA errors. They are logged as ERROR, WARNING or
 '   INFO lines for the Checks sheet: an invalid trade is excluded and the
 '   run continues; invalid parameters or netting sets stop the run.
-'   LoadParams, WriteChecks and WriteRunInfo contain their own errors; any
-'   other unexpected error propagates to M_Main.
+'   LoadParams, WriteChecks and WriteRunInfo contain their own errors. A
+'   Checks sheet that cannot be written withdraws the results and raises
+'   ERR_CHECKS_WRITE (#36). Any other unexpected error during a run also
+'   withdraws the results, is logged on Checks and in the run summary, and
+'   is raised unchanged to M_Main (#36).
 '
 ' KNOWN DEVIATION
 '   This module lives in src/core but reads and writes worksheets, which the
@@ -68,7 +73,7 @@ Attribute VB_Name = "M_Engine"
 '   Excel VBA; no references beyond the defaults.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '
 ' AUTHOR
 '   Daniele Penza
@@ -106,6 +111,7 @@ Attribute VB_Name = "M_Engine"
         V                 As Double     'Sum of trade MtM
         Trades            As Long       'Number of valid trades
         Rejected          As Long       'Number of trades rejected by validation
+        InputErrors       As Long       'Invalid netting-set fields; EAD withheld when > 0
     End Type
 
     'One row of the supervisory-factor table on Params.
@@ -185,6 +191,13 @@ Attribute VB_Name = "M_Engine"
         Private mHSCount      As Long            'Hedging sets used
         Private mHSIndex      As Collection      'Netting set # hedging set to position
 
+    'Sub-class of each credit or equity entity and commodity per netting set,
+    'so that one reference cannot get two factors depending on row order.
+        Private mRefClass()   As String          'Factor-table key of the reference, e.g. CR_AA
+        Private mRefConflict() As Boolean        'A conflict was already reported
+        Private mRefCount     As Long            'References used
+        Private mRefIndex     As Collection      'Netting set | asset class | reference to position
+
         Private mAddOnU()     As Double          'Asset-class add-ons (netting set, asset class), unmargined
         Private mAddOnM()     As Double          'Asset-class add-ons (netting set, asset class), margined
 
@@ -199,11 +212,21 @@ Attribute VB_Name = "M_Engine"
         Private mTradesUsed   As Long            'Trades included in the calculation
         Private mTotalEAD     As Double          'Sum of netting-set EADs, VALID sets only
         Private mIncomplete   As Long            'Netting sets whose EAD was withheld
+        Private mParamError   As Boolean         'A parameter was present but not usable
+        Private mRunInputs    As String          'Input fingerprint of this run; "" unless it completed
+
+'------------------------------------------------------------------------------
+' TEST SEAM
+'------------------------------------------------------------------------------
+    'Set only by TEST_MainState: "outputs" raises ERR_INJECTED_FAULT after
+    'the first output sheets are written, to prove that a failed run
+    'withdraws them (#36). Empty in normal use.
+        Public gEngineFault   As String
 
 '------------------------------------------------------------------------------
 ' RUN PARAMETERS
 '------------------------------------------------------------------------------
-    'Read from Params by LoadParams; see M_Config for each code.
+    'Read from Params by LoadParams; see CORE_Config for each code.
         Private pAsOf         As Double     'Reporting date, serial
         Private pRepCcy       As String     'Reporting currency
         Private pAlpha        As Double     'Default alpha
@@ -251,8 +274,18 @@ Public Function Calculate( _
 '
 ' RETURNS
 '   True when the run completed. Individual trades may still have been
-'   excluded; the Checks sheet lists them. False when a parameter, the
-'   factor or FX table, or the netting sets could not be loaded.
+'   excluded; the Checks sheet lists them. False when the sheet layout is
+'   not as expected, or a parameter, the factor or FX table, or the netting
+'   sets could not be loaded.
+'
+' ERROR POLICY
+'   Raises ERR_CHECKS_WRITE when the Checks sheet cannot be written, after
+'   clearing the other output sheets: results whose errors and warnings
+'   cannot be shown must not look valid, and the Checks sheet would still
+'   hold the previous run's messages (#36). Any other error during the run
+'   clears the output sheets too, so that a run stopped halfway cannot
+'   leave tables from two runs, is logged on Checks and in the run summary,
+'   and is raised unchanged.
 '
 ' STATE OWNERSHIP
 '   Resets all module state, then fills it for this run.
@@ -265,7 +298,11 @@ Public Function Calculate( _
 '------------------------------------------------------------------------------
 ' DECLARE
 '------------------------------------------------------------------------------
-    Dim t0   As Double    'Timer value at the start, for the run duration
+    Dim t0               As Double     'Timer value at the start, for the run duration
+    Dim checksFailure    As String     'Why the Checks sheet could not be written; "" if written
+    Dim errNumber        As Long       'Unexpected error: number
+    Dim errSource        As String     'Unexpected error: source
+    Dim errDescription   As String     'Unexpected error: description
 
 '------------------------------------------------------------------------------
 ' LOAD INPUTS
@@ -275,8 +312,10 @@ Public Function Calculate( _
     '(#36). Any loader that fails has logged why; skip to the Checks output.
         t0 = Timer
         ResetState
+        On Error GoTo Failed
         ClearOutputSheets
 
+        If Not ValidateSchema() Then GoTo Finish
         If Not LoadParams() Then GoTo Finish
         If Not LoadSFTable() Then GoTo Finish
         If Not LoadFXTable() Then GoTo Finish
@@ -290,6 +329,9 @@ Public Function Calculate( _
         ComputeNettingSets writeOutputs
         If writeOutputs Then
             WriteBuckets
+            If gEngineFault = "outputs" Then
+                Err.Raise ERR_INJECTED_FAULT, "CORE_Engine.Calculate", "Injected output failure."
+            End If
             WriteHedgingSets
         End If
         Calculate = True
@@ -297,10 +339,56 @@ Public Function Calculate( _
 '------------------------------------------------------------------------------
 ' WRITE CHECKS AND RUN SUMMARY
 '------------------------------------------------------------------------------
-    'Reached on success and after a failed load.
+    'Reached on success and after a failed load. If the Checks sheet cannot
+    'be written, the results are withdrawn and the failure raised.
 Finish:
-        WriteChecks
-        WriteRunInfo Timer - t0, Calculate, writeOutputs
+        If Not WriteChecks(checksFailure) Then
+            Calculate = False
+            If Not WithdrawOutputs() Then
+                checksFailure = checksFailure & "; the other output sheets could not be cleared either"
+            End If
+            ForgetRunInputs
+            WriteRunInfo Timer - t0, False, writeOutputs, "the Checks sheet could not be written (" & _
+                         checksFailure & "); results withdrawn, and Checks may show an earlier run"
+            On Error GoTo 0
+            Err.Raise ERR_CHECKS_WRITE, "CORE_Engine.Calculate", "The Checks sheet could not be written (" & _
+                      checksFailure & "), so the run's results were withdrawn. Unprotect or repair the Checks " & _
+                      "sheet and run again."
+        End If
+
+    'Only a completed run that wrote its outputs leaves results; remember
+    'its inputs so that later edits show the results as out of date.
+        If Calculate And writeOutputs Then
+            mRunInputs = InputFingerprint()
+            RememberRunInputs mRunInputs
+        Else
+            ForgetRunInputs
+        End If
+        WriteRunInfo Timer - t0, Calculate, writeOutputs, ""
+        Exit Function
+
+'------------------------------------------------------------------------------
+' HANDLE UNEXPECTED ERROR
+'------------------------------------------------------------------------------
+    'Whatever was written so far is withdrawn, the error is logged on Checks
+    'and in the run summary, both best effort, and it is raised unchanged
+    'for M_Main to report.
+Failed:
+        errNumber = Err.Number
+        errSource = Err.Source
+        errDescription = Err.Description
+        Calculate = False
+        mRunInputs = ""
+        ForgetRunInputs
+        If Not WithdrawOutputs() Then
+            errDescription = errDescription & " The output sheets could not be cleared either."
+        End If
+        LogMsg SEV_ERROR, "", "", "Run stopped by error " & errNumber & ": " & errDescription & _
+               " - results withdrawn."
+        WriteChecks checksFailure
+        WriteRunInfo Timer - t0, False, writeOutputs, "error " & errNumber & ": " & errDescription & _
+                     "; results withdrawn"
+        Err.Raise errNumber, errSource, errDescription
 
 End Function
 
@@ -381,7 +469,7 @@ Public Property Get IncompleteCount() As Long
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Number of netting sets in the last run whose EAD was withheld because
-'   at least one of their trades was rejected.
+'   a trade was rejected or a netting-set field was invalid.
 '
 ' UPDATED
 '   2026-10-06
@@ -405,6 +493,24 @@ Public Property Get TradesRead() As Long
 '==============================================================================
 '
         TradesRead = mTradesRead
+
+End Property
+
+
+Public Property Get RunInputs() As String
+'
+'==============================================================================
+'                                  RunInputs
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Input fingerprint of the last run, "" unless it completed and wrote its
+'   outputs. Identifies the inputs behind a result line (#36).
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        RunInputs = mRunInputs
 
 End Property
 
@@ -439,6 +545,7 @@ Private Sub ResetState()
         mFXCount = 0
         mBkCount = 0
         mHSCount = 0
+        mRefCount = 0
         mLogCount = 0
         mErrCount = 0
         mWarnCount = 0
@@ -446,6 +553,8 @@ Private Sub ResetState()
         mTradesUsed = 0
         mTotalEAD = 0#
         mIncomplete = 0
+        mParamError = False
+        mRunInputs = ""
 
 '------------------------------------------------------------------------------
 ' RESET INDEXES AND ARRAYS
@@ -456,11 +565,14 @@ Private Sub ResetState()
         Set mFXIndex = New Collection
         Set mBkIndex = New Collection
         Set mHSIndex = New Collection
+        Set mRefIndex = New Collection
         ReDim mNS(1 To 16)
         ReDim mSF(1 To 32)
         ReDim mFXRate(1 To 32)
         ReDim mBk(1 To 64)
         ReDim mHS(1 To 32)
+        ReDim mRefClass(1 To 32)
+        ReDim mRefConflict(1 To 32)
         ReDim mLog(1 To CK_NCOLS, 1 To 64)
 
 End Sub
@@ -526,6 +638,233 @@ End Sub
 '
 '------------------------------------------------------------------------------
 '
+'                                SCHEMA CHECK
+'
+'------------------------------------------------------------------------------
+'
+
+Private Function ValidateSchema() As Boolean
+'
+'==============================================================================
+'                                ValidateSchema
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Check the workbook layout before any input is read (#35). The engine
+'   reads every input by column number, so a column inserted, deleted or
+'   moved would silently shift values into the wrong fields.
+'
+' RETURNS
+'   True when the input sheets exist, every column the engine reads has its
+'   expected header, no parameter is listed twice with different values and
+'   no parameter name is broken. False otherwise, with an error logged for
+'   each problem found.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws         As Worksheet    'Params sheet
+    Dim ok         As Boolean      'No problem found so far
+    Dim r0         As Long         'Header row of a Params table
+    Dim lastR      As Long         'Last used row of Params
+    Dim grid       As Variant      'Params columns A to C, rows 1 to lastR
+    Dim codes      As Variant      'Every parameter code
+    Dim i          As Long         'Index into codes
+    Dim r          As Long         'Params row being compared
+    Dim firstRow   As Long         'First Params row holding the code; 0 if none
+
+'------------------------------------------------------------------------------
+' INPUT SHEETS
+'------------------------------------------------------------------------------
+    'A missing output sheet has already raised in ClearOutputSheets.
+        ok = SheetPresent(SH_PARAMS)
+        ok = SheetPresent(SH_NS) And ok
+        ok = SheetPresent(SH_TRADES) And ok
+        If Not ok Then
+            Exit Function
+        End If
+
+'------------------------------------------------------------------------------
+' COLUMN HEADERS
+'------------------------------------------------------------------------------
+    'A missing factor or FX table header is reported by its loader.
+        Set ws = GetSheet(SH_PARAMS)
+        ok = HeadersMatch(GetSheet(SH_NS), HEADER_ROW, NS_HEADERS) And ok
+        ok = HeadersMatch(GetSheet(SH_TRADES), HEADER_ROW, TR_HEADERS) And ok
+        ok = HeadersMatch(ws, HEADER_ROW, PRM_HEADERS) And ok
+        r0 = FindHeaderRow(ws, 1, HDR_SF)
+        If r0 > 0 Then
+            ok = HeadersMatch(ws, r0, SF_HEADERS) And ok
+        End If
+        r0 = FindHeaderRow(ws, 1, HDR_FX)
+        If r0 > 0 Then
+            ok = HeadersMatch(ws, r0, FX_HEADERS) And ok
+        End If
+
+'------------------------------------------------------------------------------
+' PARAMETERS
+'------------------------------------------------------------------------------
+    'A parameter listed twice with the same value is harmless and warned
+    'about; with different values it is ambiguous. A workbook name equal to
+    'the code takes precedence over the Params row (CORE_Util.GetParam); a
+    'broken one would silently fall back to the row.
+        codes = Array(PRM_ASOF, PRM_REPCCY, PRM_ALPHA, PRM_FLOOR, PRM_DAYSYEAR, PRM_BDYEAR, _
+                      PRM_MINMAT, PRM_SDFLOOR, PRM_MPOR_BIL, PRM_MPOR_CLR, PRM_MPOR_LARGE, _
+                      PRM_BASIS, PRM_VOLF, PRM_RHO12, PRM_RHO23, PRM_RHO13, PRM_IRFULL, _
+                      PRM_REGIME, PRM_LAMIR, PRM_LAMCO)
+        lastR = UsedLastRow(ws)
+        If lastR >= 1 Then
+            grid = ws.Range(ws.Cells(1, 1), ws.Cells(lastR, PRM_VALUE_COL)).Value
+        End If
+        For i = LBound(codes) To UBound(codes)
+            If BrokenName(codes(i)) Then
+                ok = False
+                LogMsg SEV_ERROR, SH_PARAMS, codes(i), "Workbook name '" & codes(i) & _
+                       "' no longer refers to a cell (#REF!)."
+            End If
+            firstRow = 0
+            For r = 1 To lastR
+                If StrComp(SafeStr(grid(r, PRM_CODE_COL)), codes(i), vbTextCompare) = 0 Then
+                    If firstRow = 0 Then
+                        firstRow = r
+                    ElseIf SameValue(grid(firstRow, PRM_VALUE_COL), grid(r, PRM_VALUE_COL)) Then
+                        LogMsg SEV_WARN, SH_PARAMS, codes(i), "Parameter listed twice with the same value (rows " & _
+                               firstRow & " and " & r & ").", r
+                    Else
+                        ok = False
+                        LogMsg SEV_ERROR, SH_PARAMS, codes(i), "Parameter listed twice with different values (rows " & _
+                               firstRow & " and " & r & ").", r
+                    End If
+                End If
+            Next r
+        Next i
+        ValidateSchema = ok
+
+End Function
+
+
+Private Function SheetPresent( _
+    ByVal sheetName As String) _
+    As Boolean
+'
+'==============================================================================
+'                                 SheetPresent
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Tell whether this workbook has a worksheet with the given tab name, and
+'   log an error when it has not.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws   As Worksheet    'Worksheet being compared
+
+'------------------------------------------------------------------------------
+' SEARCH
+'------------------------------------------------------------------------------
+        For Each ws In ThisWorkbook.Worksheets
+            If StrComp(ws.Name, sheetName, vbTextCompare) = 0 Then
+                SheetPresent = True
+                Exit Function
+            End If
+        Next ws
+        LogMsg SEV_ERROR, sheetName, "", "Sheet '" & sheetName & "' not found."
+
+End Function
+
+
+Private Function HeadersMatch( _
+    ByVal ws As Worksheet, _
+    ByVal rowNum As Long, _
+    ByVal expectedHeaders As String) _
+    As Boolean
+'
+'==============================================================================
+'                                 HeadersMatch
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Compare a header row with the expected headers, ignoring case and
+'   surrounding spaces, and log an error for each header that differs.
+'
+' INPUTS
+'   ws, rowNum: the sheet and its header row.
+'   expectedHeaders: one of the _HEADERS constants in CORE_Config, starting in
+'   column A; an empty entry is not checked.
+'
+' RETURNS
+'   True when every checked header matches.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim headers   As Variant    'Expected headers, from index 0 for column A
+    Dim c         As Long       'Index into headers
+    Dim found     As Variant    'Header cell value
+
+'------------------------------------------------------------------------------
+' COMPARE
+'------------------------------------------------------------------------------
+        HeadersMatch = True
+        headers = Split(expectedHeaders, "|")
+        For c = 0 To UBound(headers)
+            If Len(headers(c)) > 0 Then
+                found = ws.Cells(rowNum, c + 1).Value
+                If StrComp(SafeStr(found), headers(c), vbTextCompare) <> 0 Then
+                    HeadersMatch = False
+                    LogMsg SEV_ERROR, ws.Name, ws.Cells(rowNum, c + 1).Address(False, False), _
+                           "Header must be '" & headers(c) & "' (found " & DescribeValue(found) & _
+                           ") - a column was inserted, deleted or moved, or the header renamed.", rowNum
+                End If
+            End If
+        Next c
+
+End Function
+
+
+Private Function SameValue( _
+    ByVal a As Variant, _
+    ByVal b As Variant) _
+    As Boolean
+'
+'==============================================================================
+'                                  SameValue
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Compare two cell values: numbers exactly, text ignoring case and
+'   surrounding spaces. An error value is never the same as anything.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        If IsError(a) Or IsError(b) Then
+            SameValue = False
+        ElseIf IsNum(a) And IsNum(b) Then
+            SameValue = (CDbl(a) = CDbl(b))
+        Else
+            SameValue = (StrComp(SafeStr(a), SafeStr(b), vbTextCompare) = 0)
+        End If
+
+End Function
+
+
+'
+'------------------------------------------------------------------------------
+'
 '                                INPUT LOADING
 '
 '------------------------------------------------------------------------------
@@ -543,12 +882,15 @@ Private Function NumParam( _
 '   Read a numeric parameter, falling back to its regulatory default.
 '
 ' INPUTS
-'   code: a PRM_ code from M_Config.
-'   dflt: value used, with a warning, when the parameter is missing or not
-'   numeric.
+'   code: a PRM_ code from CORE_Config.
+'   dflt: value used, with a warning, when the parameter is blank.
 '
 ' RETURNS
 '   The parameter value, or dflt.
+'
+' ERROR POLICY
+'   A value that is present but not a number is an error and sets
+'   mParamError, so that LoadParams stops the run (#35).
 '
 ' UPDATED
 '   2026-10-06
@@ -566,9 +908,13 @@ Private Function NumParam( _
         v = GetParam(code)
         If IsNum(v) Then
             NumParam = CDbl(v)
+        ElseIf IsBlankCell(v) And Not IsError(v) Then
+            NumParam = dflt
+            LogMsg SEV_WARN, SH_PARAMS, code, "Parameter missing - default " & CStr(dflt) & " used."
         Else
             NumParam = dflt
-            LogMsg SEV_WARN, SH_PARAMS, code, "Parameter missing or not numeric - default " & CStr(dflt) & " used."
+            mParamError = True
+            LogMsg SEV_ERROR, SH_PARAMS, code, "Parameter must be a number (found " & DescribeValue(v) & ")."
         End If
 
 End Function
@@ -632,7 +978,11 @@ Private Function LoadParams() As Boolean
         pRho12 = NumParam(PRM_RHO12, 0.7)
         pRho23 = NumParam(PRM_RHO23, 0.7)
         pRho13 = NumParam(PRM_RHO13, 0.3)
-        pIRFull = ToBool(GetParam(PRM_IRFULL), True)
+        If Not TryBool(GetParam(PRM_IRFULL), True, pIRFull) Then
+            LogMsg SEV_ERROR, SH_PARAMS, PRM_IRFULL, "Parameter must be TRUE or FALSE (found " & _
+                   DescribeValue(GetParam(PRM_IRFULL)) & ")."
+            Exit Function
+        End If
 
 '------------------------------------------------------------------------------
 ' REGIME
@@ -648,6 +998,9 @@ Private Function LoadParams() As Boolean
         End If
         pLamThrIR = NumParam(PRM_LAMIR, 0.001)
         pLamThrCO = NumParam(PRM_LAMCO, 0.1)
+        If mParamError Then
+            Exit Function
+        End If
 
 '------------------------------------------------------------------------------
 ' DAY COUNTS
@@ -680,24 +1033,33 @@ Private Function LoadSFTable() As Boolean
 '
 ' RETURNS
 '   True when at least one row was read. False, with an error logged, when
-'   the header is missing or the table is empty.
+'   the header is missing, the table is empty, a value is not a number, a
+'   key is listed twice with different values, or a row with a factor lies
+'   below the first blank key and would not be read (#35).
 '
 ' STATE OWNERSHIP
-'   Fills mSF, mSFCount and mSFIndex. A duplicate key is warned about and
-'   the first row kept. "BOTH" in the Regimes column is stored as blank.
+'   Fills mSF, mSFCount and mSFIndex. A key listed twice with the same
+'   values is warned about and the first row kept. "BOTH" in the Regimes
+'   column is stored as blank.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '==============================================================================
 '
 
 '------------------------------------------------------------------------------
 ' DECLARE
 '------------------------------------------------------------------------------
-    Dim ws   As Worksheet    'Params sheet
-    Dim r    As Long         'Row being read
-    Dim r0   As Long         'Header row of the table
-    Dim k    As String       'Key of the row, upper case
+    Dim ws       As Worksheet      'Params sheet
+    Dim r        As Long           'Row being read
+    Dim r0       As Long           'Header row of the table
+    Dim k        As String         'Key of the row, upper case
+    Dim bad      As Boolean        'Some row is unusable or conflicts
+    Dim rowBad   As Boolean        'This row has a value that is not a number
+    Dim entry    As tSupervisory   'This row
+    Dim idx      As Long           'Position of an earlier row with the key; 0 if none
+    Dim lastR    As Long           'Last row searched for rows after the end
+    Dim fxRow    As Long           'Header row of the FX table; 0 if absent
 
 '------------------------------------------------------------------------------
 ' FIND THE TABLE
@@ -717,28 +1079,59 @@ Private Function LoadSFTable() As Boolean
         r = r0 + 1
         Do While Not IsBlankCell(ws.Cells(r, 1).Value)
             k = UTxt(ws.Cells(r, 1).Value)
-            If KeyIndex(mSFIndex, k) > 0 Then
-                LogMsg SEV_WARN, SH_PARAMS, k, "Duplicate supervisory factor key - first occurrence used.", r
-            Else
+            entry.Key = k
+            entry.AssetClass = UTxt(ws.Cells(r, 2).Value)
+            entry.Category = UTxt(ws.Cells(r, 3).Value)
+            rowBad = Not TryDbl(ws.Cells(r, 4).Value, 0#, entry.SF)
+            rowBad = Not TryDbl(ws.Cells(r, 5).Value, 0#, entry.Corr) Or rowBad
+            rowBad = Not TryDbl(ws.Cells(r, 6).Value, 0#, entry.Vol) Or rowBad
+            entry.Group = UTxt(ws.Cells(r, 7).Value)
+            entry.Regimes = UTxt(ws.Cells(r, 8).Value)
+            If entry.Regimes = "BOTH" Then
+                entry.Regimes = ""
+            End If
+            If rowBad Then
+                bad = True
+                LogMsg SEV_ERROR, SH_PARAMS, k, "Supervisory factor, correlation and volatility must be numbers.", r
+            End If
+
+    'A key seen before: the same values are harmless, different values are
+    'ambiguous and stop the run. A row with a value that is not a number has
+    'already been reported.
+            idx = KeyIndex(mSFIndex, k)
+            If idx = 0 Then
                 mSFCount = mSFCount + 1
                 If mSFCount > UBound(mSF) Then
                     ReDim Preserve mSF(1 To mSFCount * 2)
                 End If
-                mSF(mSFCount).Key = k
-                mSF(mSFCount).AssetClass = UTxt(ws.Cells(r, 2).Value)
-                mSF(mSFCount).Category = UTxt(ws.Cells(r, 3).Value)
-                mSF(mSFCount).SF = ToDbl(ws.Cells(r, 4).Value)
-                mSF(mSFCount).Corr = ToDbl(ws.Cells(r, 5).Value)
-                mSF(mSFCount).Vol = ToDbl(ws.Cells(r, 6).Value)
-                mSF(mSFCount).Group = UTxt(ws.Cells(r, 7).Value)
-                mSF(mSFCount).Regimes = UTxt(ws.Cells(r, 8).Value)
-                If mSF(mSFCount).Regimes = "BOTH" Then
-                    mSF(mSFCount).Regimes = ""
-                End If
+                mSF(mSFCount) = entry
                 KeyAdd mSFIndex, k, mSFCount
+            ElseIf Not rowBad Then
+                If SameFactorRow(mSF(idx), entry) Then
+                    LogMsg SEV_WARN, SH_PARAMS, k, "Supervisory factor key listed twice with the same values - " & _
+                           "first occurrence used.", r
+                Else
+                    bad = True
+                    LogMsg SEV_ERROR, SH_PARAMS, k, "Supervisory factor key listed twice with different values.", r
+                End If
             End If
             r = r + 1
         Loop
+
+'------------------------------------------------------------------------------
+' ROWS AFTER THE END
+'------------------------------------------------------------------------------
+    'The table ends at the first blank key. A row further down with a
+    'factor would be dropped silently, so it is an error. The search stops
+    'at the FX table when that follows.
+        lastR = UsedLastRow(ws)
+        fxRow = FindHeaderRow(ws, 1, HDR_FX)
+        If fxRow > r Then
+            lastR = fxRow - 1
+        End If
+        If ValuesAfterEnd(ws, r, lastR, 4, "Supervisory factor") Then
+            bad = True
+        End If
 
 '------------------------------------------------------------------------------
 ' CHECK
@@ -747,7 +1140,33 @@ Private Function LoadSFTable() As Boolean
             LogMsg SEV_ERROR, SH_PARAMS, HDR_SF, "Supervisory factor table is empty."
             Exit Function
         End If
+        If bad Then
+            Exit Function
+        End If
         LoadSFTable = True
+
+End Function
+
+
+Private Function SameFactorRow( _
+    ByRef first As tSupervisory, _
+    ByRef other As tSupervisory) _
+    As Boolean
+'
+'==============================================================================
+'                                SameFactorRow
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Tell whether two rows of the supervisory-factor table hold the same
+'   values in every column the engine reads.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        SameFactorRow = (first.AssetClass = other.AssetClass) And (first.Category = other.Category) And _
+                        (first.SF = other.SF) And (first.Corr = other.Corr) And (first.Vol = other.Vol) And _
+                        (first.Group = other.Group) And (first.Regimes = other.Regimes)
 
 End Function
 
@@ -763,17 +1182,20 @@ Private Function LoadFXTable() As Boolean
 '   per one unit of the currency.
 '
 ' RETURNS
-'   True when the table was found. False, with an error logged, when the
-'   header is missing.
+'   True when the table was read. False, with an error logged, when the
+'   header is missing, a currency is listed twice with different rates, or
+'   a row with a rate lies below the first blank currency and would not be
+'   read (#35).
 '
 ' STATE OWNERSHIP
 '   Fills mFXRate, mFXCount and mFXIndex. A rate that is missing or not
-'   positive is warned about and the currency left out; for a duplicate
-'   currency the first rate is kept. The reporting currency is added at
-'   rate 1 if absent, and warned about if its rate is not 1.
+'   positive is warned about and the currency left out; a currency listed
+'   twice with the same rate is warned about and the first row kept. The
+'   reporting currency is added at rate 1 if absent, and warned about if
+'   its rate is not 1.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '==============================================================================
 '
 
@@ -785,6 +1207,10 @@ Private Function LoadFXTable() As Boolean
     Dim r0     As Long         'Header row of the table
     Dim k      As String       'Currency code, upper case
     Dim rate   As Double       'Rate of the row; -1 when missing
+    Dim idx    As Long         'Position of an earlier row with the currency; 0 if none
+    Dim bad    As Boolean      'A currency conflicts or a rate would not be read
+    Dim lastR  As Long         'Last row searched for rows after the end
+    Dim sfRow  As Long         'Header row of the factor table; 0 if absent
 
 '------------------------------------------------------------------------------
 ' FIND THE TABLE
@@ -799,22 +1225,48 @@ Private Function LoadFXTable() As Boolean
 '------------------------------------------------------------------------------
 ' READ ROWS
 '------------------------------------------------------------------------------
+    'A currency seen before: the same rate is harmless, a different rate is
+    'ambiguous and stops the run.
         r = r0 + 1
         Do While Not IsBlankCell(ws.Cells(r, 1).Value)
             k = UTxt(ws.Cells(r, 1).Value)
             rate = ToDbl(ws.Cells(r, 3).Value, -1#)
+            idx = KeyIndex(mFXIndex, k)
             If rate <= 0# Then
                 LogMsg SEV_WARN, SH_PARAMS, k, "FX rate missing or not positive - currency ignored.", r
-            ElseIf KeyIndex(mFXIndex, k) = 0 Then
+            ElseIf idx = 0 Then
                 mFXCount = mFXCount + 1
                 If mFXCount > UBound(mFXRate) Then
                     ReDim Preserve mFXRate(1 To mFXCount * 2)
                 End If
                 mFXRate(mFXCount) = rate
                 KeyAdd mFXIndex, k, mFXCount
+            ElseIf mFXRate(idx) = rate Then
+                LogMsg SEV_WARN, SH_PARAMS, k, "Currency listed twice with the same rate - first row used.", r
+            Else
+                bad = True
+                LogMsg SEV_ERROR, SH_PARAMS, k, "Currency listed twice with different rates.", r
             End If
             r = r + 1
         Loop
+
+'------------------------------------------------------------------------------
+' ROWS AFTER THE END
+'------------------------------------------------------------------------------
+    'As for the factor table: a rate below the first blank currency would be
+    'dropped silently. The search stops at the factor table when that
+    'follows.
+        lastR = UsedLastRow(ws)
+        sfRow = FindHeaderRow(ws, 1, HDR_SF)
+        If sfRow > r Then
+            lastR = sfRow - 1
+        End If
+        If ValuesAfterEnd(ws, r, lastR, 3, "FX") Then
+            bad = True
+        End If
+        If bad Then
+            Exit Function
+        End If
 
 '------------------------------------------------------------------------------
 ' ENSURE THE REPORTING CURRENCY
@@ -830,6 +1282,63 @@ Private Function LoadFXTable() As Boolean
             LogMsg SEV_WARN, SH_PARAMS, pRepCcy, "Rate of the reporting currency is not 1."
         End If
         LoadFXTable = True
+
+End Function
+
+
+Private Function ValuesAfterEnd( _
+    ByVal ws As Worksheet, _
+    ByVal endRow As Long, _
+    ByVal lastR As Long, _
+    ByVal valueCol As Long, _
+    ByVal tableName As String) _
+    As Boolean
+'
+'==============================================================================
+'                                ValuesAfterEnd
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Find rows of a Params table that its loader will not read: from the
+'   blank key that ends the table down to lastR, any row with a number in
+'   the table's value column. Each is logged as an error (#35).
+'
+' INPUTS
+'   ws: Params sheet.
+'   endRow: the row with the blank key that ended the table.
+'   lastR: last row to search.
+'   valueCol: the column that always holds a number in a table row:
+'   4 (factor) or 3 (rate).
+'   tableName: for the messages.
+'
+' RETURNS
+'   True when such a row was found.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim r     As Long      'Row being checked
+    Dim k     As String    'Key in column A, upper case
+
+'------------------------------------------------------------------------------
+' SEARCH
+'------------------------------------------------------------------------------
+        For r = endRow To lastR
+            If IsNum(ws.Cells(r, valueCol).Value) Then
+                ValuesAfterEnd = True
+                k = UTxt(ws.Cells(r, 1).Value)
+                If Len(k) = 0 Then
+                    LogMsg SEV_ERROR, SH_PARAMS, "", tableName & " row has a value but no key - not read.", r
+                Else
+                    LogMsg SEV_ERROR, SH_PARAMS, k, tableName & " row below a blank row - not read; " & _
+                           "remove the blank row.", r
+                End If
+            End If
+        Next r
 
 End Function
 
@@ -917,12 +1426,13 @@ Private Function LoadNettingSets() As Boolean
     Dim mpor      As Double       'Effective MPOR, business days
     Dim ovr       As Double       'MPOR override entered; 0 when none
     Dim rg        As String       'Regime of the netting set
+    Dim nsErrors  As Long         'Invalid fields found on the row
 
 '------------------------------------------------------------------------------
 ' READ THE INPUT BLOCK
 '------------------------------------------------------------------------------
         Set ws = GetSheet(SH_NS)
-        lastR = LastDataRow(ws, FIRST_DATA_ROW, NS_ID)
+        lastR = LastDataRowAny(ws, FIRST_DATA_ROW, NS_NCOLS, 0)
         If lastR < FIRST_DATA_ROW Then
             LogMsg SEV_ERROR, SH_NS, "", "No netting sets defined."
             Exit Function
@@ -933,13 +1443,24 @@ Private Function LoadNettingSets() As Boolean
 '------------------------------------------------------------------------------
 ' READ EACH NETTING SET
 '------------------------------------------------------------------------------
-    'Rows without an ID are skipped silently.
+    'An empty row is skipped; a row with data but no ID is an error, so a
+    'netting set cannot silently drop out (#35). A repeated ID is ignored and
+    'makes the first set with that ID INVALID: which row's terms apply to
+    'its trades is ambiguous, so its EAD is withheld.
         For i = 1 To n
             rowNum = FIRST_DATA_ROW + i - 1
             id = UTxt(data(i, NS_ID))
-            If Len(id) = 0 Then GoTo NextRow
+            If Len(id) = 0 Then
+                If RowHasData(data, i, NS_NCOLS, 0) Then
+                    LogMsg SEV_ERROR, SH_NS, "", "Row has netting-set data but no ID - row ignored.", rowNum
+                End If
+                GoTo NextRow
+            End If
             If KeyIndex(mNSIndex, id) > 0 Then
-                LogMsg SEV_ERROR, SH_NS, id, "Duplicate netting set ID - row ignored.", rowNum
+                With mNS(KeyIndex(mNSIndex, id))
+                    .InputErrors = .InputErrors + 1
+                End With
+                LogMsg SEV_ERROR, SH_NS, id, "Netting set ID listed twice - row ignored and EAD withheld.", rowNum
                 GoTo NextRow
             End If
             mNSCount = mNSCount + 1
@@ -948,34 +1469,39 @@ Private Function LoadNettingSets() As Boolean
             End If
             With mNS(mNSCount)
 
-    'Plain fields. The remargining frequency is at least 1 business day;
-    'a missing or non-positive alpha takes the Params value.
+    'Plain fields. A blank field takes its default; a value that cannot be
+    'read is an error that makes the netting set INVALID (#35). The
+    'remargining frequency is at least 1 business day; a non-positive alpha
+    'takes the Params value.
+                nsErrors = 0
                 .ID = id
                 .Counterparty = SafeStr(data(i, NS_CPTY))
-                .Margined = ToBool(data(i, NS_MARGINED), False)
-                .Cleared = ToBool(data(i, NS_CLEARED), False)
-                .RemarginBD = ToDbl(data(i, NS_FREQ), 1#)
+                .Margined = NsFlag(data(i, NS_MARGINED), False, "Margined", id, rowNum, nsErrors)
+                .Cleared = NsFlag(data(i, NS_CLEARED), False, "Centrally cleared", id, rowNum, nsErrors)
+                .RemarginBD = NsNumber(data(i, NS_FREQ), 1#, "Remargin frequency", id, rowNum, nsErrors)
                 If .RemarginBD < 1# Then
                     .RemarginBD = 1#
                 End If
-                .LargeOrIlliquid = ToBool(data(i, NS_LARGE), False)
-                .Disputes = ToBool(data(i, NS_DISPUTE), False)
-                .VM = ToDbl(data(i, NS_VM))
-                .NICA = ToDbl(data(i, NS_NICA))
-                .TH = ToDbl(data(i, NS_TH))
-                .MTA = ToDbl(data(i, NS_MTA))
-                .Alpha = ToDbl(data(i, NS_ALPHA), pAlpha)
+                .LargeOrIlliquid = NsFlag(data(i, NS_LARGE), False, "Large or illiquid", id, rowNum, nsErrors)
+                .Disputes = NsFlag(data(i, NS_DISPUTE), False, "Margin disputes", id, rowNum, nsErrors)
+                .VM = NsNumber(data(i, NS_VM), 0#, "Net VM", id, rowNum, nsErrors)
+                .NICA = NsNumber(data(i, NS_NICA), 0#, "NICA", id, rowNum, nsErrors)
+                .TH = NsNumber(data(i, NS_TH), 0#, "Threshold", id, rowNum, nsErrors)
+                .MTA = NsNumber(data(i, NS_MTA), 0#, "MTA", id, rowNum, nsErrors)
+                .Alpha = NsNumber(data(i, NS_ALPHA), pAlpha, "Alpha override", id, rowNum, nsErrors)
                 If .Alpha <= 0# Then
                     .Alpha = pAlpha
                 End If
 
-    'Regime: blank takes the Params default; an unknown value is warned
-    'about and also takes the default.
+    'Regime: blank takes the Params default; any other value than BCBS or
+    'CRR is an input error.
                 rg = UTxt(data(i, NS_REGIME))
                 If Len(rg) = 0 Then
                     rg = pRegime
                 ElseIf rg <> RG_BCBS And rg <> RG_CRR Then
-                    LogMsg SEV_WARN, SH_NS, id, "Regime override must be BCBS or CRR - default " & pRegime & " used.", rowNum
+                    nsErrors = nsErrors + 1
+                    LogMsg SEV_ERROR, SH_NS, id, "Regime override must be BCBS or CRR (found " & _
+                           DescribeValue(data(i, NS_REGIME)) & ").", rowNum
                     rg = pRegime
                 End If
                 .Regime = rg
@@ -987,13 +1513,16 @@ Private Function LoadNettingSets() As Boolean
                 .V = 0#
                 .Trades = 0
                 .Rejected = 0
+                ovr = NsNumber(data(i, NS_MPOR), 0#, "MPOR override", id, rowNum, nsErrors)
+                .InputErrors = nsErrors
                 .MPOR = 0#
                 .MFMargined = 0#
 
     'Effective MPOR of a margined netting set: the floor (cleared or
     'bilateral, raised for large or illiquid sets) plus the remargining
-    'period minus one day, doubled for disputes. An override is accepted
-    'only if it is not below that.
+    'period minus one day, doubled for disputes. The override, read and
+    'validated above for every set, is accepted only if it is not below
+    'that.
                 If .Margined Then
                     If .Cleared Then
                         floorBD = pMPORClr
@@ -1007,7 +1536,6 @@ Private Function LoadNettingSets() As Boolean
                     If .Disputes Then
                         mpor = 2# * mpor
                     End If
-                    ovr = ToDbl(data(i, NS_MPOR), 0#)
                     If ovr > 0# Then
                         If ovr < mpor Then
                             LogMsg SEV_WARN, SH_NS, id, "MPOR override " & CStr(ovr) & _
@@ -1045,6 +1573,143 @@ End Function
 '
 '------------------------------------------------------------------------------
 '
+
+Private Function NsFlag( _
+    ByVal v As Variant, _
+    ByVal dflt As Boolean, _
+    ByVal fieldName As String, _
+    ByVal nsId As String, _
+    ByVal rowNum As Long, _
+    ByRef nsErrors As Long) _
+    As Boolean
+'
+'==============================================================================
+'                                    NsFlag
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read a Y/N field of a netting set strictly: blank takes the default; an
+'   unrecognised value is logged and counted as an input error (#35).
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim result   As Boolean    'Value read
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        If Not TryBool(v, dflt, result) Then
+            nsErrors = nsErrors + 1
+            LogMsg SEV_ERROR, SH_NS, nsId, fieldName & " must be Y or N (found " & DescribeValue(v) & ").", rowNum
+        End If
+        NsFlag = result
+
+End Function
+
+
+Private Function NsNumber( _
+    ByVal v As Variant, _
+    ByVal dflt As Double, _
+    ByVal fieldName As String, _
+    ByVal nsId As String, _
+    ByVal rowNum As Long, _
+    ByRef nsErrors As Long) _
+    As Double
+'
+'==============================================================================
+'                                   NsNumber
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read a numeric field of a netting set strictly: blank takes the
+'   default; text that is not a number is logged and counted as an input
+'   error (#35).
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim result   As Double    'Value read
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        If Not TryDbl(v, dflt, result) Then
+            nsErrors = nsErrors + 1
+            LogMsg SEV_ERROR, SH_NS, nsId, fieldName & " must be a number (found " & DescribeValue(v) & ").", rowNum
+        End If
+        NsNumber = result
+
+End Function
+
+
+Private Function TradeDate( _
+    ByVal v As Variant, _
+    ByVal fieldName As String, _
+    ByRef ok As Boolean, _
+    ByRef msg As String) _
+    As Double
+'
+'==============================================================================
+'                                  TradeDate
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read a trade date: blank is "not given" (-1); a value that is not a
+'   date makes the trade invalid instead of being treated as blank (#35).
+'
+' RETURNS
+'   The date serial, or -1 when blank or unreadable.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        TradeDate = ToSerial(v)
+        If TradeDate < 0# Then
+            If IsError(v) Or Not IsBlankCell(v) Then
+                AddErr ok, msg, fieldName & " is not a date (found " & DescribeValue(v) & ")"
+            End If
+            TradeDate = -1#
+        End If
+
+End Function
+
+
+Private Function DescribeValue( _
+    ByVal v As Variant) _
+    As String
+'
+'==============================================================================
+'                                DescribeValue
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Describe a cell value for a message: its text in quotes, or "an error
+'   value" for #N/A and the like.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        If IsError(v) Then
+            DescribeValue = "an error value"
+        Else
+            DescribeValue = "'" & SafeStr(v) & "'"
+        End If
+
+End Function
+
 
 Private Sub AddErr( _
     ByRef ok As Boolean, _
@@ -1152,6 +1817,8 @@ Private Sub ProcessTrades( _
     Dim data          As Variant      'Input block, (row, column)
     Dim outArr()      As Variant      'TradeCalc rows, (row, column)
     Dim nOut          As Long         'TradeCalc rows filled
+    Dim seenIds       As Collection   'Trade IDs seen so far, mapped to their sheet row
+    Dim firstRow      As Long         'Sheet row where a duplicate ID first appeared
 
     'Validation state of the current trade.
     Dim ok            As Boolean      'False once any error is found
@@ -1230,7 +1897,7 @@ Private Sub ProcessTrades( _
     'With no trades there is nothing to calculate; the old TradeCalc rows
     'are cleared so they cannot be mistaken for results.
         Set ws = GetSheet(SH_TRADES)
-        lastR = LastDataRow(ws, FIRST_DATA_ROW, TR_ID)
+        lastR = LastDataRowAny(ws, FIRST_DATA_ROW, TR_NCOLS, TR_COMMENT)
         If lastR < FIRST_DATA_ROW Then
             LogMsg SEV_ERROR, SH_TRADES, "", "No trades found."
             If writeOutputs Then
@@ -1246,12 +1913,23 @@ Private Sub ProcessTrades( _
 '------------------------------------------------------------------------------
 ' PROCESS EACH TRADE
 '------------------------------------------------------------------------------
-    'Rows without a trade ID are skipped silently. Every per-trade value is
-    'reset so nothing leaks from the previous trade into the output row.
+    'An empty row is skipped. A row with data but no trade ID is rejected,
+    'and so is a repeated trade ID; either makes its netting set INCOMPLETE
+    '(#35). Every per-trade value is reset so nothing leaks from the
+    'previous trade into the output row.
+        Set seenIds = New Collection
         For i = 1 To n
             rowNum = FIRST_DATA_ROW + i - 1
             tid = SafeStr(data(i, TR_ID))
-            If Len(tid) = 0 Then GoTo NextTrade
+            If Len(tid) = 0 Then
+                If RowHasData(data, i, TR_NCOLS, TR_COMMENT) Then
+                    mTradesRead = mTradesRead + 1
+                    LogMsg SEV_ERROR, SH_TRADES, "", "Row has trade data but no Trade ID - trade rejected.", rowNum
+                    nsIdx = KeyIndex(mNSIndex, UTxt(data(i, TR_NS)))
+                    If nsIdx > 0 Then mNS(nsIdx).Rejected = mNS(nsIdx).Rejected + 1
+                End If
+                GoTo NextTrade
+            End If
             mTradesRead = mTradesRead + 1
             ok = True
             msg = ""
@@ -1284,6 +1962,13 @@ Private Sub ProcessTrades( _
     'nature. Basis and volatility trades form their own hedging sets, one
     'per label, with the factor multiplied by BasisFactor or
     'VolatilityFactor [CRE52.46, CRE52.47].
+            firstRow = KeyIndex(seenIds, tid)
+            If firstRow > 0 Then
+                AddErr ok, msg, "duplicate Trade ID (first used on row " & firstRow & ")"
+            Else
+                KeyAdd seenIds, tid, rowNum
+            End If
+
             nsId = UTxt(data(i, TR_NS))
             nsIdx = KeyIndex(mNSIndex, nsId)
             If nsIdx = 0 Then AddErr ok, msg, "unknown netting set '" & nsId & "'"
@@ -1295,6 +1980,12 @@ Private Sub ProcessTrades( _
             subCls = UTxt(data(i, TR_SUB))
             rf = UTxt(data(i, TR_RF))
             If Len(rf) = 0 Then AddErr ok, msg, "risk factor / reference missing"
+            If InStr(rf, "|") > 0 Or InStr(rf, "#") > 0 Then
+                AddErr ok, msg, "risk factor / reference must not contain '|' or '#'"
+            End If
+            If ac = AC_IR And Len(rf) > 0 And Not (rf Like "[A-Z][A-Z][A-Z]") Then
+                AddErr ok, msg, "interest-rate risk factor must be a 3-letter currency code such as EUR"
+            End If
 
             instType = UTxt(data(i, TR_INSTR))
             If Len(instType) = 0 Then instType = "LINEAR"
@@ -1316,6 +2007,9 @@ Private Sub ProcessTrades( _
             nature = UTxt(data(i, TR_NATURE))
             If Len(nature) = 0 Then nature = "STANDARD"
             lbl = UTxt(data(i, TR_LABEL))
+            If InStr(lbl, "|") > 0 Or InStr(lbl, "#") > 0 Then
+                AddErr ok, msg, "hedging-set label must not contain '|' or '#'"
+            End If
             Select Case nature
                 Case "STANDARD"
                     natFactor = 1#
@@ -1323,11 +2017,11 @@ Private Sub ProcessTrades( _
                 Case "BASIS"
                     natFactor = pBasisF
                     natTag = "BASIS:" & lbl
-                    If Len(lbl) = 0 Then AddWarn warn, "basis trade without hedging-set label"
+                    If Len(lbl) = 0 Then AddErr ok, msg, "basis trade needs a hedging-set label"
                 Case "VOLATILITY"
                     natFactor = pVolF
                     natTag = "VOL:" & lbl
-                    If Len(lbl) = 0 Then AddWarn warn, "volatility trade without hedging-set label"
+                    If Len(lbl) = 0 Then AddErr ok, msg, "volatility trade needs a hedging-set label"
                 Case Else
                     AddErr ok, msg, "nature must be Standard, Basis or Volatility"
             End Select
@@ -1367,23 +2061,28 @@ Private Sub ProcessTrades( _
             End If
 
     '--- Amounts ---------------------------------------------------------------
-    'The notional is unsigned; Direction gives the sign. A missing MtM is
-    'taken as 0 with a warning; a blank MtM currency means the notional
+    'The notional is unsigned; Direction gives the sign. A missing MtM is an
+    'error, not an assumed 0 (#35); a blank MtM currency means the notional
     'currency. Both amounts are converted to the reporting currency.
             If IsNum(data(i, TR_NOTIONAL)) Then
                 notional = CDbl(data(i, TR_NOTIONAL))
                 If notional < 0# Then AddErr ok, msg, "notional must be positive (use Direction for the sign)"
-            Else
+            ElseIf IsBlankCell(data(i, TR_NOTIONAL)) And Not IsError(data(i, TR_NOTIONAL)) Then
                 AddErr ok, msg, "notional missing"
+            Else
+                AddErr ok, msg, "notional must be a number (found " & DescribeValue(data(i, TR_NOTIONAL)) & ")"
             End If
             nccy = UTxt(data(i, TR_NCCY))
             fxN = FXRate(nccy)
             If fxN < 0# Then AddErr ok, msg, "no FX rate for notional currency '" & nccy & "'"
             If IsNum(data(i, TR_MTM)) Then
                 mtm = CDbl(data(i, TR_MTM))
+            ElseIf IsBlankCell(data(i, TR_MTM)) And Not IsError(data(i, TR_MTM)) Then
+                mtm = 0#
+                AddErr ok, msg, "MtM missing (enter 0 if the trade has no value)"
             Else
                 mtm = 0#
-                AddWarn warn, "MtM missing - 0 assumed"
+                AddErr ok, msg, "MtM must be a number (found " & DescribeValue(data(i, TR_MTM)) & ")"
             End If
             mccy = UTxt(data(i, TR_MCCY))
             If Len(mccy) = 0 Then mccy = nccy
@@ -1395,14 +2094,15 @@ Private Sub ProcessTrades( _
             End If
 
     '--- Dates to year fractions -----------------------------------------------
-    'Missing dates are filled from each other: maturity from the end date,
+    'A date that is present but cannot be read is an error (#35). Missing
+    'dates are filled from each other: maturity from the end date,
     'then from the option expiry; the end date from the maturity. S, E and M
     'are years from the reporting date on the DaysPerYear basis, with S
     'floored at 0.
-            dStart = ToSerial(data(i, TR_START))
-            dEnd = ToSerial(data(i, TR_END))
-            dMat = ToSerial(data(i, TR_MAT))
-            dExp = ToSerial(data(i, TR_EXPIRY))
+            dStart = TradeDate(data(i, TR_START), "start date", ok, msg)
+            dEnd = TradeDate(data(i, TR_END), "end date", ok, msg)
+            dMat = TradeDate(data(i, TR_MAT), "maturity date", ok, msg)
+            dExp = TradeDate(data(i, TR_EXPIRY), "option expiry", ok, msg)
             If dMat < 0# Then dMat = dEnd
             If dMat < 0# Then dMat = dExp
             If dEnd < 0# Then dEnd = dMat
@@ -1452,6 +2152,9 @@ Private Sub ProcessTrades( _
                             P = CDbl(data(i, TR_PRICE))
                             K = CDbl(data(i, TR_STRIKE))
                             lamIn = data(i, TR_LAMBDA)
+                            If Not IsNum(lamIn) And Not (IsBlankCell(lamIn) And Not IsError(lamIn)) Then
+                                AddErr ok, msg, "lambda must be a number (found " & DescribeValue(lamIn) & ")"
+                            End If
                             If mNS(nsIdx).IsCRR And (ac = AC_IR Or ac = AC_CO) Then
                                 'Delegated Regulation (EU) 2021/931 Art. 5, as amended by 2025/855.
                                 If ac = AC_IR Then
@@ -1565,6 +2268,9 @@ Private Sub ProcessTrades( _
                 End If
                 enU = delta * adjN * mfU
                 enM = delta * adjN * mfM
+                If ac = AC_CR Or ac = AC_EQ Or ac = AC_CO Then
+                    CheckReferenceClass nsIdx, ac, rf, sfKey, tid, rowNum
+                End If
                 AddToBucket nsIdx, ac, hsKey, subKey, sfEff, corrEff, enU, enM, tid, rowNum
                 mNS(nsIdx).V = mNS(nsIdx).V + mtmRep
                 mNS(nsIdx).Trades = mNS(nsIdx).Trades + 1
@@ -1692,6 +2398,69 @@ Private Function NormalizePair( _
 End Function
 
 
+Private Sub CheckReferenceClass( _
+    ByVal nsIdx As Long, _
+    ByVal ac As Long, _
+    ByVal rf As String, _
+    ByVal sfKey As String, _
+    ByVal tid As String, _
+    ByVal rowNum As Long)
+'
+'==============================================================================
+'                             CheckReferenceClass
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Make sure a credit or equity entity, or a commodity, has one sub-class
+'   in its netting set. Its bucket takes one supervisory factor and
+'   correlation; with two sub-classes the result would depend on which
+'   trade comes first (#37).
+'
+' INPUTS
+'   nsIdx, ac, rf: netting set, asset class and reference of the trade.
+'   sfKey: the factor-table key the trade's sub-class gives, such as CR_AA.
+'   tid, rowNum: trade ID and sheet row, for the message.
+'
+' STATE OWNERSHIP
+'   Adds to mRefClass, mRefCount and mRefIndex. On the first conflict for a
+'   reference, logs an error and adds an input error to the netting set,
+'   which makes it INVALID with its EAD withheld whatever the row order.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim key   As String    'Netting set | asset class | reference
+    Dim k     As Long      'Position of the reference; 0 when new
+
+'------------------------------------------------------------------------------
+' COMPARE
+'------------------------------------------------------------------------------
+    'References contain no "|" (checked in ProcessTrades), so the key is
+    'unambiguous.
+        key = CStr(nsIdx) & "|" & CStr(ac) & "|" & rf
+        k = KeyIndex(mRefIndex, key)
+        If k = 0 Then
+            mRefCount = mRefCount + 1
+            If mRefCount > UBound(mRefClass) Then
+                ReDim Preserve mRefClass(1 To mRefCount * 2)
+                ReDim Preserve mRefConflict(1 To mRefCount * 2)
+            End If
+            mRefClass(mRefCount) = sfKey
+            KeyAdd mRefIndex, key, mRefCount
+        ElseIf mRefClass(k) <> sfKey And Not mRefConflict(k) Then
+            mRefConflict(k) = True
+            mNS(nsIdx).InputErrors = mNS(nsIdx).InputErrors + 1
+            LogMsg SEV_ERROR, SH_TRADES, tid, "Reference '" & rf & "' is " & sfKey & " here but " & _
+                   mRefClass(k) & " on another trade of the netting set - netting set INVALID, EAD withheld.", rowNum
+        End If
+
+End Sub
+
+
 Private Sub AddToBucket( _
     ByVal nsIdx As Long, _
     ByVal ac As Long, _
@@ -1719,9 +2488,11 @@ Private Sub AddToBucket( _
 '   tid, rowNum: trade ID and sheet row, for messages.
 '
 ' STATE OWNERSHIP
-'   Adds to mBk, mBkCount and mBkIndex. A bucket keeps the factor and
-'   correlation of its first trade. For credit, equity and commodity a later
-'   trade with a different factor is warned about.
+'   Adds to mBk, mBkCount and mBkIndex. Every trade of a bucket has the
+'   same factor and correlation: the key holds the hedging set, which
+'   includes the nature, and CheckReferenceClass makes a netting set whose
+'   credit, equity or commodity reference has two sub-classes INVALID
+'   (#37).
 '
 ' UPDATED
 '   2026-10-06
@@ -1755,9 +2526,6 @@ Private Sub AddToBucket( _
             mBk(b).ENM = 0#
             mBk(b).Trades = 0
             KeyAdd mBkIndex, key, b
-        ElseIf (ac = AC_CR Or ac = AC_EQ Or ac = AC_CO) And Abs(mBk(b).SF - sfEff) > 0.0000000001 Then
-            LogMsg SEV_WARN, SH_TRADES, tid, "Sub-class differs from earlier trades on '" & subKey & _
-                   "' - supervisory factor of the first trade used.", rowNum
         End If
 
 '------------------------------------------------------------------------------
@@ -2035,6 +2803,14 @@ Private Sub ComputeNettingSets( _
         ReDim outArr(1 To mNSCount + 1, 1 To RS_NCOLS)
         nOut = 0
         For k = 1 To mNSCount
+            If mNS(k).InputErrors > 0 Then
+                mIncomplete = mIncomplete + 1
+                LogMsg SEV_ERROR, SH_NS, mNS(k).ID, "EAD withheld: " & mNS(k).InputErrors & _
+                       " invalid netting-set field(s)."
+                nOut = nOut + 1
+                WriteStatusRow outArr, nOut, k, "INVALID: " & mNS(k).InputErrors & " input error(s)"
+                GoTo NextNS
+            End If
             If mNS(k).Rejected > 0 Then
                 mIncomplete = mIncomplete + 1
                 LogMsg SEV_ERROR, SH_NS, mNS(k).ID, "EAD withheld: " & mNS(k).Rejected & _
@@ -2229,6 +3005,237 @@ Private Sub ClearOutputSheets()
 End Sub
 
 
+'
+'------------------------------------------------------------------------------
+'
+'                               RUN FINGERPRINT
+'
+'------------------------------------------------------------------------------
+'
+
+Public Function InputFingerprint() As String
+'
+'==============================================================================
+'                               InputFingerprint
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Fingerprint everything a run reads: the NettingSets and Trades input
+'   rows (without the unread Comment column) and Params columns A to H,
+'   which hold the parameters and the factor and FX tables (#36).
+'
+' RETURNS
+'   An 8-digit hexadecimal fingerprint (CORE_Util.TextHash). Equal
+'   fingerprints mean the inputs are, all but certainly, unchanged.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Const PARAMS_COLS As Long = 8    'Params columns A to H
+    Dim parts(1 To 3)   As String    'Text of each input block
+
+'------------------------------------------------------------------------------
+' FINGERPRINT
+'------------------------------------------------------------------------------
+        parts(1) = BlockText(GetSheet(SH_NS), FIRST_DATA_ROW, NS_NCOLS)
+        parts(2) = BlockText(GetSheet(SH_TRADES), FIRST_DATA_ROW, TR_COMMENT - 1)
+        parts(3) = BlockText(GetSheet(SH_PARAMS), 1, PARAMS_COLS)
+        InputFingerprint = TextHash(Join(parts, Chr$(29)))
+
+End Function
+
+
+Private Function BlockText( _
+    ByVal ws As Worksheet, _
+    ByVal firstRow As Long, _
+    ByVal nCols As Long) _
+    As String
+'
+'==============================================================================
+'                                  BlockText
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Write a block of cells as one text, cell by cell, from firstRow to the
+'   last row with a value. Blank rows below it are left out, so that a
+'   used range that grew without new values does not change the text.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim lastR    As Long        'Last used row
+    Dim data     As Variant     'Cell values, Value2 (dates as serials)
+    Dim nRows    As Long        'Rows up to the last with a value
+    Dim pieces() As String      'One text per cell
+    Dim r        As Long        'Row of data
+    Dim c        As Long        'Column of data
+    Dim k        As Long        'Position in pieces
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        lastR = UsedLastRow(ws)
+        If lastR < firstRow Then
+            Exit Function
+        End If
+        data = ws.Range(ws.Cells(firstRow, 1), ws.Cells(lastR, nCols)).Value2
+        For r = UBound(data, 1) To 1 Step -1
+            If RowHasData(data, r, nCols, 0) Then
+                nRows = r
+                Exit For
+            End If
+        Next r
+        If nRows = 0 Then
+            Exit Function
+        End If
+
+'------------------------------------------------------------------------------
+' WRITE AS TEXT
+'------------------------------------------------------------------------------
+    'Chr$(31) separates cells; the column count fixes where rows end.
+        ReDim pieces(1 To nRows * nCols)
+        For r = 1 To nRows
+            For c = 1 To nCols
+                k = k + 1
+                If IsError(data(r, c)) Then
+                    pieces(k) = "#ERR"
+                Else
+                    pieces(k) = CStr(data(r, c))
+                End If
+            Next c
+        Next r
+        BlockText = Join(pieces, Chr$(31))
+
+End Function
+
+
+Public Function LastRunInputs() As String
+'
+'==============================================================================
+'                                LastRunInputs
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Return the input fingerprint stored by the last completed run, or ""
+'   when no run's results are on the sheets.
+'
+' ERROR POLICY
+'   Contains the expected error of a missing name.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim wbName   As Name    'The stored name, Nothing when absent
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+    'The name refers to a text constant: ="5A428560".
+        On Error Resume Next
+        Set wbName = ThisWorkbook.Names(RUN_INPUTS_NAME)
+        Err.Clear
+        On Error GoTo 0
+        If Not wbName Is Nothing Then
+            LastRunInputs = Replace(Replace(wbName.RefersTo, "=", ""), """", "")
+        End If
+
+End Function
+
+
+Private Sub RememberRunInputs( _
+    ByVal fingerprint As String)
+'
+'==============================================================================
+'                              RememberRunInputs
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Store the input fingerprint of a completed run in a hidden workbook
+'   name.
+'
+' ERROR POLICY
+'   Best effort: a workbook whose names cannot be changed (protected
+'   structure) still runs; its results are then reported as unknown.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        On Error GoTo Failed
+        ThisWorkbook.Names.Add Name:=RUN_INPUTS_NAME, RefersTo:="=""" & fingerprint & """", Visible:=False
+        Exit Sub
+
+Failed:
+        ForgetRunInputs
+
+End Sub
+
+
+Public Sub ForgetRunInputs()
+'
+'==============================================================================
+'                               ForgetRunInputs
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Remove the stored fingerprint, because no run's results are on the
+'   sheets: after a failed or validation-only run, and after Clear outputs.
+'
+' ERROR POLICY
+'   Contains any error, including the expected missing name.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        On Error GoTo Failed
+        ThisWorkbook.Names(RUN_INPUTS_NAME).Delete
+
+Failed:
+
+End Sub
+
+
+Private Function WithdrawOutputs() As Boolean
+'
+'==============================================================================
+'                               WithdrawOutputs
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Clear the output sheets after the Checks sheet could not be written,
+'   so that no result of this run is left looking valid (#36).
+'
+' RETURNS
+'   True when the sheets were cleared.
+'
+' ERROR POLICY
+'   Contains any error and reports it through the result: the caller is
+'   already reporting a failure.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        On Error GoTo Failed
+        ClearOutputSheets
+        WithdrawOutputs = True
+        Exit Function
+
+Failed:
+
+End Function
+
+
 Private Sub WriteBuckets()
 '
 '==============================================================================
@@ -2383,7 +3390,9 @@ Private Sub WriteHedgingSets()
 End Sub
 
 
-Private Sub WriteChecks()
+Private Function WriteChecks( _
+    ByRef failure As String) _
+    As Boolean
 '
 '==============================================================================
 '                                 WriteChecks
@@ -2392,15 +3401,18 @@ Private Sub WriteChecks()
 '   Write the logged messages to the Checks sheet, errors in bold, or a
 '   single "No issues found." line.
 '
+' RETURNS
+'   True when the sheet was written. False when writing failed, with the
+'   reason in failure; Calculate then withdraws the results (#36).
+'
 ' STATE OWNERSHIP
 '   Clears and rewrites the Checks sheet.
 '
 ' ERROR POLICY
-'   Any error stops the writing silently, so that a damaged Checks sheet
-'   does not hide the run's result.
+'   Contains any error and reports it through the result, never silently.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '==============================================================================
 '
 
@@ -2416,7 +3428,8 @@ Private Sub WriteChecks()
 ' WRITE
 '------------------------------------------------------------------------------
     'mLog is stored (field, message); it is transposed into sheet rows.
-        On Error GoTo Done
+        On Error GoTo Failed
+        failure = ""
         Set ws = GetSheet(SH_CHECKS)
         ClearOutputBlock ws, FIRST_DATA_ROW, CK_NCOLS
         If mLogCount = 0 Then
@@ -2424,7 +3437,8 @@ Private Sub WriteChecks()
             arr(1, 1) = SEV_INFO
             arr(1, 5) = "No issues found."
             WriteBlock ws, FIRST_DATA_ROW, arr, 1, CK_NCOLS
-            Exit Sub
+            WriteChecks = True
+            Exit Function
         End If
         ReDim arr(1 To mLogCount, 1 To CK_NCOLS)
         For i = 1 To mLogCount
@@ -2438,15 +3452,23 @@ Private Sub WriteChecks()
                 ws.Cells(FIRST_DATA_ROW + i - 1, 1).Font.Bold = True
             End If
         Next i
-Done:
+        WriteChecks = True
+        Exit Function
 
-End Sub
+'------------------------------------------------------------------------------
+' REPORT FAILURE
+'------------------------------------------------------------------------------
+Failed:
+        failure = "error " & Err.Number & ": " & Err.Description
+
+End Function
 
 
 Private Sub WriteRunInfo( _
     ByVal secs As Double, _
     ByVal completed As Boolean, _
-    ByVal wroteOutputs As Boolean)
+    ByVal wroteOutputs As Boolean, _
+    ByVal failure As String)
 '
 '==============================================================================
 '                                 WriteRunInfo
@@ -2459,6 +3481,8 @@ Private Sub WriteRunInfo( _
 '   completed: the result of Calculate.
 '   wroteOutputs: False for a validation-only run, whose outputs were
 '   cleared rather than written.
+'   failure: why the run failed after it started writing, for example the
+'   Checks sheet could not be written; "" otherwise.
 '
 ' ERROR POLICY
 '   Best effort: errors are ignored, because the summary is informative only.
@@ -2479,7 +3503,9 @@ Private Sub WriteRunInfo( _
 '------------------------------------------------------------------------------
         On Error Resume Next
         Set ws = GetSheet(SH_RESULTS)
-        If Not wroteOutputs Then
+        If Len(failure) > 0 Then
+            txt = "Last run " & Format$(Now, "yyyy-mm-dd hh:mm:ss") & " FAILED - " & failure
+        ElseIf Not wroteOutputs Then
             txt = "Last validation " & Format$(Now, "yyyy-mm-dd hh:mm:ss") & _
                   " | errors " & mErrCount & ", warnings " & mWarnCount & _
                   " | outputs cleared: press Run SA-CCR to calculate"
@@ -2489,6 +3515,7 @@ Private Sub WriteRunInfo( _
                   " | ccy " & pRepCcy & _
                   " | trades used " & mTradesUsed & " of " & mTradesRead & _
                   " | errors " & mErrCount & ", warnings " & mWarnCount & _
+                  " | inputs " & mRunInputs & _
                   " | " & Format$(secs, "0.00") & " s"
             If mIncomplete > 0 Then
                 txt = txt & " | EAD withheld for " & mIncomplete & " netting set(s)"

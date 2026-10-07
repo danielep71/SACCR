@@ -40,7 +40,7 @@ and the VBA in `src/` and `tests/`.
 | --- | --- |
 | VBA source layout | Defined in [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) |
 | Import/export conventions and host support | Defined below and in [`docs/VBA_HOUSE_STYLE.md`](docs/VBA_HOUSE_STYLE.md) |
-| Regression harness | `tests/modules/TestHarness.bas`; see [running the harness](#running-the-harness) |
+| Regression harness | `tests/modules/TEST_Harness.bas`; see [running the harness](#running-the-harness) |
 | Excel evidence | Record and validator defined in [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) |
 | Released versions | None |
 
@@ -83,8 +83,8 @@ or as an evidence bundle bound to a commit as described in
 Use a **Git clone**:
 
 ```sh
-git clone https://github.com/danielep71/SACCR.git
-cd SACCR
+git clone https://github.com/danielep71/VBA-SACCR-Toolkit.git
+cd VBA-SACCR-Toolkit
 git switch release/1.0.0
 ```
 
@@ -164,12 +164,12 @@ The exact component list is added here with the first VBA source.
 
    | # | File | Component | Role |
    | ---: | --- | --- | --- |
-   | 1 | `src/core/M_Config.bas` | `M_Config` | Internal; sheet layout and parameter constants |
-   | 2 | `src/core/M_Engine.bas` | `M_Engine` | Internal; SA-CCR calculation run |
-   | 3 | `src/core/M_Util.bas` | `M_Util` | Internal; conversions and sheet helpers |
-   | 4 | `src/modules/M_Formulas.bas` | `M_Formulas` | Public worksheet functions `SACCR_*` (`docs/PUBLIC_API.txt`) |
+   | 1 | `src/core/CORE_Config.bas` | `CORE_Config` | Internal; sheet layout and parameter constants |
+   | 2 | `src/core/CORE_Engine.bas` | `CORE_Engine` | Internal; SA-CCR calculation run |
+   | 3 | `src/core/CORE_Util.bas` | `CORE_Util` | Internal; conversions and sheet helpers |
+   | 4 | `src/modules/SACCR_Formulas.bas` | `SACCR_Formulas` | Public worksheet functions `SACCR_*` (`docs/PUBLIC_API.txt`) |
    | 5 | `src/workbook/M_Main.bas` | `M_Main` | Sheet-button macros `RunSACCR`, `ValidateInputs`, `ClearOutputs` |
-   | 6 | `tests/modules/TestHarness.bas` | `TestHarness` | Regression harness; development workbook only |
+   | 6 | `tests/modules/TEST_Harness.bas` | `TEST_Harness` | Regression harness; development workbook only |
 
    The sheet buttons call `RunSACCR`, `ValidateInputs` and `ClearOutputs`, so
    they work once `M_Main` is imported.
@@ -177,7 +177,9 @@ The exact component list is added here with the first VBA source.
    modules) cannot be imported: the VBE would create a new class such as
    `ThisWorkbook1`. Instead, open the `.cls` file in a text editor, copy the code
    below the `Attribute` lines, and paste it into the existing `ThisWorkbook` or
-   sheet module. Sheet code names must match the file names.
+   sheet module. Sheet code names must match the file names. `shResults.cls`
+   carries the code that marks the results as out of date when the Results
+   sheet is activated; the other document modules hold only `Option Explicit`.
 6. Run **Debug → Compile VBAProject**; it must complete with no error.
 7. Save, close and reopen when a clean session is needed, then run the harness
    and the specific scenario under test.
@@ -208,7 +210,7 @@ After importing the components above and compiling, open the Immediate
 window (**Ctrl+G**) and run:
 
 ```text
-TestHarness.RunTests
+TEST_Harness.RunTests
 ```
 
 A passing run prints a `MODE=NORMAL` line, the environment, one `CASE=` line per
@@ -225,7 +227,7 @@ raises an error after printing a failed result.
 To see the failure path, run:
 
 ```text
-TestHarness.RunTestsWithInjectedFailure
+TEST_Harness.RunTestsWithInjectedFailure
 ```
 
 It runs the same suite with one deliberately wrong expectation, in
@@ -233,7 +235,7 @@ It runs the same suite with one deliberately wrong expectation, in
 `MODE=INJECTED_FAILURE` and
 `RESULT=FAIL; completeness=COMPLETE; cases=4; assertions=6; failures=1; cleanup=PASS`,
 followed by the suite failure error. If a run is interrupted, run
-`TestHarness.ResetTests` before running again.
+`TEST_Harness.ResetTests` before running again.
 
 The harness never changes Excel settings. It checks that `Calculation`,
 `DisplayAlerts`, `EnableEvents` and `ScreenUpdating` are the same after the run
@@ -241,31 +243,35 @@ as before, and reports `cleanup=FAIL` if not.
 
 ### Workbook macro state tests
 
-`tests/modules/TestMainState.bas` checks that **Run SA-CCR**, **Validate inputs**
+`tests/modules/TEST_MainState.bas` checks that **Run SA-CCR**, **Validate inputs**
 and **Clear outputs** put calculation mode, events and screen updating back as
 they found them, also when they were off, and that an operation failure and a
 cleanup failure are each raised and leave the workbook ready for the next run.
-Unlike the harness, it runs the real macros, which rewrite the output sheets,
-so use a development workbook. Run:
+It also protects the Checks sheet for one run, and makes one run fail after
+the first output sheets are written, and checks that each fails with its
+results withdrawn; and it edits one trade after a run and checks that the
+results are reported out of date until the edit is undone. Unlike the
+harness, it runs the real macros, which rewrite the output sheets, so use a
+development workbook. Run:
 
 ```text
-TestMainState.RunMainStateTests
+TEST_MainState.RunMainStateTests
 ```
 
-A passing run prints seven `CASE=` lines and ends with
-`RESULT=PASS; cases=7; checks=...; failures=0; caller_state=RESTORED`.
+A passing run prints ten `CASE=` lines and ends with
+`RESULT=PASS; cases=10; checks=...; failures=0; caller_state=RESTORED`.
 
 <a id="numerical-test-cases"></a>
 
 ### Numerical test cases
 
-`tests/modules/TestCases.bas` is generated from `tests/fixtures` and
+`tests/modules/TEST_Cases.bas` is generated from `tests/fixtures` and
 `tests/expected`; never edit it by hand. After changing a JSON file, run
 `python tools/generate_case_tests.py` and import the regenerated module.
-Import it with `tests/modules/CaseRunner.bas`, then run:
+Import it with `tests/modules/TEST_CaseRunner.bas`, then run:
 
 ```text
-TestCases.RunCaseTests
+TEST_Cases.RunCaseTests
 ```
 
 Each case writes its fixture into the NettingSets and Trades rows and the
@@ -277,9 +283,43 @@ results per reference class, and
 `RESULT=PASS; cases=19; checks=36; failures=0; restore=PASS`. Illustrative
 results are counted separately and validate nothing.
 
+### Invalid-input tests
+
+`tests/modules/TEST_InputValidation.bas` writes inputs that a JSON fixture
+cannot express (a trade row without an ID, a duplicate trade ID, a missing
+MtM, an unreadable date, a typo in a netting-set flag or amount) through
+`TEST_CaseRunner` and checks that each makes the netting set `INCOMPLETE` or
+`INVALID`, and that blank optional fields still take their defaults. It
+repeats a netting-set ID and puts `#N/A` in a trade, a netting set and a
+parameter. It also renames a header, breaks a parameter name, duplicates a parameter, a
+supervisory-factor key and a currency, and puts a blank row or a blank key in
+the factor and FX tables, and checks that the run stops, or continues when the
+duplicate has the same values. For aggregation it gives one credit reference
+two sub-classes, in both orders, and adds a basis trade without a label, a
+reference with a reserved character and an interest-rate risk factor that is
+not a currency. Every patched cell and name is restored. It needs a workbook
+built from the template. Import it with `TEST_CaseRunner` and run
+`TEST_InputValidation.RunInputValidationTests`; it ends with
+`RESULT=PASS; cases=32; checks=32; failures=0; restore=PASS`.
+
+### Aggregation tests
+
+`tests/modules/TEST_Aggregation.bas` runs the workbook's own portfolio in its
+row order, reversed and rotated, and checks that Results is the same each time;
+and it checks offsets by comparing outputs with each other: two opposite swaps
+in one bucket offset exactly, and nothing offsets across currencies, netting
+sets, credit entities or between a standard and a basis hedging set. Import it
+with `TEST_CaseRunner` and run `TEST_Aggregation.RunAggregationTests`; it ends
+with `RESULT=PASS; cases=10; checks=10; failures=0; restore=PASS`.
+
 For automation, `RunSACCR_Silent` returns a result line such as
-`RESULT=OK; operation=run; errors=0; warnings=0; trades_used=62; trades_read=65; total_ead=...; cleanup=PASS`
-and raises any failure instead of showing a message box.
+`RESULT=OK; operation=run; errors=0; warnings=0; trades_used=62; trades_read=65; incomplete=2; total_ead=...; inputs=...; cleanup=PASS`
+and raises any failure instead of showing a message box. `inputs` is the
+fingerprint of the inputs the results were calculated from, also shown in the
+run summary on Results A2. `M_Main.ResultsStatus()` returns `CURRENT` when the
+results on the sheets match the inputs as they are now, `STALE` when an input
+changed since, and `NONE` when there are no results; activating the Results
+sheet marks A2 `OUT OF DATE` in the `STALE` case.
 
 <a id="validation-record"></a>
 

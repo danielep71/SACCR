@@ -97,6 +97,17 @@ Use only the categories needed by a release.
 
 ### Added
 
+- An interest-rate add-on flowchart in `docs/assets/`
+  (`SACCR_IR_AddOn_flow.svg` and a 2080 px PNG). It traces the steps from trade
+  selection to the aggregate add-on, including the maturity factor, basis and
+  volatility hedging sets and time buckets by end date, with Basel CRE52 and
+  CRR references for each step.
+- A source-controlled GitHub Wiki publication system keeps every maintained
+  Wiki page under `docs/wiki/`, validates its catalogue and authority links,
+  publishes the complete page set through `tools/Publish-SACCR-Wiki.cmd`, and
+  records the exact source commit and page hashes in `Wiki-Source.json`.
+  Hosted checks validate the source bundle and a separate observation detects
+  published-Wiki drift.
 - Repository-control files adopted from the Excel VBA project template:
   `.editorconfig`, `.gitattributes` and `.gitignore`. Exported VBA source is
   stored with LF in Git and checked out as CRLF; Office packages are binary and
@@ -150,8 +161,8 @@ Use only the categories needed by a release.
   checksum-verified actionlint. Dependabot proposes weekly GitHub Actions
   updates to the release branch for manual review; nothing merges
   automatically.
-- A deterministic VBA regression harness, `tests/modules/TestHarness.bas`, run
-  with `TestHarness.RunTests`. It supports exact, tolerance and expected-error
+- A deterministic VBA regression harness, `tests/modules/TEST_Harness.bas`, run
+  with `TEST_Harness.RunTests`. It supports exact, tolerance and expected-error
   assertions with stable case names, refuses to report `PASS` unless all
   expected cases and assertions ran, verifies Excel settings are unchanged, and
   prints a machine-readable `RESULT=` line. `RunTestsWithInjectedFailure`
@@ -191,8 +202,8 @@ Use only the categories needed by a release.
   provenance and SA-CCR-specific review.
 
 - Prototype SA-CCR engine imported from the owner's `SACCR_Calculator.xlsm`
-  (engine v1.1.0): `M_Config`, `M_Engine` and `M_Util` in `src/core`, the ten
-  `SACCR_*` worksheet functions in `src/modules/M_Formulas` (added to
+  (engine v1.1.0): `CORE_Config`, `CORE_Engine` and `CORE_Util` in `src/core`, the ten
+  `SACCR_*` worksheet functions in `src/modules/SACCR_Formulas` (added to
   `docs/PUBLIC_API.txt`), and the sheet-button macros in `src/workbook/M_Main`
   with the 13 document modules. It covers both regimes (CRR default, Basel
   CRE52 per netting set), the CRR other-risks class and the margined-EAD cap.
@@ -202,7 +213,9 @@ Use only the categories needed by a release.
   statements are unchanged from the prototype apart from `Option Private
   Module` in the three core modules, which the import had declared twice.
 - Workbook template `src/workbook/SACCR_Template.xlsx` (#58): the prototype's
-  12 sheets, formulas, named ranges and buttons with its VBA project removed.
+  12 sheets, formulas, named ranges and buttons with its VBA project and its
+  document properties (`docProps/core.xml`, `docProps/app.xml`) removed;
+  `tools/check_source.py` rejects a committed workbook that carries either.
   The workbook is built by saving it as `.xlsm` and importing the source; the
   template is part of the Excel evidence source inventory. Verified in Excel by
   the owner (#58): a workbook built from it with the repository source ran the
@@ -219,13 +232,64 @@ Use only the categories needed by a release.
   tools/check.py`.
 
 - The numerical test cases run against the engine in Excel (#44, decision 7):
-  `tools/generate_case_tests.py` generates `tests/modules/TestCases.bas` from
+  `tools/generate_case_tests.py` generates `tests/modules/TEST_Cases.bas` from
   the JSON files, checked in `python tools/check.py`, and
-  `tests/modules/CaseRunner.bas` writes each fixture into the input sheets,
+  `tests/modules/TEST_CaseRunner.bas` writes each fixture into the input sheets,
   runs the engine, compares the outputs and restores the workbook. Results
   are reported per reference class.
 
+### Changed
+
+- VBA modules carry an upper-case role prefix: core modules `CORE_Config`,
+  `CORE_Engine` and `CORE_Util`; the public worksheet functions in
+  `SACCR_Formulas`; and the test modules `TEST_Harness`, `TEST_MainState`,
+  `TEST_CaseRunner`, `TEST_Cases` and `TEST_InputValidation` (previously
+  `M_Config`, `M_Engine`, `M_Util`, `M_Formulas`, `TestHarness`,
+  `TestMainState`, `CaseRunner`, `TestCases` and `TestInputValidation`).
+  `M_Main` keeps its name, so the sheet buttons are unchanged, and the
+  `SACCR_*` worksheet functions keep theirs. `tools/check_source.py` enforces
+  the prefixes. A workbook built before the rename must be rebuilt from the
+  template: importing the renamed modules next to the old ones gives
+  duplicate declarations.
+
 ### Fixed
+
+- Malformed inputs are rejected instead of silently changing the portfolio
+  (#35). A trade row with data but no Trade ID, including rows after the last
+  ID, and a repeated Trade ID are rejected, making the netting set
+  `INCOMPLETE`. A missing or non-numeric MtM is an error rather than an
+  assumed 0, and an unreadable date or lambda is an error rather than blank. A
+  netting-set flag that is not Y/N, an amount that is not a number or an
+  unknown regime override makes the netting set `INVALID` with its EAD
+  withheld; a NettingSets row with data but no ID is reported. On Params, a
+  value that is present but not a number, an unreadable `IRBucketOffset` and a
+  non-numeric supervisory factor, correlation or volatility stop the run.
+  Blank optional fields still take their documented defaults.
+  `tests/modules/TEST_InputValidation.bas` covers these cases in Excel.
+
+- The run stops when the workbook layout or the parameter tables are
+  ambiguous (#35). Before reading any input, the engine checks that the
+  Params, NettingSets and Trades sheets exist and that every column it reads
+  by number has its expected header (`CORE_Config` `_HEADERS` constants), so an
+  inserted, deleted or moved column cannot shift values into the wrong
+  fields. A parameter workbook name that no longer refers to a cell (`#REF!`)
+  and a parameter listed twice on Params with different values stop the run.
+  A supervisory-factor key or currency listed twice with different values
+  also stops it, instead of the first row being used silently; a duplicate
+  with the same values is a warning. `TEST_InputValidation` adds ten cases for
+  these rules.
+
+- A supervisory factor or FX rate below a blank row of its table on Params
+  is reported and stops the run (#35). Each table ends at its first blank
+  key, so such rows, and a value whose key is blank, were silently not read.
+  `TEST_InputValidation` adds four cases.
+
+- A netting-set ID listed twice makes that netting set `INVALID` with its
+  EAD withheld (#35). The second row was ignored with an error, but the set
+  was still reported `VALID` with the first row's collateral terms.
+  `TEST_InputValidation` adds this case and three with an Excel error value
+  (`#N/A`) in a trade's MtM, a netting-set amount and a parameter, each of
+  which is rejected rather than read as blank.
 
 - A netting set with a rejected trade no longer reports an EAD computed on
   its remaining trades (#36). Results has a Status column and a row for
@@ -241,6 +305,47 @@ Use only the categories needed by a release.
   saved output rows, which no longer matched these inputs; Results A2 says
   that no results exist until the workbook is run.
 
+- A Checks sheet that cannot be written, for example because it is
+  protected, now fails the run (#36). The errors were swallowed: the new
+  results were shown while Checks still held the previous run's messages.
+  The run now clears the other output sheets, says why in Results A2 and
+  raises `ERR_CHECKS_WRITE`; the button shows the reason and
+  `RunSACCR_Silent` raises it. `TEST_MainState` adds the case.
+
+- A run stopped by an unexpected error no longer leaves output tables from
+  two runs (#36). An error after the engine had started writing, for
+  example on Results or HedgingSets, left the sheets already written with
+  this run's values and the others empty or from the previous run. The run
+  now clears every output sheet, logs the error on Checks and in Results
+  A2, and raises it unchanged. `TEST_MainState` adds the case, through a
+  test seam that fails the run after TradeCalc, Results and Buckets.
+
+- Results are recognised as out of date once an input changes (#36). A
+  completed run stores a fingerprint of everything it read (NettingSets,
+  Trades without the Comment column, and Params) in a hidden workbook name,
+  shows it in Results A2 and in the `RunSACCR_Silent` result line
+  (`inputs=`), and `M_Main.ResultsStatus()` compares it with the inputs as
+  they are now: `CURRENT`, `STALE` or `NONE`. Activating the Results sheet
+  marks A2 `OUT OF DATE` when stale. The check runs on activation, not on
+  every edit, because a macro that changes the workbook clears Excel's undo
+  history. A failed or validation-only run and Clear outputs remove the
+  fingerprint. `TEST_MainState` adds the case.
+
+- Aggregation no longer depends on the order of the trade rows (#37). A
+  credit or equity entity, or a commodity, given two sub-classes in one
+  netting set took the factor and correlation of whichever trade came
+  first, with a warning; the netting set is now `INVALID` with its EAD
+  withheld, whatever the order. A basis or volatility trade without a
+  hedging-set label, which shared one blank hedging set, is rejected, as is
+  a reference or label containing `|` or `#`, which the grouping keys use,
+  and an interest-rate risk factor that is not a 3-letter currency code.
+  References and labels are compared after trimming and in upper case, with
+  no aliases. `TEST_InputValidation` adds five cases and the new
+  `TEST_Aggregation` checks that the demo portfolio gives the same Results
+  in reversed and rotated row order, and that offsets happen exactly within
+  a bucket and never across currencies, netting sets, credit entities or
+  hedging sets.
+
 - The workbook macros restore calculation mode, events and screen updating to
   the values they found, including settings that were off, instead of
   switching events and screen updating on (#43). Each setting is restored
@@ -248,7 +353,7 @@ Use only the categories needed by a release.
   separately (`ERR_CLEANUP_FAILED`). A second operation started while one is
   running is refused. `RunSACCR_Silent` restores the previous silent flag,
   returns a machine-readable result line and raises failures instead of
-  printing them. `tests/modules/TestMainState.bas` covers these cases in Excel.
+  printing them. `tests/modules/TEST_MainState.bas` covers these cases in Excel.
 
 - Allow scheduled traffic exports without relying on a webhook payload, while
   retaining the default-branch restriction for manual dispatches (review #53).
@@ -277,4 +382,4 @@ Use only the categories needed by a release.
 
 ---
 
-[Unreleased]: https://github.com/danielep71/SACCR/commits/main
+[Unreleased]: https://github.com/danielep71/VBA-SACCR-Toolkit/commits/main

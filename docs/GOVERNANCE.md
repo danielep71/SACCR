@@ -2,9 +2,9 @@
 
 Owner and maintainer: **@danielep71**. Active release branch: **`release/1.0.0`**.
 Setup milestone v0.0.1 is closed; its baseline is recorded in
-[issue #13](https://github.com/danielep71/SACCR/issues/13).
+[issue #13](https://github.com/danielep71/VBA-SACCR-Toolkit/issues/13).
 This policy implements the owner's working-branch decision of 2026-10-06 and
-the scope of [issue #2](https://github.com/danielep71/SACCR/issues/2).
+the scope of [issue #2](https://github.com/danielep71/VBA-SACCR-Toolkit/issues/2).
 
 ## Branch policy
 
@@ -94,9 +94,9 @@ closeout. Each must return no results. Closed issues are included because the
 metadata rule applies to every issue, not only ongoing work. Keep the missing-
 milestone search repository-wide: filtering by milestone would hide orphans.
 
-- [Issues without a milestone](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20no%3Amilestone%20-author%3Aapp%2Fgithub-actions), excluding traffic alerts, which the workflow opens as `github-actions`
-- [Issues without an assignee](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20no%3Aassignee)
-- [Issues without a priority label](https://github.com/danielep71/SACCR/issues?q=is%3Aissue%20-label%3AP1%20-label%3AP2%20-label%3AP3)
+- [Issues without a milestone](https://github.com/danielep71/VBA-SACCR-Toolkit/issues?q=is%3Aissue%20no%3Amilestone%20-author%3Aapp%2Fgithub-actions), excluding traffic alerts, which the workflow opens as `github-actions`
+- [Issues without an assignee](https://github.com/danielep71/VBA-SACCR-Toolkit/issues?q=is%3Aissue%20no%3Aassignee)
+- [Issues without a priority label](https://github.com/danielep71/VBA-SACCR-Toolkit/issues?q=is%3Aissue%20-label%3AP1%20-label%3AP2%20-label%3AP3)
 
 The issue forms and the pull-request template are read by GitHub from the
 default branch, so a change to them takes effect after the next integration
@@ -108,7 +108,7 @@ Close an issue only when every acceptance criterion has linked evidence: the
 merged PR, the green check run and, for VBA, the Excel result. Record that
 evidence in a closing comment. A blocked Excel run keeps the issue open.
 Each milestone closes through its own closeout issue; v0.0.1 closed in
-[issue #13](https://github.com/danielep71/SACCR/issues/13).
+[issue #13](https://github.com/danielep71/VBA-SACCR-Toolkit/issues/13).
 
 ## Current GitHub controls and limitations
 

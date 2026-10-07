@@ -1,6 +1,6 @@
-Attribute VB_Name = "M_Util"
+Attribute VB_Name = "CORE_Util"
 '==============================================================================
-' MODULE: M_Util
+' MODULE: CORE_Util
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Provide the small helpers the engine uses everywhere: tolerant conversion
@@ -10,11 +10,11 @@ Attribute VB_Name = "M_Util"
 '
 ' PUBLIC SURFACE
 '   None outside this VBA project. Every procedure is Public for in-project use
-'   by M_Engine and M_Main; Option Private Module keeps them off the supported
+'   by CORE_Engine and M_Main; Option Private Module keeps them off the supported
 '   external surface.
 '
 ' DEPENDENCIES
-'   M_Config for sheet names, layout constants and asset-class numbers. Keyed
+'   CORE_Config for sheet names, layout constants and asset-class numbers. Keyed
 '   lookups use a VBA Collection, so no Scripting.Dictionary reference is
 '   needed and the code also runs on Excel for Mac.
 '
@@ -24,9 +24,9 @@ Attribute VB_Name = "M_Util"
 '
 ' ERROR POLICY
 '   Conversions never raise: an error value, blank or unusable input returns
-'   the documented default. KeyIndex and GetParam contain the single expected
-'   lookup error and report "not found" instead. Every other error, for
-'   example a missing worksheet, propagates to the caller.
+'   the documented default. KeyIndex, GetParam and BrokenName contain the
+'   expected lookup errors and report "not found" instead. Every other
+'   error, for example a missing worksheet, propagates to the caller.
 '
 ' KNOWN DEVIATION
 '   This module lives in src/core but reads and writes worksheets, which the
@@ -37,7 +37,7 @@ Attribute VB_Name = "M_Util"
 '   Excel VBA; no references beyond the defaults.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '
 ' AUTHOR
 '   Daniele Penza
@@ -329,6 +329,102 @@ Public Function ToBool( _
 End Function
 
 
+Public Function TryBool( _
+    ByVal v As Variant, _
+    ByVal dflt As Boolean, _
+    ByRef result As Boolean) _
+    As Boolean
+'
+'==============================================================================
+'                                   TryBool
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read a Y/N style cell value strictly: unlike ToBool, an unrecognised
+'   value is reported instead of silently taking the default (#35).
+'
+' INPUTS
+'   v: a Boolean, blank, or text such as Y, YES, TRUE, 1, N, NO, FALSE, 0
+'      (and the Italian VERO, SI, FALSO).
+'   dflt: value used when v is blank.
+'
+' RETURNS
+'   True with result set when v is blank or recognised; False for an error
+'   value or unrecognised text, with result left as dflt.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        result = dflt
+        If IsError(v) Then
+            Exit Function
+        End If
+        If VarType(v) = vbBoolean Then
+            result = v
+            TryBool = True
+            Exit Function
+        End If
+        Select Case UTxt(v)
+            Case ""
+                TryBool = True
+            Case "Y", "YES", "TRUE", "1", "VERO", "SI"
+                result = True
+                TryBool = True
+            Case "N", "NO", "FALSE", "0", "FALSO"
+                result = False
+                TryBool = True
+        End Select
+
+End Function
+
+
+Public Function TryDbl( _
+    ByVal v As Variant, _
+    ByVal dflt As Double, _
+    ByRef result As Double) _
+    As Boolean
+'
+'==============================================================================
+'                                    TryDbl
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read a numeric cell value strictly: unlike ToDbl, text that is not a
+'   number is reported instead of silently taking the default (#35).
+'
+' INPUTS
+'   v: a number, blank, or anything else.
+'   dflt: value used when v is blank.
+'
+' RETURNS
+'   True with result set when v is blank or a usable number; False for an
+'   error value or non-numeric text, with result left as dflt.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        result = dflt
+        If IsError(v) Then
+            Exit Function
+        End If
+        If IsBlankCell(v) Then
+            TryDbl = True
+        ElseIf IsNum(v) Then
+            result = CDbl(v)
+            TryDbl = True
+        End If
+
+End Function
+
+
 Public Function Max2( _
     ByVal a As Double, _
     ByVal b As Double) _
@@ -497,7 +593,7 @@ Public Function ACIndex( _
 '   code: IR, FX, CR, EQ, CO or OT, in any case.
 '
 ' RETURNS
-'   The matching AC_ constant from M_Config; 0 for an unknown code.
+'   The matching AC_ constant from CORE_Config; 0 for an unknown code.
 '
 ' UPDATED
 '   2026-10-06
@@ -538,7 +634,7 @@ Public Function ACCode( _
 '   Translate an internal asset-class number back into its code.
 '
 ' INPUTS
-'   idx: an AC_ constant from M_Config.
+'   idx: an AC_ constant from CORE_Config.
 '
 ' RETURNS
 '   IR, FX, CR, EQ, CO or OT; "?" for any other number.
@@ -590,7 +686,7 @@ Public Function GetSheet( _
 '   Return a worksheet of this workbook by tab name.
 '
 ' INPUTS
-'   sheetName: one of the SH_ constants in M_Config.
+'   sheetName: one of the SH_ constants in CORE_Config.
 '
 ' ERROR POLICY
 '   A missing sheet raises "Subscript out of range" to the caller.
@@ -748,6 +844,114 @@ Public Function LastDataRow( _
 End Function
 
 
+Public Function LastDataRowAny( _
+    ByVal ws As Worksheet, _
+    ByVal firstRow As Long, _
+    ByVal nCols As Long, _
+    ByVal ignoreCol As Long) _
+    As Long
+'
+'==============================================================================
+'                                LastDataRowAny
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Find the last row with a value in any of the first nCols columns, so
+'   that a row whose ID is blank is still found (#35).
+'
+' INPUTS
+'   ws: the worksheet to scan.
+'   firstRow: first row of the data area.
+'   nCols: number of columns from column A.
+'   ignoreCol: a column that does not count as data, such as a free-text
+'      comment; 0 for none.
+'
+' RETURNS
+'   Row number of the last such row; firstRow - 1 when there is none.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim lastR   As Long       'Last row of the used range
+    Dim v       As Variant    'Block values from firstRow to lastR
+    Dim r       As Long       'Row in v, counted from the bottom
+    Dim c       As Long       'Column in v
+
+'------------------------------------------------------------------------------
+' SCAN
+'------------------------------------------------------------------------------
+        LastDataRowAny = firstRow - 1
+        lastR = UsedLastRow(ws)
+        If lastR < firstRow Then
+            Exit Function
+        End If
+        v = ws.Range(ws.Cells(firstRow, 1), ws.Cells(lastR, nCols)).Value
+        If Not IsArray(v) Then
+            If Not IsBlankCell(v) Then
+                LastDataRowAny = firstRow
+            End If
+            Exit Function
+        End If
+        For r = UBound(v, 1) To 1 Step -1
+            For c = 1 To UBound(v, 2)
+                If c <> ignoreCol Then
+                    If Not IsBlankCell(v(r, c)) Then
+                        LastDataRowAny = firstRow + r - 1
+                        Exit Function
+                    End If
+                End If
+            Next c
+        Next r
+
+End Function
+
+
+Public Function RowHasData( _
+    ByRef data As Variant, _
+    ByVal r As Long, _
+    ByVal nCols As Long, _
+    ByVal ignoreCol As Long) _
+    As Boolean
+'
+'==============================================================================
+'                                  RowHasData
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Tell whether a row of an input block holds any value.
+'
+' INPUTS
+'   data: a 2-D input block; r: the row in it; nCols: columns to check;
+'   ignoreCol: a column that does not count as data; 0 for none.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim c   As Long    'Column
+
+'------------------------------------------------------------------------------
+' CHECK
+'------------------------------------------------------------------------------
+        For c = 1 To nCols
+            If c <> ignoreCol Then
+                If Not IsBlankCell(data(r, c)) Then
+                    RowHasData = True
+                    Exit Function
+                End If
+            End If
+        Next c
+
+End Function
+
+
 Public Function FindHeaderRow( _
     ByVal ws As Worksheet, _
     ByVal colIdx As Long, _
@@ -811,7 +1015,7 @@ Public Function GetParam( _
 '   Read one parameter value.
 '
 ' INPUTS
-'   code: a PRM_ code from M_Config, for example "Alpha".
+'   code: a PRM_ code from CORE_Config, for example "Alpha".
 '
 ' RETURNS
 '   The value of the workbook name equal to code, if one exists; otherwise
@@ -856,6 +1060,104 @@ Public Function GetParam( _
         Else
             GetParam = Empty
         End If
+
+End Function
+
+
+Public Function TextHash( _
+    ByVal content As String) _
+    As String
+'
+'==============================================================================
+'                                   TextHash
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Reduce a text to an 8-digit hexadecimal fingerprint, to tell whether
+'   the inputs of a run have changed since (#36). Not a security hash: two
+'   different texts can share a fingerprint, but an edit is missed only
+'   about once in two billion.
+'
+' METHOD
+'   Polynomial hash over the UTF-16 bytes of the text, modulo the prime
+'   2^31 - 1, computed in Double, which holds every intermediate value
+'   exactly.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Const HASH_MODULUS As Double = 2147483647#    'Prime 2^31 - 1
+    Const HASH_BASE    As Double = 131#           'Multiplier per byte
+    Dim bytes()   As Byte      'UTF-16 bytes of the text
+    Dim h         As Double    'Running hash, 0 to HASH_MODULUS - 1
+    Dim i         As Long      'Byte being added
+
+'------------------------------------------------------------------------------
+' HASH
+'------------------------------------------------------------------------------
+        bytes = content
+        For i = 0 To UBound(bytes)
+            h = h * HASH_BASE + bytes(i)
+            h = h - Int(h / HASH_MODULUS) * HASH_MODULUS
+        Next i
+        TextHash = Right$("0000000" & Hex$(CLng(h)), 8)
+
+End Function
+
+
+Public Function BrokenName( _
+    ByVal code As String) _
+    As Boolean
+'
+'==============================================================================
+'                                  BrokenName
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Tell whether a workbook name exists but no longer refers to a range,
+'   for example after its cell was deleted (#REF!). GetParam would then
+'   fall back to the Params table without saying so (#35).
+'
+' INPUTS
+'   code: a PRM_ code from CORE_Config.
+'
+' RETURNS
+'   True when the name exists and does not refer to a range; False when it
+'   refers to a range or does not exist.
+'
+' ERROR POLICY
+'   Contains the two expected lookup errors: no such name, and a name that
+'   does not refer to a range.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim wbName   As Name     'The workbook name, Nothing when absent
+    Dim target   As Range    'The range it refers to, Nothing when broken
+
+'------------------------------------------------------------------------------
+' LOOK UP
+'------------------------------------------------------------------------------
+        On Error Resume Next
+        Set wbName = ThisWorkbook.Names(code)
+        Err.Clear
+        On Error GoTo 0
+        If wbName Is Nothing Then
+            Exit Function
+        End If
+        On Error Resume Next
+        Set target = wbName.RefersToRange
+        Err.Clear
+        On Error GoTo 0
+        BrokenName = (target Is Nothing)
 
 End Function
 

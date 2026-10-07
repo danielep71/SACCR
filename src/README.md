@@ -15,14 +15,15 @@ dependency rules are defined in
 
 Current source:
 
-- the prototype engine imported from `SACCR_Calculator.xlsm`: `core/M_Config`,
-  `core/M_Util`, `core/M_Engine`, the worksheet functions in
-  `modules/M_Formulas`, and `workbook/M_Main` with the 13 document modules;
+- the prototype engine imported from `SACCR_Calculator.xlsm`: `core/CORE_Config`,
+  `core/CORE_Util`, `core/CORE_Engine`, the worksheet functions in
+  `modules/SACCR_Formulas`, and `workbook/M_Main` with the 13 document modules;
 - `workbook/SACCR_Template.xlsx`: the prototype's 12 sheets with their
-  formulas, named ranges and buttons, and its VBA project removed.
+  formulas, named ranges and buttons, with its VBA project and document
+  properties removed.
 
-The imported engine does not yet follow every rule here: `M_Engine` and
-`M_Util` read and write worksheets from `src/core`, and `M_Main` is a standard
+The imported engine does not yet follow every rule here: `CORE_Engine` and
+`CORE_Util` read and write worksheets from `src/core`, and `M_Main` is a standard
 module kept with the workbook glue because the sheet buttons call it. See
 [known deviations](../docs/REPOSITORY_STRUCTURE.md#known-deviations).
 

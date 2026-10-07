@@ -22,7 +22,7 @@ pull request's whole range.
 | `check_vba_conditionals` | `#If`/`#ElseIf`/`#Else`/`#End If` are balanced and use only `VBA6`, `VBA7`, `Win32`, `Win64`; `Declare` in reachable 64-bit branches is `PtrSafe`; no `#Const` |
 | `check_test_cases` | Every fixture and expected file under `tests/` follows `docs/methodology/TEST_CASES.md`: envelope, declared fields with their types and units, quantity names and forms, trade references, tolerances, reference classes with their required fields and registered sources, the `illustrative-` naming rule and unique catalogue IDs. It does not run any case |
 | `check_vba_public_api` | Every `Public` declaration in `src/modules/` is listed, with its exact signature, in `docs/PUBLIC_API.txt`, and nothing else is; no implicit public procedures; one identifier per public `Const` or variable; no name collisions |
-| `generated-case-tests` | `tests/modules/TestCases.bas` is exactly what `tools/generate_case_tests.py` generates from the current fixtures and expected files |
+| `generated-case-tests` | `tests/modules/TEST_Cases.bas` is exactly what `tools/generate_case_tests.py` generates from the current fixtures and expected files |
 | `*-fixtures` | Each VBA checker and the whitespace gate run their own positive and negative self-tests first |
 
 `check_excel_evidence.py` is not a gate: it validates a manual Excel evidence
@@ -40,7 +40,9 @@ the workbook works in Excel.
 local `.xlsm` development workbook without intentionally changing worksheets,
 cells, formulas, names, tables or formatting.
 
-From the repository root:
+For normal use on Windows, double-click `tools/Sync-SACCR-VBA.cmd`. The launcher asks for the full path of the local `.xlsm`, runs the PowerShell synchronizer, shows the result and pauses before closing. You can also drag an `.xlsm` file onto the `.cmd` file to avoid typing its path.
+
+PowerShell remains available for direct use from the repository root:
 
 ```powershell
 .\tools\Sync-SACCR-VBA.ps1 -WorkbookPath "C:\path\to\SACCR.xlsm"
@@ -165,3 +167,21 @@ actionlint, update the version and its hash or checksum in
 request.
 Whether GitHub blocks merging on this check depends on the repository's
 branch rulesets.
+
+
+## Wiki publication
+
+All GitHub Wiki pages are source-controlled under `docs/wiki/`. The published
+Wiki is a derived artifact; do not maintain an independent copy through the
+GitHub Wiki editor.
+
+Run `python tools/check_wiki.py --root .` to validate the page catalogue,
+authority notices and generated sidebar. The normal `python tools/check.py`
+gate runs the same check and its offline tests.
+
+On Windows, double-click `tools/Publish-SACCR-Wiki.cmd`. It derives the Wiki
+remote from this repository's `origin`, uses a sibling local Wiki checkout,
+publishes the complete reviewed page set, writes `Wiki-Source.json`, pushes
+only when content changed and performs a fresh-clone read-back verification.
+
+See [`docs/WIKI_PUBLICATION.md`](../docs/WIKI_PUBLICATION.md).

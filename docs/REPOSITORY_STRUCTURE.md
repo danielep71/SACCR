@@ -55,7 +55,7 @@ tools/      static checks and evidence tooling; later, build tooling
 | `src/` | Production components that go into the workbook, and the workbook template | Tests, examples, built workbooks |
 | `tests/` | Test modules, synthetic fixtures, reviewed expected values | Production entry points, run output |
 | `examples/` | Examples that use only the public API | Tests, real data |
-| `docs/` | Contracts, architecture, [methodology](methodology/README.md) | Copies of root documents |
+| `docs/` | Contracts, architecture, [methodology](methodology/README.md), and versioned Wiki sources under `docs/wiki/` | Copies of root documents or independently maintained Wiki-only policy |
 | `tools/` | Deterministic checks, build and evidence scripts | Calculation logic |
 
 Each directory explains itself in a `README.md` until real material arrives.
@@ -70,6 +70,15 @@ Subdirectories are created with their first real file, never empty.
 | `src/classes/` | Class modules, e.g. trade or netting-set objects, state managers | Status stated in each class header |
 | `src/workbook/` | Exported document modules: `ThisWorkbook` and sheet modules | Host glue only; no calculation logic |
 | `src/forms/` | UserForms, `.frm` beside its `.frx`, only if a form is ever needed | — |
+
+### Wiki sources
+
+`docs/wiki/` is the reviewed source for every maintained GitHub Wiki page.
+`catalogue.json` defines page order and the authoritative repository document
+behind each guide page; `_Sidebar.md` is generated from that catalogue. The
+published Wiki is a derived artifact and is verified against its recorded source
+commit. Publication and recovery rules are in
+[`WIKI_PUBLICATION.md`](WIKI_PUBLICATION.md).
 
 ### Verification and examples
 
@@ -115,7 +124,7 @@ A VBA `Public` declaration is not automatically supported API.
 - **Never supported:** test and example modules. They are not part of the
   workbook.
 
-The manifest lists the ten `SACCR_*` worksheet functions in `M_Formulas`.
+The manifest lists the ten `SACCR_*` worksheet functions in `SACCR_Formulas`.
 
 <a id="known-deviations"></a>
 
@@ -126,9 +135,9 @@ its original structure until it is refactored:
 
 | Rule | Deviation |
 | --- | --- |
-| `src/core` never touches Excel | `M_Engine` and `M_Util` read the input sheets and write the output sheets |
+| `src/core` never touches Excel | `CORE_Engine` and `CORE_Util` read the input sheets and write the output sheets |
 | `src/workbook` holds document modules | `M_Main`, a standard module, holds the sheet-button macros `RunSACCR`, `ValidateInputs` and `ClearOutputs` |
-| Naming rules in `VBA_HOUSE_STYLE.md` | `M_` prefixes instead of `Core`, `Saccr` and the other role prefixes |
+| Naming rules in `VBA_HOUSE_STYLE.md` | `M_Main` keeps the prototype's `M_` prefix; it has no role prefix of its own until it moves out of the standard modules |
 
 Each deviation is removed by a reviewed change, not by reformatting.
 
@@ -144,11 +153,13 @@ Each deviation is removed by a reviewed change, not by reformatting.
 5. Workbooks are built from source and never committed, except at an exact
    path explicitly re-included in `.gitignore`. The one such path is
    `src/workbook/SACCR_Template.xlsx`, the macro-free template that holds the
-   sheets, formulas, named ranges and buttons; it contains no VBA.
+   sheets, formulas, named ranges and buttons; it contains no VBA project and
+   no document properties (`docProps/`).
 6. A new location becomes contractual only when this document, the directory
    README, `INSTALLATION.md` and the checks are updated together.
 
-Rules 1 and 2 are enforced by `tools/check_source.py`; the others by review.
+Rules 1 and 2, and the content of a committed workbook under rule 5, are
+enforced by `tools/check_source.py`; the others by review.
 
 ## 📚 Directory guides
 

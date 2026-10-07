@@ -1,0 +1,20 @@
+# Workbook Guide
+
+> **Guide, not policy:** [Installation](../../INSTALLATION.md) owns the supported local setup, import and execution procedure.
+
+SA-CCR Benchmark follows a **source-first** model:
+
+- exported VBA under `src/` is the reviewable source of truth;
+- the local macro-enabled workbook is a development/execution artifact;
+- fixtures and expected values live under `tests/`; and
+- generated or local execution artifacts are not authoritative source.
+
+For normal Windows development, `tools/Sync-SACCR-VBA.cmd` updates the VBA
+project in the local workbook from repository source while preserving workbook
+sheet objects and their contents. It retains a safety backup only when
+synchronization fails.
+
+A source change should pass the repository static checks and, when it affects
+executable VBA or numerical behaviour, be exercised in desktop Excel. See
+[Excel Evidence](../EXCEL_EVIDENCE.md) and
+[Repository Structure](../REPOSITORY_STRUCTURE.md).

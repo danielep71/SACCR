@@ -1,30 +1,33 @@
-Attribute VB_Name = "CaseRunner"
+Attribute VB_Name = "TEST_CaseRunner"
 '==============================================================================
-' MODULE: CaseRunner
+' MODULE: TEST_CaseRunner
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Run the numerical test cases of tests/fixtures and tests/expected
-'   against the engine. The generated module TestCases calls these
+'   against the engine. The generated module TEST_Cases calls these
 '   procedures: for each case it writes the fixture into the input sheets,
 '   runs the engine, and compares the output cells with the expected values
 '   (methodology decision 7, #44).
 '
 ' PUBLIC SURFACE
-'   BeginSuite, BeginCase, AddNettingSet, AddTrade, RunCase, ExpectNumber,
-'   ExpectText and EndSuite, for TestCases only. Option Private Module keeps
-'   them out of the external workbook automation API.
+'   BeginSuite, BeginCase, LoadSavedInputs, AddNettingSet, AddTrade,
+'   SetInputCell, PatchCell, PatchName, RunCase, RunCaseExpectingStop,
+'   OutputNumber, ExpectNumber, ExpectText, ExpectTrue and EndSuite, for
+'   TEST_Cases, TEST_InputValidation and TEST_Aggregation. Option Private
+'   Module keeps them out of the external workbook automation API.
 '
 ' DEPENDENCIES
-'   M_Engine.Calculate; M_Util for sheet access; M_Config for the layout.
+'   CORE_Engine.Calculate; CORE_Util for sheet access; CORE_Config for the layout.
 '   The workbook must be built from the template, because the engine reads
 '   its input sheets and Params.
 '
 ' WORKSHEET SAFETY
-'   Unlike TestHarness, this module writes the NettingSets and Trades input
+'   Unlike TEST_Harness, this module writes the NettingSets and Trades input
 '   rows, the AsOfDate and ReportingCcy parameters, and every output sheet.
 '   BeginSuite saves the inputs and parameters and EndSuite writes them
-'   back and recalculates, so the workbook ends as it started. Use a
-'   development workbook.
+'   back and recalculates, so the workbook ends as it started. A cell or
+'   workbook name changed with PatchCell or PatchName is restored at the
+'   start of the next case and by EndSuite. Use a development workbook.
 '
 ' STATE OWNERSHIP
 '   Owns the counters and saved inputs below. BeginSuite captures and
@@ -41,7 +44,7 @@ Attribute VB_Name = "CaseRunner"
 '   reported separately and are never evidence of correctness.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '
 ' AUTHOR
 '   Daniele Penza
@@ -67,8 +70,8 @@ Attribute VB_Name = "CaseRunner"
 '------------------------------------------------------------------------------
     'Suite progress.
         Private mSuiteActive     As Boolean    'Between BeginSuite and EndSuite
-        Private mExpectedCases   As Long       'Cases TestCases will run
-        Private mExpectedChecks  As Long       'Checks TestCases will run
+        Private mExpectedCases   As Long       'Cases TEST_Cases will run
+        Private mExpectedChecks  As Long       'Checks TEST_Cases will run
         Private mCaseCount       As Long       'Cases started
         Private mCheckCount      As Long       'Checks evaluated
         Private mFailureCount    As Long       'Failed checks, runs and restorations
@@ -95,6 +98,12 @@ Attribute VB_Name = "CaseRunner"
         Private mCcyCell            As Range            'Cell holding ReportingCcy
         Private mSavedCcy           As Variant          'Its formula
 
+    'What PatchCell and PatchName changed, in order, for RestorePatches.
+        Private mPatchCount         As Long             'Changes recorded
+        Private mPatchSheet()       As String           'Sheet of a cell; "" for a workbook name
+        Private mPatchTarget()      As String           'Cell address, or the workbook name
+        Private mPatchSaved()       As Variant          'Its formula, or what the name referred to
+
 
 '
 '------------------------------------------------------------------------------
@@ -115,9 +124,9 @@ Public Sub BeginSuite( _
 '   Save everything the cases will overwrite, then prepare Excel.
 '
 ' INPUTS
-'   expectedCases, expectedChecks: numbers of cases and checks TestCases
+'   expectedCases, expectedChecks: numbers of cases and checks TEST_Cases
 '   will run; a different count fails the suite, so a stale or edited
-'   TestCases module cannot pass with checks missing.
+'   TEST_Cases module cannot pass with checks missing.
 '
 ' ERROR POLICY
 '   Raises if a suite is already active or the inputs cannot be saved;
@@ -132,13 +141,14 @@ Public Sub BeginSuite( _
 ' GUARD AND RESET
 '------------------------------------------------------------------------------
         If mSuiteActive Then
-            Err.Raise ERR_RUN_ACTIVE, "CaseRunner.BeginSuite", "A case suite is already running."
+            Err.Raise ERR_RUN_ACTIVE, "TEST_CaseRunner.BeginSuite", "A case suite is already running."
         End If
         mExpectedCases = expectedCases
         mExpectedChecks = expectedChecks
         mCaseCount = 0
         mCheckCount = 0
         mFailureCount = 0
+        mPatchCount = 0
         Erase mPassed
         Erase mFailed
 
@@ -179,7 +189,7 @@ Public Sub EndSuite( _
 '   the summary and the RESULT line.
 '
 ' INPUTS
-'   abortReason: why TestCases stopped early; empty after a complete run.
+'   abortReason: why TEST_Cases stopped early; empty after a complete run.
 '
 ' ERROR POLICY
 '   Each restoration step contains its own error; a failed one is printed
@@ -252,8 +262,8 @@ Public Sub BeginCase( _
 '                                  BeginCase
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Start a case: empty the input rows and set the reporting date and
-'   currency of the fixture.
+'   Start a case: undo the previous case's patches, empty the input rows
+'   and set the reporting date and currency of the fixture.
 '
 ' INPUTS
 '   caseId: the fixture ID.
@@ -269,6 +279,7 @@ Public Sub BeginCase( _
 '------------------------------------------------------------------------------
 ' RESET INPUTS
 '------------------------------------------------------------------------------
+        RestorePatches
         mCaseCount = mCaseCount + 1
         mCase = caseId & "." & LCase$(regimeCode)
         mRegime = regimeCode
@@ -280,6 +291,29 @@ Public Sub BeginCase( _
         mAsOfCell.Value = IsoDate(valuationDate)
         mCcyCell.Value = calculationCurrency
         Debug.Print "CASE=" & mCase
+
+End Sub
+
+
+Public Sub LoadSavedInputs()
+'
+'==============================================================================
+'                               LoadSavedInputs
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Put the workbook's own inputs, saved by BeginSuite, back on the input
+'   sheets for the current case: its NettingSets and Trades rows and its
+'   AsOfDate and ReportingCcy. Used by TEST_Aggregation to run the demo
+'   portfolio in different row orders.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        RestoreBlock GetSheet(SH_NS), NS_NCOLS, mSavedNsAddress, mSavedNs
+        RestoreBlock GetSheet(SH_TRADES), TR_NCOLS, mSavedTrAddress, mSavedTr
+        mAsOfCell.Formula = mSavedAsOf
+        mCcyCell.Formula = mSavedCcy
 
 End Sub
 
@@ -418,6 +452,99 @@ Public Sub AddTrade( _
 End Sub
 
 
+Public Sub SetInputCell( _
+    ByVal sheetName As String, _
+    ByVal dataRow As Long, _
+    ByVal col As Long, _
+    ByVal newValue As Variant)
+'
+'==============================================================================
+'                                 SetInputCell
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Overwrite one input cell after AddNettingSet or AddTrade, for invalid
+'   inputs that a JSON fixture cannot express: a blank ID, a duplicate ID,
+'   a typo in a flag. Used by TEST_InputValidation.
+'
+' INPUTS
+'   sheetName: SH_NS or SH_TRADES.
+'   dataRow: 1 for the first data row.
+'   col: column number, for example TR_ID.
+'   newValue: the value to write; Empty clears the cell.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        GetSheet(sheetName).Cells(FIRST_DATA_ROW + dataRow - 1, col).Value = newValue
+
+End Sub
+
+
+Public Sub PatchCell( _
+    ByVal sheetName As String, _
+    ByVal rowNum As Long, _
+    ByVal col As Long, _
+    ByVal newValue As Variant)
+'
+'==============================================================================
+'                                  PatchCell
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Overwrite any cell outside the input rows, such as a header or a row of
+'   a Params table, for one case. The cell is restored at the start of the
+'   next case and by EndSuite. Used by TEST_InputValidation.
+'
+' INPUTS
+'   sheetName: a SH_ constant.
+'   rowNum, col: the cell's sheet row and column.
+'   newValue: the value to write; Empty clears the cell.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim target   As Range    'The cell
+
+'------------------------------------------------------------------------------
+' RECORD AND WRITE
+'------------------------------------------------------------------------------
+        Set target = GetSheet(sheetName).Cells(rowNum, col)
+        RecordPatch sheetName, target.Address, target.Formula
+        target.Value = newValue
+
+End Sub
+
+
+Public Sub PatchName( _
+    ByVal nameText As String, _
+    ByVal newRefersTo As String)
+'
+'==============================================================================
+'                                  PatchName
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Change what a workbook name refers to, for one case, for example to
+'   "=#REF!". Restored like PatchCell.
+'
+' INPUTS
+'   nameText: an existing workbook name, such as a PRM_ code.
+'   newRefersTo: the new reference, as a formula.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        RecordPatch "", nameText, ThisWorkbook.Names(nameText).RefersTo
+        ThisWorkbook.Names(nameText).RefersTo = newRefersTo
+
+End Sub
+
+
 Public Sub RunCase()
 '
 '==============================================================================
@@ -439,7 +566,7 @@ Public Sub RunCase()
 ' RUN
 '------------------------------------------------------------------------------
         On Error GoTo Failed
-        If Not M_Engine.Calculate(True) Then
+        If Not CORE_Engine.Calculate(True) Then
             mFailureCount = mFailureCount + 1
             Debug.Print "FAILURE=" & mCase & ": engine run stopped; see the Checks sheet"
         End If
@@ -451,6 +578,59 @@ Public Sub RunCase()
 Failed:
         mFailureCount = mFailureCount + 1
         Debug.Print "FAILURE=" & mCase & ": engine error " & Err.Number & ": " & Err.Description
+
+End Sub
+
+
+Public Sub RunCaseExpectingStop( _
+    ByVal label As String, _
+    ByVal messagePart As String, _
+    ByVal referenceClass As String)
+'
+'==============================================================================
+'                             RunCaseExpectingStop
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Run the engine on inputs it must refuse, and check as one result that
+'   the run stopped and that the Checks sheet has an ERROR line naming the
+'   reason.
+'
+' INPUTS
+'   label: the check's name in the report.
+'   messagePart: text the ERROR message must contain, ignoring case.
+'   referenceClass: published, independent or illustrative.
+'
+' ERROR POLICY
+'   A run that raises fails the check.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim completed   As Boolean    'Calculate returned True
+
+'------------------------------------------------------------------------------
+' RUN AND CHECK
+'------------------------------------------------------------------------------
+        On Error GoTo Failed
+        completed = CORE_Engine.Calculate(True)
+        If completed Then
+            Record label, referenceClass, False, "run completed; expected it to stop"
+        Else
+            Record label, referenceClass, ChecksHasError(messagePart), _
+                   "run stopped, but no ERROR on Checks contains """ & messagePart & """"
+        End If
+        Exit Sub
+
+'------------------------------------------------------------------------------
+' HANDLE ERROR
+'------------------------------------------------------------------------------
+Failed:
+        Record label, referenceClass, False, "engine error " & Err.Number & ": " & Err.Description
 
 End Sub
 
@@ -521,6 +701,88 @@ Public Sub ExpectNumber( _
                    quantity & " expected " & expected & ", actual " & Trim$(Str$(CDbl(actual))) & _
                    ", tolerance " & Trim$(Str$(bound))
         End If
+
+End Sub
+
+
+Public Function OutputNumber( _
+    ByVal nettingSetId As String, _
+    ByVal quantity As String) _
+    As Double
+'
+'==============================================================================
+'                                 OutputNumber
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read a netting-set quantity from Results for any netting set of the
+'   case, for checks that compare outputs with each other rather than with
+'   a fixed expected value.
+'
+' INPUTS
+'   nettingSetId: the netting set's row on Results.
+'   quantity: a netting-set quantity name, as for ExpectNumber.
+'
+' ERROR POLICY
+'   Raises ERR_TEST_SETUP when the row, the column or a number is missing;
+'   the calling suite then fails.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws    As Worksheet    'Results sheet
+    Dim col   As Long         'Output column; 0 when unknown
+    Dim r     As Long         'Output row; 0 when not found
+    Dim v     As Variant      'Cell value
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        Set ws = GetSheet(SH_RESULTS)
+        col = OutputColumn(quantity, False)
+        r = FindHeaderRow(ws, 1, nettingSetId)
+        If col = 0 Or r < FIRST_DATA_ROW Then
+            Err.Raise ERR_TEST_SETUP, "TEST_CaseRunner.OutputNumber", _
+                      quantity & " of " & nettingSetId & " not found on Results."
+        End If
+        v = ws.Cells(r, col).Value
+        If Not IsNum(v) Then
+            Err.Raise ERR_TEST_SETUP, "TEST_CaseRunner.OutputNumber", _
+                      quantity & " of " & nettingSetId & " is not a number (" & SafeStr(v) & ")."
+        End If
+        OutputNumber = CDbl(v)
+
+End Function
+
+
+Public Sub ExpectTrue( _
+    ByVal label As String, _
+    ByVal passed As Boolean, _
+    ByVal detail As String, _
+    ByVal referenceClass As String)
+'
+'==============================================================================
+'                                  ExpectTrue
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Record a check that the caller has evaluated itself, such as a relation
+'   between two outputs.
+'
+' INPUTS
+'   label: the check's name in the report.
+'   passed: the result.
+'   detail: printed when the check fails.
+'   referenceClass: published, independent or illustrative.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        Record label, referenceClass, passed, detail
 
 End Sub
 
@@ -778,6 +1040,115 @@ Private Sub Record( _
 End Sub
 
 
+Private Function ChecksHasError( _
+    ByVal messagePart As String) _
+    As Boolean
+'
+'==============================================================================
+'                                ChecksHasError
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Tell whether the Checks sheet has an ERROR line whose message contains
+'   messagePart, ignoring case.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws      As Worksheet    'Checks sheet
+    Dim lastR   As Long         'Last used row
+    Dim r       As Long         'Row being read
+
+'------------------------------------------------------------------------------
+' SEARCH
+'------------------------------------------------------------------------------
+    'Checks columns: 1 severity, 5 message.
+        Set ws = GetSheet(SH_CHECKS)
+        lastR = UsedLastRow(ws)
+        For r = FIRST_DATA_ROW To lastR
+            If SafeStr(ws.Cells(r, 1).Value) = SEV_ERROR Then
+                If InStr(1, SafeStr(ws.Cells(r, 5).Value), messagePart, vbTextCompare) > 0 Then
+                    ChecksHasError = True
+                    Exit Function
+                End If
+            End If
+        Next r
+
+End Function
+
+
+Private Sub RecordPatch( _
+    ByVal sheetName As String, _
+    ByVal target As String, _
+    ByVal saved As Variant)
+'
+'==============================================================================
+'                                 RecordPatch
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Remember a cell's formula or a workbook name's reference before
+'   PatchCell or PatchName changes it.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        mPatchCount = mPatchCount + 1
+        ReDim Preserve mPatchSheet(1 To mPatchCount)
+        ReDim Preserve mPatchTarget(1 To mPatchCount)
+        ReDim Preserve mPatchSaved(1 To mPatchCount)
+        mPatchSheet(mPatchCount) = sheetName
+        mPatchTarget(mPatchCount) = target
+        mPatchSaved(mPatchCount) = saved
+
+End Sub
+
+
+Private Sub RestorePatches()
+'
+'==============================================================================
+'                                RestorePatches
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Undo every recorded patch, newest first, so a cell patched twice gets
+'   its original value back.
+'
+' ERROR POLICY
+'   An error propagates: to the suite's handler from BeginCase, or to
+'   RestoreStep from EndSuite. The patches are forgotten first, so a failed
+'   restoration is reported once.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim i         As Long    'Patch being undone
+    Dim nPatches  As Long    'Patches recorded
+
+'------------------------------------------------------------------------------
+' RESTORE
+'------------------------------------------------------------------------------
+        nPatches = mPatchCount
+        mPatchCount = 0
+        For i = nPatches To 1 Step -1
+            If Len(mPatchSheet(i)) = 0 Then
+                ThisWorkbook.Names(mPatchTarget(i)).RefersTo = mPatchSaved(i)
+            Else
+                GetSheet(mPatchSheet(i)).Range(mPatchTarget(i)).Formula = mPatchSaved(i)
+            End If
+        Next i
+
+End Sub
+
+
 Private Function RestoreStep( _
     ByVal stepName As String, _
     ByVal stepNumber As Long) _
@@ -791,9 +1162,9 @@ Private Function RestoreStep( _
 '
 ' INPUTS
 '   stepName: name for the report.
-'   stepNumber: 1 inputs, 2 parameters, 3 outputs, 4 calculation mode,
-'   5 events, 6 screen updating. Each setting is its own step, so one
-'   failed restoration cannot leave the others changed.
+'   stepNumber: 1 inputs and patches, 2 parameters, 3 outputs,
+'   4 calculation mode, 5 events, 6 screen updating. Each setting is its
+'   own step, so one failed restoration cannot leave the others changed.
 '
 ' RETURNS
 '   True when the step succeeded.
@@ -809,13 +1180,14 @@ Private Function RestoreStep( _
         On Error GoTo Failed
         Select Case stepNumber
             Case 1
+                RestorePatches
                 RestoreBlock GetSheet(SH_NS), NS_NCOLS, mSavedNsAddress, mSavedNs
                 RestoreBlock GetSheet(SH_TRADES), TR_NCOLS, mSavedTrAddress, mSavedTr
             Case 2
                 mAsOfCell.Formula = mSavedAsOf
                 mCcyCell.Formula = mSavedCcy
             Case 3
-                M_Engine.Calculate True
+                CORE_Engine.Calculate True
             Case 4
                 Application.Calculation = mSavedCalculation
             Case 5
@@ -968,7 +1340,7 @@ Private Function ParamCell( _
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Return the cell the engine reads a parameter from, the same way as
-'   M_Util.GetParam: the workbook name first, then the Params table.
+'   CORE_Util.GetParam: the workbook name first, then the Params table.
 '
 ' ERROR POLICY
 '   Raises when the parameter is in neither place.
@@ -997,7 +1369,7 @@ Private Function ParamCell( _
         End If
         paramRow = FindHeaderRow(GetSheet(SH_PARAMS), PRM_CODE_COL, code)
         If paramRow = 0 Then
-            Err.Raise ERR_TEST_SETUP, "CaseRunner.ParamCell", "Parameter " & code & " not found."
+            Err.Raise ERR_TEST_SETUP, "TEST_CaseRunner.ParamCell", "Parameter " & code & " not found."
         End If
         Set ParamCell = GetSheet(SH_PARAMS).Cells(paramRow, PRM_VALUE_COL)
 

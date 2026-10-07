@@ -35,7 +35,7 @@ the logs it cites. The record binds:
 | Policy | `.github/excel-evidence-policy.json` **at that commit**: repository, entry point, ordered cases, assertion count, expected-error cases and required references |
 | Environment | Excel version and build, Office bitness, Windows version and architecture, VBA runtime, references, macro policy and VBA-project access as found, and `trust_changes: false` |
 | Logs | Each cited log's SHA-256; a log changed after the record was written fails |
-| Harness | For a passing regression: exactly one normal-mode `TestHarness.RunTests` report whose `ENVIRONMENT`, `CASE`, count, `CLEANUP` and `RESULT` lines agree with the record and the policy |
+| Harness | For a passing regression: exactly one normal-mode `TEST_Harness.RunTests` report whose `ENVIRONMENT`, `CASE`, count, `CLEANUP` and `RESULT` lines agree with the record and the policy |
 
 Source digests are of the bytes **stored in Git (LF)**, not of the CRLF files
 in a Windows checkout, so do not compute them with `Get-FileHash`. Print them
@@ -46,7 +46,7 @@ python tools/check_excel_evidence.py --candidate-sha FULL_SHA --inventory
 ```
 
 The policy changes together with the harness: adding a case or an assertion to
-`tests/modules/TestHarness.bas` updates `.github/excel-evidence-policy.json` in
+`tests/modules/TEST_Harness.bas` updates `.github/excel-evidence-policy.json` in
 the same pull request.
 
 <a id="manual-procedure"></a>
@@ -84,7 +84,7 @@ clone, to print the inventory and validate the bundle.
    then **Debug → Compile VBAProject**. Write in `session.log` the files imported, the references
    listed in **Tools → References** and the compile result.
 5. **Run the harness once.** Clear the Immediate window (**Ctrl+G**, then
-   **Ctrl+A**, **Delete**), run `TestHarness.RunTests`, and copy the whole
+   **Ctrl+A**, **Delete**), run `TEST_Harness.RunTests`, and copy the whole
    Immediate-window output into `harness.log`, saved as UTF-8. Keep a failing
    report as it is: never replace it with a later passing one. Do not put a
    `RunTestsWithInjectedFailure` run in this log.
@@ -116,7 +116,7 @@ Replace every value with what was observed. This shape is not evidence.
 ```json
 {
   "schema_version": 1,
-  "repository": "danielep71/SACCR",
+  "repository": "danielep71/VBA-SACCR-Toolkit",
   "candidate_sha": "FULL_40_CHARACTER_SHA",
   "execution": "manual",
   "availability_reason": null,
@@ -144,11 +144,11 @@ Replace every value with what was observed. This shape is not evidence.
   "stages": {
     "import": {"status": "PASS", "detail": "Imported the inventory into the template saved as .xlsm", "log": {"path": "session.log", "sha256": "SESSION_LOG_DIGEST"}},
     "compile": {"status": "PASS", "detail": "Debug > Compile VBAProject completed with no error", "log": {"path": "session.log", "sha256": "SESSION_LOG_DIGEST"}},
-    "regression": {"status": "PASS", "detail": "TestHarness.RunTests, complete report", "log": {"path": "harness.log", "sha256": "HARNESS_LOG_DIGEST"}},
+    "regression": {"status": "PASS", "detail": "TEST_Harness.RunTests, complete report", "log": {"path": "harness.log", "sha256": "HARNESS_LOG_DIGEST"}},
     "cleanup": {"status": "PASS", "detail": "Harness cleanup PASS; test workbook closed", "log": {"path": "session.log", "sha256": "SESSION_LOG_DIGEST"}}
   },
   "harness": {
-    "entry_point": "TestHarness.RunTests",
+    "entry_point": "TEST_Harness.RunTests",
     "cases": 4,
     "assertions": 6,
     "failures": 0,
