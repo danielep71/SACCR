@@ -153,11 +153,13 @@ Each deviation is removed by a reviewed change, not by reformatting.
 5. Workbooks are built from source and never committed, except at an exact
    path explicitly re-included in `.gitignore`. The one such path is
    `src/workbook/SACCR_Template.xlsx`, the macro-free template that holds the
-   sheets, formulas, named ranges and buttons; it contains no VBA.
+   sheets, formulas, named ranges and buttons; it contains no VBA project and
+   no document properties (`docProps/`).
 6. A new location becomes contractual only when this document, the directory
    README, `INSTALLATION.md` and the checks are updated together.
 
-Rules 1 and 2 are enforced by `tools/check_source.py`; the others by review.
+Rules 1 and 2, and the content of a committed workbook under rule 5, are
+enforced by `tools/check_source.py`; the others by review.
 
 ## 📚 Directory guides
 

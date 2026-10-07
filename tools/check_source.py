@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import sys
+import zipfile
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -23,6 +24,10 @@ FRX_REFERENCE = re.compile(r'"([^"\r\n]+\.frx)":([0-9A-Fa-f]+)')
 SEMVER = r"(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)"
 VERSION_HEADING = re.compile(r"^## \[([^\]]+)\](.*)$", re.M)
 RELEASE_SUFFIX = re.compile(r" - (\d{4}-\d{2}-\d{2})")
+# Committed workbooks (only the template, see docs/REPOSITORY_STRUCTURE.md) carry
+# no VBA project and no document properties: author, title, timestamps (#58).
+WORKBOOK_SUFFIXES = {".xlsx", ".xlsm", ".xlsb", ".xltx", ".xltm"}
+FORBIDDEN_PART = re.compile(r"(^|/)vbaProject\.bin$|^docProps/", re.I)
 
 
 def index_eol(root: Path) -> dict[str, tuple[str, str]]:
@@ -83,6 +88,21 @@ def check_component(root: Path, path: str, tracked: set[str], names: dict[str, s
                 findings.append(f"{path}: missing or unsafe form resource {filename}")
             elif (root / companion).stat().st_size <= int(offset, 16):
                 findings.append(f"{path}: resource offset is outside {filename}")
+    return findings
+
+
+def check_workbook(root: Path, path: str) -> list[str]:
+    """A committed workbook must be a valid package without VBA or document properties."""
+    try:
+        with zipfile.ZipFile(root / path) as package:
+            parts = package.namelist()
+            text = "".join(package.read(name).decode("utf-8", errors="replace")
+                           for name in ("[Content_Types].xml", "_rels/.rels") if name in parts)
+    except (OSError, zipfile.BadZipFile) as error:
+        return [f"{path}: not a readable workbook package ({error})"]
+    findings = [f"{path}: must not contain {part}" for part in parts if FORBIDDEN_PART.search(part)]
+    if "docProps/" in text or "vbaProject" in text:
+        findings.append(f"{path}: package still references document properties or a VBA project")
     return findings
 
 
@@ -157,6 +177,8 @@ def run_check(root: Path) -> dict[str, Any]:
                     if Path(p).suffix.lower() in VBA_SUFFIXES | {".frx"} and not p.startswith(VBA_HOMES))
     for path in components:
         findings.extend(check_component(root, path, tracked, names))
+    for path in sorted(p for p in tracked if Path(p).suffix.lower() in WORKBOOK_SUFFIXES):
+        findings.extend(check_workbook(root, path))
     findings.extend(check_changelog(root))
     findings.extend(check_version(root))
     return {"schema_version": 1, "status": "fail" if findings else "pass",

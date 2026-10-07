@@ -19,7 +19,8 @@ Current source:
   `core/M_Util`, `core/M_Engine`, the worksheet functions in
   `modules/M_Formulas`, and `workbook/M_Main` with the 13 document modules;
 - `workbook/SACCR_Template.xlsx`: the prototype's 12 sheets with their
-  formulas, named ranges and buttons, and its VBA project removed.
+  formulas, named ranges and buttons, with its VBA project and document
+  properties removed.
 
 The imported engine does not yet follow every rule here: `M_Engine` and
 `M_Util` read and write worksheets from `src/core`, and `M_Main` is a standard
