@@ -1,5 +1,7 @@
 # SA-CCR Overview
 
+> **Guide, not policy:** [Methodology](../methodology/README.md) owns the implemented regulatory basis, source versions and rule-to-test traceability.
+
 ## What SA-CCR is
 
 The **Standardized Approach for Counterparty Credit Risk (SA-CCR)** is the Basel
@@ -40,9 +42,9 @@ calculation.**
 
 For a netting set, the standard SA-CCR structure is:
 
-[
+$
 EAD = \alpha \times (RC + PFE)
-]
+$
 
 where:
 
@@ -75,9 +77,9 @@ before the transactions mature or can be closed out.
 
 At a high level:
 
-[
+$
 PFE = multiplier \times AddOn_{aggregate}
-]
+$
 
 The aggregate add-on is built from trade-level regulatory measures and
 supervisory parameters. The calculation reflects factors such as:
@@ -188,7 +190,7 @@ transactions, CVA capital and full RWA calculation remain outside the first
 release unless explicitly brought into scope and validated.
 
 The detailed and authoritative project scope is maintained in
-[Methodology](methodology/README.md).
+[Methodology](../methodology/README.md).
 
 ## Regulatory references
 
@@ -201,7 +203,7 @@ The detailed and authoritative project scope is maintained in
 - **Regulation (EU) No 575/2013 (CRR), as amended** — Part Three, Title II,
   Chapter 6, Section 3, Articles 274–280f. The exact consolidated version used by
   the calculator is maintained in the project's
-  [regulatory source register](methodology/README.md#source-register).
+  [regulatory source register](../methodology/README.md#source-register).
 - **European Banking Authority — Single Rulebook Q&A**  
   Individual Q&As are used as interpretative evidence where relevant, but are
   not treated as substitutes for the Level 1 legal text or as general numerical
@@ -211,4 +213,4 @@ The detailed and authoritative project scope is maintained in
 
 > **Important:** this page is explanatory. For implementation decisions,
 > supported products, parameter versions and rule-to-test traceability, use the
-> project's [Methodology](methodology/README.md) and its source register.
+> project's [Methodology](../methodology/README.md) and its source register.
