@@ -1,6 +1,6 @@
-Attribute VB_Name = "M_Util"
+Attribute VB_Name = "CORE_Util"
 '==============================================================================
-' MODULE: M_Util
+' MODULE: CORE_Util
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Provide the small helpers the engine uses everywhere: tolerant conversion
@@ -10,11 +10,11 @@ Attribute VB_Name = "M_Util"
 '
 ' PUBLIC SURFACE
 '   None outside this VBA project. Every procedure is Public for in-project use
-'   by M_Engine and M_Main; Option Private Module keeps them off the supported
+'   by CORE_Engine and M_Main; Option Private Module keeps them off the supported
 '   external surface.
 '
 ' DEPENDENCIES
-'   M_Config for sheet names, layout constants and asset-class numbers. Keyed
+'   CORE_Config for sheet names, layout constants and asset-class numbers. Keyed
 '   lookups use a VBA Collection, so no Scripting.Dictionary reference is
 '   needed and the code also runs on Excel for Mac.
 '
@@ -593,7 +593,7 @@ Public Function ACIndex( _
 '   code: IR, FX, CR, EQ, CO or OT, in any case.
 '
 ' RETURNS
-'   The matching AC_ constant from M_Config; 0 for an unknown code.
+'   The matching AC_ constant from CORE_Config; 0 for an unknown code.
 '
 ' UPDATED
 '   2026-10-06
@@ -634,7 +634,7 @@ Public Function ACCode( _
 '   Translate an internal asset-class number back into its code.
 '
 ' INPUTS
-'   idx: an AC_ constant from M_Config.
+'   idx: an AC_ constant from CORE_Config.
 '
 ' RETURNS
 '   IR, FX, CR, EQ, CO or OT; "?" for any other number.
@@ -686,7 +686,7 @@ Public Function GetSheet( _
 '   Return a worksheet of this workbook by tab name.
 '
 ' INPUTS
-'   sheetName: one of the SH_ constants in M_Config.
+'   sheetName: one of the SH_ constants in CORE_Config.
 '
 ' ERROR POLICY
 '   A missing sheet raises "Subscript out of range" to the caller.
@@ -1015,7 +1015,7 @@ Public Function GetParam( _
 '   Read one parameter value.
 '
 ' INPUTS
-'   code: a PRM_ code from M_Config, for example "Alpha".
+'   code: a PRM_ code from CORE_Config, for example "Alpha".
 '
 ' RETURNS
 '   The value of the workbook name equal to code, if one exists; otherwise
@@ -1077,7 +1077,7 @@ Public Function BrokenName( _
 '   fall back to the Params table without saying so (#35).
 '
 ' INPUTS
-'   code: a PRM_ code from M_Config.
+'   code: a PRM_ code from CORE_Config.
 '
 ' RETURNS
 '   True when the name exists and does not refer to a range; False when it

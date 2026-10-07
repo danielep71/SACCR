@@ -129,7 +129,7 @@ Evidence from another commit does not certify this one.
 | --- | --- |
 | Tested commit | <!-- full SHA or N/A --> |
 | Debug → Compile VBAProject | <!-- PASS / FAIL / NOT RUN / N/A --> |
-| `TestHarness.RunTests` | <!-- RESULT= line, verbatim --> |
+| `TEST_Harness.RunTests` | <!-- RESULT= line, verbatim --> |
 | Cases / assertions / failures / cleanup | <!-- e.g. 4 / 6 / 0 / PASS --> |
 | Specific scenario | <!-- what was exercised and the outcome --> |
 | Evidence bundle | <!-- validator result per docs/EXCEL_EVIDENCE.md, or N/A --> |

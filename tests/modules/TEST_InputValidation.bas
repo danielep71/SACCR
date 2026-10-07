@@ -1,6 +1,6 @@
-Attribute VB_Name = "TestInputValidation"
+Attribute VB_Name = "TEST_InputValidation"
 '==============================================================================
-' MODULE: TestInputValidation
+' MODULE: TEST_InputValidation
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Check that malformed inputs are rejected instead of silently changing
@@ -19,7 +19,7 @@ Attribute VB_Name = "TestInputValidation"
 '   it out of the external workbook automation API.
 '
 ' DEPENDENCIES
-'   CaseRunner, which writes the inputs, runs the engine, restores the
+'   TEST_CaseRunner, which writes the inputs, runs the engine, restores the
 '   workbook and reports. These inputs cannot be expressed as JSON
 '   fixtures, so they are written here directly, as TEST_CASES.md allows
 '   for invalid inputs. The table cases find their rows on Params by key
@@ -27,12 +27,12 @@ Attribute VB_Name = "TestInputValidation"
 '   sheet.
 '
 ' WORKSHEET SAFETY
-'   As CaseRunner: inputs, outputs, and the headers, Params cells and
+'   As TEST_CaseRunner: inputs, outputs, and the headers, Params cells and
 '   workbook name a case patches are rewritten during the run and
 '   restored. Use a development workbook.
 '
 ' USAGE
-'   Run TestInputValidation.RunInputValidationTests from the Immediate
+'   Run TEST_InputValidation.RunInputValidationTests from the Immediate
 '   window.
 '
 ' UPDATED
@@ -70,7 +70,7 @@ Public Sub RunInputValidationTests()
 '                           RunInputValidationTests
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Run every case and print the CaseRunner report.
+'   Run every case and print the TEST_CaseRunner report.
 '
 ' UPDATED
 '   2026-10-07
@@ -85,7 +85,7 @@ Public Sub RunInputValidationTests()
 '------------------------------------------------------------------------------
 ' RUN CASES
 '------------------------------------------------------------------------------
-        CaseRunner.BeginSuite CASES, CHECKS
+        TEST_CaseRunner.BeginSuite CASES, CHECKS
         On Error GoTo Failed
 
     'Trade rows.
@@ -93,13 +93,13 @@ Public Sub RunInputValidationTests()
         AddSwap "T1"
         AddSwap "T2"
         AddSwap "T3"
-        CaseRunner.SetInputCell SH_TRADES, 2, TR_ID, Empty
+        TEST_CaseRunner.SetInputCell SH_TRADES, 2, TR_ID, Empty
         ExpectStatus "INCOMPLETE: 1 of 3 trade(s) rejected"
 
         StartCase "trade-trailing-row-without-id", "N"
         AddSwap "T1"
         AddSwap "T2"
-        CaseRunner.SetInputCell SH_TRADES, 2, TR_ID, Empty
+        TEST_CaseRunner.SetInputCell SH_TRADES, 2, TR_ID, Empty
         ExpectStatus "INCOMPLETE: 1 of 2 trade(s) rejected"
 
         StartCase "trade-duplicate-id", "N"
@@ -109,27 +109,27 @@ Public Sub RunInputValidationTests()
 
         StartCase "trade-missing-mtm", "N"
         AddSwap "T1"
-        CaseRunner.SetInputCell SH_TRADES, 1, TR_MTM, Empty
+        TEST_CaseRunner.SetInputCell SH_TRADES, 1, TR_MTM, Empty
         ExpectStatus "INCOMPLETE: 1 of 1 trade(s) rejected"
 
         StartCase "trade-unreadable-date", "N"
         AddSwap "T1"
-        CaseRunner.SetInputCell SH_TRADES, 1, TR_MAT, "next year"
+        TEST_CaseRunner.SetInputCell SH_TRADES, 1, TR_MAT, "next year"
         ExpectStatus "INCOMPLETE: 1 of 1 trade(s) rejected"
 
     'Netting-set fields.
         StartCase "netting-set-unrecognised-flag", "N"
-        CaseRunner.SetInputCell SH_NS, 1, NS_MARGINED, "Maybe"
+        TEST_CaseRunner.SetInputCell SH_NS, 1, NS_MARGINED, "Maybe"
         AddSwap "T1"
         ExpectStatus "INVALID: 1 input error(s)"
 
         StartCase "netting-set-non-numeric-amount", "N"
-        CaseRunner.SetInputCell SH_NS, 1, NS_NICA, "abc"
+        TEST_CaseRunner.SetInputCell SH_NS, 1, NS_NICA, "abc"
         AddSwap "T1"
         ExpectStatus "INVALID: 1 input error(s)"
 
         StartCase "netting-set-unknown-regime", "N"
-        CaseRunner.SetInputCell SH_NS, 1, NS_REGIME, "EU"
+        TEST_CaseRunner.SetInputCell SH_NS, 1, NS_REGIME, "EU"
         AddSwap "T1"
         ExpectStatus "INVALID: 1 input error(s)"
 
@@ -139,44 +139,44 @@ Public Sub RunInputValidationTests()
 
         StartCase "netting-set-duplicate-id", "N"
         AddSwap "T1"
-        CaseRunner.SetInputCell SH_NS, 2, NS_ID, "NS1"
+        TEST_CaseRunner.SetInputCell SH_NS, 2, NS_ID, "NS1"
         ExpectStatus "INVALID: 1 input error(s)"
 
     'Excel error values are invalid, never blank.
         StartCase "trade-error-value-mtm", "N"
         AddSwap "T1"
-        CaseRunner.SetInputCell SH_TRADES, 1, TR_MTM, CVErr(xlErrNA)
+        TEST_CaseRunner.SetInputCell SH_TRADES, 1, TR_MTM, CVErr(xlErrNA)
         ExpectStatus "INCOMPLETE: 1 of 1 trade(s) rejected"
 
         StartCase "netting-set-error-value-amount", "N"
-        CaseRunner.SetInputCell SH_NS, 1, NS_NICA, CVErr(xlErrNA)
+        TEST_CaseRunner.SetInputCell SH_NS, 1, NS_NICA, CVErr(xlErrNA)
         AddSwap "T1"
         ExpectStatus "INVALID: 1 input error(s)"
 
         StartCase "params-error-value", "N"
         AddSwap "T1"
-        CaseRunner.PatchCell SH_PARAMS, ParamsRow(PRM_ALPHA), PRM_VALUE_COL, CVErr(xlErrNA)
+        TEST_CaseRunner.PatchCell SH_PARAMS, ParamsRow(PRM_ALPHA), PRM_VALUE_COL, CVErr(xlErrNA)
         ExpectStop "Parameter must be a number"
 
     'Sheet layout: a header that differs means a column moved.
         StartCase "layout-trades-header-renamed", "N"
         AddSwap "T1"
-        CaseRunner.PatchCell SH_TRADES, HEADER_ROW, TR_NOTIONAL, "Nominal"
+        TEST_CaseRunner.PatchCell SH_TRADES, HEADER_ROW, TR_NOTIONAL, "Nominal"
         ExpectStop "Header must be 'Notional'"
 
         StartCase "layout-netting-sets-column-shifted", "N"
         AddSwap "T1"
-        CaseRunner.PatchCell SH_NS, HEADER_ROW, NS_NICA, "Threshold TH"
+        TEST_CaseRunner.PatchCell SH_NS, HEADER_ROW, NS_NICA, "Threshold TH"
         ExpectStop "Header must be 'NICA'"
 
         StartCase "layout-params-value-header-renamed", "N"
         AddSwap "T1"
-        CaseRunner.PatchCell SH_PARAMS, HEADER_ROW, PRM_VALUE_COL, "Amount"
+        TEST_CaseRunner.PatchCell SH_PARAMS, HEADER_ROW, PRM_VALUE_COL, "Amount"
         ExpectStop "Header must be 'Value'"
 
         StartCase "layout-broken-parameter-name", "N"
         AddSwap "T1"
-        CaseRunner.PatchName PRM_ALPHA, "=#REF!"
+        TEST_CaseRunner.PatchName PRM_ALPHA, "=#REF!"
         ExpectStop "no longer refers to a cell"
 
     'Duplicates: the same values are accepted, different values stop the run.
@@ -195,29 +195,29 @@ Public Sub RunInputValidationTests()
         StartCase "factor-table-duplicate-different-values", "N"
         AddSwap "T1"
         r = ParamsRow("CO_OTHER")
-        CaseRunner.PatchCell SH_PARAMS, r, 1, "CO_METALS"
+        TEST_CaseRunner.PatchCell SH_PARAMS, r, 1, "CO_METALS"
         ExpectStop "Supervisory factor key listed twice with different values"
 
         StartCase "factor-table-duplicate-same-values", "N"
         AddSwap "T1"
         r = ParamsRow("CO_OTHER")
-        CaseRunner.PatchCell SH_PARAMS, r, 1, "CO_METALS"
-        CaseRunner.PatchCell SH_PARAMS, r, 3, "METALS"
-        CaseRunner.PatchCell SH_PARAMS, r, 7, "METALS"
+        TEST_CaseRunner.PatchCell SH_PARAMS, r, 1, "CO_METALS"
+        TEST_CaseRunner.PatchCell SH_PARAMS, r, 3, "METALS"
+        TEST_CaseRunner.PatchCell SH_PARAMS, r, 7, "METALS"
         ExpectStatus "VALID"
 
     'CHF becomes a second USD row, at CHF's rate or at USD's.
         StartCase "fx-table-duplicate-different-rates", "N"
         AddSwap "T1"
         r = ParamsRow("CHF")
-        CaseRunner.PatchCell SH_PARAMS, r, 1, "USD"
+        TEST_CaseRunner.PatchCell SH_PARAMS, r, 1, "USD"
         ExpectStop "Currency listed twice with different rates"
 
         StartCase "fx-table-duplicate-same-rate", "N"
         AddSwap "T1"
         r = ParamsRow("CHF")
-        CaseRunner.PatchCell SH_PARAMS, r, 1, "USD"
-        CaseRunner.PatchCell SH_PARAMS, r, 3, ParamsValue("USD", 3)
+        TEST_CaseRunner.PatchCell SH_PARAMS, r, 1, "USD"
+        TEST_CaseRunner.PatchCell SH_PARAMS, r, 3, ParamsValue("USD", 3)
         ExpectStatus "VALID"
 
     'Gaps: a table ends at its first blank key, so a row below a blank row,
@@ -229,7 +229,7 @@ Public Sub RunInputValidationTests()
 
         StartCase "factor-table-value-without-key", "N"
         AddSwap "T1"
-        CaseRunner.PatchCell SH_PARAMS, ParamsRow("OT"), 1, Empty
+        TEST_CaseRunner.PatchCell SH_PARAMS, ParamsRow("OT"), 1, Empty
         ExpectStop "has a value but no key"
 
         StartCase "fx-table-blank-row-inside", "N"
@@ -239,14 +239,14 @@ Public Sub RunInputValidationTests()
 
         StartCase "fx-table-rate-without-currency", "N"
         AddSwap "T1"
-        CaseRunner.PatchCell SH_PARAMS, ParamsRow("CHF"), 1, Empty
+        TEST_CaseRunner.PatchCell SH_PARAMS, ParamsRow("CHF"), 1, Empty
         ExpectStop "has a value but no key"
 
-        CaseRunner.EndSuite ""
+        TEST_CaseRunner.EndSuite ""
         Exit Sub
 
 Failed:
-        CaseRunner.EndSuite "unexpected error " & Err.Number & ": " & Err.Description
+        TEST_CaseRunner.EndSuite "unexpected error " & Err.Number & ": " & Err.Description
 
 End Sub
 
@@ -274,8 +274,8 @@ Private Sub StartCase( _
 '   2026-10-07
 '==============================================================================
 '
-        CaseRunner.BeginCase "input-" & caseId, "CRR", VALUATION, "EUR"
-        CaseRunner.AddNettingSet "NS1", flagValue, flagValue, "", flagValue, flagValue, "", _
+        TEST_CaseRunner.BeginCase "input-" & caseId, "CRR", VALUATION, "EUR"
+        TEST_CaseRunner.AddNettingSet "NS1", flagValue, flagValue, "", flagValue, flagValue, "", _
                                  "0", "0", "0", "0", ""
 
 End Sub
@@ -294,7 +294,7 @@ Private Sub AddSwap( _
 '   2026-10-07
 '==============================================================================
 '
-        CaseRunner.AddTrade tradeId, "IR", "", "EUR", "Linear", "Long", "", "Standard", "", _
+        TEST_CaseRunner.AddTrade tradeId, "IR", "", "EUR", "Linear", "Long", "", "Standard", "", _
                             "10000", "30", "", "2031-09-30", "2031-09-30", "", "", "", "", "", ""
 
 End Sub
@@ -314,7 +314,7 @@ Private Sub ExpectStop( _
 '   2026-10-07
 '==============================================================================
 '
-        CaseRunner.RunCaseExpectingStop "stop", messagePart, "illustrative"
+        TEST_CaseRunner.RunCaseExpectingStop "stop", messagePart, "illustrative"
 
 End Sub
 
@@ -349,7 +349,7 @@ Private Function ParamsRow( _
 '------------------------------------------------------------------------------
         r = FindHeaderRow(GetSheet(SH_PARAMS), 1, key)
         If r = 0 Then
-            Err.Raise ERR_TEST_SETUP, "TestInputValidation.ParamsRow", "'" & key & "' not found in column A of Params."
+            Err.Raise ERR_TEST_SETUP, "TEST_InputValidation.ParamsRow", "'" & key & "' not found in column A of Params."
         End If
         ParamsRow = r
 
@@ -409,10 +409,10 @@ Private Sub AddParamRow( _
         r = ParamsRow(PRM_LAMCO) + 1
         If Not IsBlankCell(GetSheet(SH_PARAMS).Cells(r, PRM_CODE_COL).Value) Or _
            Not IsBlankCell(GetSheet(SH_PARAMS).Cells(r, PRM_VALUE_COL).Value) Then
-            Err.Raise ERR_TEST_SETUP, "TestInputValidation.AddParamRow", "Params row " & r & " is not blank."
+            Err.Raise ERR_TEST_SETUP, "TEST_InputValidation.AddParamRow", "Params row " & r & " is not blank."
         End If
-        CaseRunner.PatchCell SH_PARAMS, r, PRM_CODE_COL, code
-        CaseRunner.PatchCell SH_PARAMS, r, PRM_VALUE_COL, newValue
+        TEST_CaseRunner.PatchCell SH_PARAMS, r, PRM_CODE_COL, code
+        TEST_CaseRunner.PatchCell SH_PARAMS, r, PRM_VALUE_COL, newValue
 
 End Sub
 
@@ -442,7 +442,7 @@ Private Sub ClearParamsRow( _
 ' CLEAR
 '------------------------------------------------------------------------------
         For c = 1 To nCols
-            CaseRunner.PatchCell SH_PARAMS, rowNum, c, Empty
+            TEST_CaseRunner.PatchCell SH_PARAMS, rowNum, c, Empty
         Next c
 
 End Sub
@@ -461,7 +461,7 @@ Private Sub ExpectStatus( _
 '   2026-10-07
 '==============================================================================
 '
-        CaseRunner.RunCase
-        CaseRunner.ExpectText "status", "", "netting_set_status", expected, "illustrative"
+        TEST_CaseRunner.RunCase
+        TEST_CaseRunner.ExpectText "status", "", "netting_set_status", expected, "illustrative"
 
 End Sub

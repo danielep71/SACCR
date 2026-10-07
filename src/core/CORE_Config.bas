@@ -1,6 +1,6 @@
-Attribute VB_Name = "M_Config"
+Attribute VB_Name = "CORE_Config"
 '==============================================================================
-' MODULE: M_Config
+' MODULE: CORE_Config
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Hold every layout constant the SA-CCR engine depends on: sheet names,
@@ -12,7 +12,7 @@ Attribute VB_Name = "M_Config"
 '
 ' PUBLIC SURFACE
 '   None outside this VBA project. The constants are Public for in-project use
-'   by M_Util, M_Engine and M_Main; Option Private Module keeps them off the
+'   by CORE_Util, CORE_Engine and M_Main; Option Private Module keeps them off the
 '   supported external surface.
 '
 ' DEPENDENCIES
@@ -69,7 +69,7 @@ Attribute VB_Name = "M_Config"
 '------------------------------------------------------------------------------
     'Each parameter is a row with its code in column A and its value in
     'column C. A workbook name equal to the code takes precedence (see
-    'M_Util.GetParam). BD = business days; SD = supervisory duration;
+    'CORE_Util.GetParam). BD = business days; SD = supervisory duration;
     'SF = supervisory factor; CO = commodity.
         Public Const PRM_CODE_COL     As Long = 1                          'Column of the code
         Public Const PRM_VALUE_COL    As Long = 3                          'Column of the value

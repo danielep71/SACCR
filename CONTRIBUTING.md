@@ -30,7 +30,7 @@ Suspected vulnerabilities must never be disclosed in an issue or pull request.
 > Repository setup, milestone **v0.0.1**, is complete. The SA-CCR engine does
 > not exist yet. Its regulatory basis (CRR baseline, Basel CRE52 also
 > supported) and numerical test-case format are in
-> [`docs/methodology/`](docs/methodology/README.md). The regression harness is `TestHarness.RunTests`
+> [`docs/methodology/`](docs/methodology/README.md). The regression harness is `TEST_Harness.RunTests`
 > ([running the harness](INSTALLATION.md#running-the-harness)). The source layout is set in
 > [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md). Sections below
 > that refer to VBA describe the rules those changes must follow.

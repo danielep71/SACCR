@@ -161,8 +161,8 @@ Use only the categories needed by a release.
   checksum-verified actionlint. Dependabot proposes weekly GitHub Actions
   updates to the release branch for manual review; nothing merges
   automatically.
-- A deterministic VBA regression harness, `tests/modules/TestHarness.bas`, run
-  with `TestHarness.RunTests`. It supports exact, tolerance and expected-error
+- A deterministic VBA regression harness, `tests/modules/TEST_Harness.bas`, run
+  with `TEST_Harness.RunTests`. It supports exact, tolerance and expected-error
   assertions with stable case names, refuses to report `PASS` unless all
   expected cases and assertions ran, verifies Excel settings are unchanged, and
   prints a machine-readable `RESULT=` line. `RunTestsWithInjectedFailure`
@@ -202,8 +202,8 @@ Use only the categories needed by a release.
   provenance and SA-CCR-specific review.
 
 - Prototype SA-CCR engine imported from the owner's `SACCR_Calculator.xlsm`
-  (engine v1.1.0): `M_Config`, `M_Engine` and `M_Util` in `src/core`, the ten
-  `SACCR_*` worksheet functions in `src/modules/M_Formulas` (added to
+  (engine v1.1.0): `CORE_Config`, `CORE_Engine` and `CORE_Util` in `src/core`, the ten
+  `SACCR_*` worksheet functions in `src/modules/SACCR_Formulas` (added to
   `docs/PUBLIC_API.txt`), and the sheet-button macros in `src/workbook/M_Main`
   with the 13 document modules. It covers both regimes (CRR default, Basel
   CRE52 per netting set), the CRR other-risks class and the margined-EAD cap.
@@ -232,11 +232,25 @@ Use only the categories needed by a release.
   tools/check.py`.
 
 - The numerical test cases run against the engine in Excel (#44, decision 7):
-  `tools/generate_case_tests.py` generates `tests/modules/TestCases.bas` from
+  `tools/generate_case_tests.py` generates `tests/modules/TEST_Cases.bas` from
   the JSON files, checked in `python tools/check.py`, and
-  `tests/modules/CaseRunner.bas` writes each fixture into the input sheets,
+  `tests/modules/TEST_CaseRunner.bas` writes each fixture into the input sheets,
   runs the engine, compares the outputs and restores the workbook. Results
   are reported per reference class.
+
+### Changed
+
+- VBA modules carry an upper-case role prefix: core modules `CORE_Config`,
+  `CORE_Engine` and `CORE_Util`; the public worksheet functions in
+  `SACCR_Formulas`; and the test modules `TEST_Harness`, `TEST_MainState`,
+  `TEST_CaseRunner`, `TEST_Cases` and `TEST_InputValidation` (previously
+  `M_Config`, `M_Engine`, `M_Util`, `M_Formulas`, `TestHarness`,
+  `TestMainState`, `CaseRunner`, `TestCases` and `TestInputValidation`).
+  `M_Main` keeps its name, so the sheet buttons are unchanged, and the
+  `SACCR_*` worksheet functions keep theirs. `tools/check_source.py` enforces
+  the prefixes. A workbook built before the rename must be rebuilt from the
+  template: importing the renamed modules next to the old ones gives
+  duplicate declarations.
 
 ### Fixed
 
@@ -251,29 +265,29 @@ Use only the categories needed by a release.
   value that is present but not a number, an unreadable `IRBucketOffset` and a
   non-numeric supervisory factor, correlation or volatility stop the run.
   Blank optional fields still take their documented defaults.
-  `tests/modules/TestInputValidation.bas` covers these cases in Excel.
+  `tests/modules/TEST_InputValidation.bas` covers these cases in Excel.
 
 - The run stops when the workbook layout or the parameter tables are
   ambiguous (#35). Before reading any input, the engine checks that the
   Params, NettingSets and Trades sheets exist and that every column it reads
-  by number has its expected header (`M_Config` `_HEADERS` constants), so an
+  by number has its expected header (`CORE_Config` `_HEADERS` constants), so an
   inserted, deleted or moved column cannot shift values into the wrong
   fields. A parameter workbook name that no longer refers to a cell (`#REF!`)
   and a parameter listed twice on Params with different values stop the run.
   A supervisory-factor key or currency listed twice with different values
   also stops it, instead of the first row being used silently; a duplicate
-  with the same values is a warning. `TestInputValidation` adds ten cases for
+  with the same values is a warning. `TEST_InputValidation` adds ten cases for
   these rules.
 
 - A supervisory factor or FX rate below a blank row of its table on Params
   is reported and stops the run (#35). Each table ends at its first blank
   key, so such rows, and a value whose key is blank, were silently not read.
-  `TestInputValidation` adds four cases.
+  `TEST_InputValidation` adds four cases.
 
 - A netting-set ID listed twice makes that netting set `INVALID` with its
   EAD withheld (#35). The second row was ignored with an error, but the set
   was still reported `VALID` with the first row's collateral terms.
-  `TestInputValidation` adds this case and three with an Excel error value
+  `TEST_InputValidation` adds this case and three with an Excel error value
   (`#N/A`) in a trade's MtM, a netting-set amount and a parameter, each of
   which is rejected rather than read as blank.
 
@@ -305,7 +319,7 @@ Use only the categories needed by a release.
   separately (`ERR_CLEANUP_FAILED`). A second operation started while one is
   running is refused. `RunSACCR_Silent` restores the previous silent flag,
   returns a machine-readable result line and raises failures instead of
-  printing them. `tests/modules/TestMainState.bas` covers these cases in Excel.
+  printing them. `tests/modules/TEST_MainState.bas` covers these cases in Excel.
 
 - Allow scheduled traffic exports without relying on a webhook payload, while
   retaining the default-branch restriction for manual dispatches (review #53).
