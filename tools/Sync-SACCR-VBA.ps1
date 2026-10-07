@@ -54,6 +54,7 @@ $vbext_ct_ClassModule = 2
 $vbext_ct_MSForm = 3
 $vbext_ct_Document = 100
 $xlCalculationManual = -4135
+$xlCalculationAutomatic = -4105
 $msoAutomationSecurityForceDisable = 3
 
 function Resolve-FullPath {
@@ -344,6 +345,12 @@ try {
 
     $after = Get-SheetSnapshot -Workbook $workbook
     Assert-SheetSnapshotUnchanged -Before $before -After $after
+
+    # The synchronization uses manual calculation only to avoid recalculation
+    # while modules are being replaced. The development workbook must leave
+    # this isolated Excel instance in Automatic mode before it is saved.
+    $excel.Calculation = $xlCalculationAutomatic
+    $excel.CalculateBeforeSave = $true
 
     $workbook.Save()
     $saved = $true
