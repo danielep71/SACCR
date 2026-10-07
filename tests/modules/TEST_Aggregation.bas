@@ -257,20 +257,21 @@ Private Sub ExpectNear( _
     ByVal label As String, _
     ByVal actual As Double, _
     ByVal expected As Double, _
-    ByVal scale As Double)
+    ByVal magnitude As Double)
 '
 '==============================================================================
 '                                  ExpectNear
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Record that actual equals expected within REL_TOL of scale, the size of
-'   the quantities compared (a zero expected value has no size of its own).
+'   Record that actual equals expected within REL_TOL of magnitude, the
+'   size of the quantities compared (a zero expected value has no size of
+'   its own).
 '
 ' UPDATED
 '   2026-10-07
 '==============================================================================
 '
-        TEST_CaseRunner.ExpectTrue label, Abs(actual - expected) <= REL_TOL * Abs(scale), _
+        TEST_CaseRunner.ExpectTrue label, Abs(actual - expected) <= REL_TOL * Abs(magnitude), _
                                    "expected " & expected & ", actual " & actual, "illustrative"
 
 End Sub
