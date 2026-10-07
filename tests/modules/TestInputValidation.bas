@@ -7,10 +7,11 @@ Attribute VB_Name = "TestInputValidation"
 '   the trade population, the netting-set terms or the parameters (#35):
 '   trade rows with data but no ID, duplicate trade IDs, a missing MtM, an
 '   unreadable date, netting-set fields that cannot be read, a moved or
-'   renamed column, a broken parameter name, and a parameter, supervisory
-'   factor or currency listed twice with different values. A blank
-'   optional field, and a duplicate with the same values, must still be
-'   accepted.
+'   renamed column, a broken parameter name, a parameter, supervisory
+'   factor or currency listed twice with different values, and a factor or
+'   rate the table loader would not read because of a blank row or key. A
+'   blank optional field, and a duplicate with the same values, must still
+'   be accepted.
 '
 ' PUBLIC SURFACE
 '   RunInputValidationTests is the entry point. Option Private Module keeps
@@ -21,7 +22,8 @@ Attribute VB_Name = "TestInputValidation"
 '   workbook and reports. These inputs cannot be expressed as JSON
 '   fixtures, so they are written here directly, as TEST_CASES.md allows
 '   for invalid inputs. The table cases find their rows on Params by key
-'   (CO_OTHER, USD, CHF), so they need the template's Params sheet.
+'   (CO_OTHER, OT, USD, JPY, CHF), so they need the template's Params
+'   sheet.
 '
 ' WORKSHEET SAFETY
 '   As CaseRunner: inputs, outputs, and the headers, Params cells and
@@ -49,8 +51,8 @@ Attribute VB_Name = "TestInputValidation"
 ' MODULE CONSTANTS
 '------------------------------------------------------------------------------
         Private Const VALUATION   As String = "2026-09-30"    'Valuation date of every case
-        Private Const CASES       As Long = 19                'Cases in a complete run
-        Private Const CHECKS      As Long = 19                'Checks in a complete run
+        Private Const CASES       As Long = 23                'Cases in a complete run
+        Private Const CHECKS      As Long = 23                'Checks in a complete run
 
 
 '
@@ -195,6 +197,28 @@ Public Sub RunInputValidationTests()
         CaseRunner.PatchCell SH_PARAMS, r, 1, "USD"
         CaseRunner.PatchCell SH_PARAMS, r, 3, ParamsValue("USD", 3)
         ExpectStatus "VALID"
+
+    'Gaps: a table ends at its first blank key, so a row below a blank row,
+    'or a value without a key, would not be read.
+        StartCase "factor-table-blank-row-inside", "N"
+        AddSwap "T1"
+        ClearParamsRow ParamsRow("CO_OTHER"), 8
+        ExpectStop "below a blank row"
+
+        StartCase "factor-table-value-without-key", "N"
+        AddSwap "T1"
+        CaseRunner.PatchCell SH_PARAMS, ParamsRow("OT"), 1, Empty
+        ExpectStop "has a value but no key"
+
+        StartCase "fx-table-blank-row-inside", "N"
+        AddSwap "T1"
+        ClearParamsRow ParamsRow("JPY"), 3
+        ExpectStop "below a blank row"
+
+        StartCase "fx-table-rate-without-currency", "N"
+        AddSwap "T1"
+        CaseRunner.PatchCell SH_PARAMS, ParamsRow("CHF"), 1, Empty
+        ExpectStop "has a value but no key"
 
         CaseRunner.EndSuite ""
         Exit Sub
@@ -357,6 +381,37 @@ Private Sub AddParamRow( _
         r = UsedLastRow(GetSheet(SH_PARAMS)) + 2
         CaseRunner.PatchCell SH_PARAMS, r, PRM_CODE_COL, code
         CaseRunner.PatchCell SH_PARAMS, r, PRM_VALUE_COL, newValue
+
+End Sub
+
+
+Private Sub ClearParamsRow( _
+    ByVal rowNum As Long, _
+    ByVal nCols As Long)
+'
+'==============================================================================
+'                                ClearParamsRow
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Blank columns A to nCols of one Params row, as if a blank row had been
+'   inserted in a table there. Restored with the case's other patches.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim c   As Long    'Column being cleared
+
+'------------------------------------------------------------------------------
+' CLEAR
+'------------------------------------------------------------------------------
+        For c = 1 To nCols
+            CaseRunner.PatchCell SH_PARAMS, rowNum, c, Empty
+        Next c
 
 End Sub
 

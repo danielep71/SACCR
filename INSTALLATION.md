@@ -284,12 +284,13 @@ cannot express (a trade row without an ID, a duplicate trade ID, a missing
 MtM, an unreadable date, a typo in a netting-set flag or amount) through
 `CaseRunner` and checks that each makes the netting set `INCOMPLETE` or
 `INVALID`, and that blank optional fields still take their defaults. It also
-renames a header, breaks a parameter name and duplicates a parameter, a
-supervisory-factor key and a currency, and checks that the run stops, or
-continues when the duplicate has the same values. Every patched cell and name
-is restored. It needs a workbook built from the template. Import it with
-`CaseRunner` and run `TestInputValidation.RunInputValidationTests`; it ends
-with `RESULT=PASS; cases=19; checks=19; failures=0; restore=PASS`.
+renames a header, breaks a parameter name, duplicates a parameter, a
+supervisory-factor key and a currency, and puts a blank row or a blank key in
+the factor and FX tables, and checks that the run stops, or continues when the
+duplicate has the same values. Every patched cell and name is restored. It
+needs a workbook built from the template. Import it with `CaseRunner` and run
+`TestInputValidation.RunInputValidationTests`; it ends with
+`RESULT=PASS; cases=23; checks=23; failures=0; restore=PASS`.
 
 For automation, `RunSACCR_Silent` returns a result line such as
 `RESULT=OK; operation=run; errors=0; warnings=0; trades_used=62; trades_read=65; total_ead=...; cleanup=PASS`
