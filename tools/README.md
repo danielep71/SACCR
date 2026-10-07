@@ -40,7 +40,9 @@ the workbook works in Excel.
 local `.xlsm` development workbook without intentionally changing worksheets,
 cells, formulas, names, tables or formatting.
 
-From the repository root:
+For normal use on Windows, double-click `tools/Sync-SACCR-VBA.cmd`. The launcher asks for the full path of the local `.xlsm`, runs the PowerShell synchronizer, shows the result and pauses before closing. You can also drag an `.xlsm` file onto the `.cmd` file to avoid typing its path.
+
+PowerShell remains available for direct use from the repository root:
 
 ```powershell
 .\tools\Sync-SACCR-VBA.ps1 -WorkbookPath "C:\path\to\SACCR.xlsm"
