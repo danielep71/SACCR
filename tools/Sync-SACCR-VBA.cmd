@@ -13,23 +13,20 @@ if not exist "%SCRIPT%" (
     exit /b 1
 )
 
+set "DEFAULT_WORKBOOK=C:\Dev\SA-CCR\SACCR_Calculator.xlsm"
 set "WORKBOOK=%~1"
 
 if not defined WORKBOOK (
-    echo SACCR VBA synchronization
-    echo.
-    echo Enter the full path of the local SACCR .xlsm workbook.
-    echo You can also drag an .xlsm file onto this .cmd file instead.
-    echo.
-    set /p "WORKBOOK=Workbook path: "
+    set "WORKBOOK=%DEFAULT_WORKBOOK%"
 )
 
-if not defined WORKBOOK (
-    echo.
-    echo No workbook path supplied. Nothing was changed.
-    pause
-    exit /b 1
-)
+echo SACCR VBA synchronization
+echo.
+echo Default workbook:
+echo   %DEFAULT_WORKBOOK%
+echo.
+echo Tip: drag another .xlsm file onto this .cmd file to override the default.
+echo.
 
 if not exist "%WORKBOOK%" (
     echo.
