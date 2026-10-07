@@ -31,7 +31,8 @@ def read_json(path: Path) -> dict[str, Any]:
 
 def page_rows(data: dict[str, Any]) -> list[dict[str, Any]]:
     pages = data.get("pages")
-    require(isinstance(pages, list) and bool(pages), "page order is required")
+    if not isinstance(pages, list) or not pages:
+        raise ValueError("page order is required")
     result: list[dict[str, Any]] = []
     for page in pages:
         require(isinstance(page, dict), "page entries must be objects")
