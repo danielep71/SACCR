@@ -240,6 +240,19 @@ Use only the categories needed by a release.
 
 ### Fixed
 
+- Malformed inputs are rejected instead of silently changing the portfolio
+  (#35). A trade row with data but no Trade ID, including rows after the last
+  ID, and a repeated Trade ID are rejected, making the netting set
+  `INCOMPLETE`. A missing or non-numeric MtM is an error rather than an
+  assumed 0, and an unreadable date or lambda is an error rather than blank. A
+  netting-set flag that is not Y/N, an amount that is not a number or an
+  unknown regime override makes the netting set `INVALID` with its EAD
+  withheld; a NettingSets row with data but no ID is reported. On Params, a
+  value that is present but not a number, an unreadable `IRBucketOffset` and a
+  non-numeric supervisory factor, correlation or volatility stop the run.
+  Blank optional fields still take their documented defaults.
+  `tests/modules/TestInputValidation.bas` covers these cases in Excel.
+
 - A netting set with a rejected trade no longer reports an EAD computed on
   its remaining trades (#36). Results has a Status column and a row for
   every input netting set: `VALID`, `INCOMPLETE: r of n trade(s) rejected`

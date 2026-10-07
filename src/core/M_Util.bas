@@ -329,6 +329,102 @@ Public Function ToBool( _
 End Function
 
 
+Public Function TryBool( _
+    ByVal v As Variant, _
+    ByVal dflt As Boolean, _
+    ByRef result As Boolean) _
+    As Boolean
+'
+'==============================================================================
+'                                   TryBool
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read a Y/N style cell value strictly: unlike ToBool, an unrecognised
+'   value is reported instead of silently taking the default (#35).
+'
+' INPUTS
+'   v: a Boolean, blank, or text such as Y, YES, TRUE, 1, N, NO, FALSE, 0
+'      (and the Italian VERO, SI, FALSO).
+'   dflt: value used when v is blank.
+'
+' RETURNS
+'   True with result set when v is blank or recognised; False for an error
+'   value or unrecognised text, with result left as dflt.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        result = dflt
+        If IsError(v) Then
+            Exit Function
+        End If
+        If VarType(v) = vbBoolean Then
+            result = v
+            TryBool = True
+            Exit Function
+        End If
+        Select Case UTxt(v)
+            Case ""
+                TryBool = True
+            Case "Y", "YES", "TRUE", "1", "VERO", "SI"
+                result = True
+                TryBool = True
+            Case "N", "NO", "FALSE", "0", "FALSO"
+                result = False
+                TryBool = True
+        End Select
+
+End Function
+
+
+Public Function TryDbl( _
+    ByVal v As Variant, _
+    ByVal dflt As Double, _
+    ByRef result As Double) _
+    As Boolean
+'
+'==============================================================================
+'                                    TryDbl
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read a numeric cell value strictly: unlike ToDbl, text that is not a
+'   number is reported instead of silently taking the default (#35).
+'
+' INPUTS
+'   v: a number, blank, or anything else.
+'   dflt: value used when v is blank.
+'
+' RETURNS
+'   True with result set when v is blank or a usable number; False for an
+'   error value or non-numeric text, with result left as dflt.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        result = dflt
+        If IsError(v) Then
+            Exit Function
+        End If
+        If IsBlankCell(v) Then
+            TryDbl = True
+        ElseIf IsNum(v) Then
+            result = CDbl(v)
+            TryDbl = True
+        End If
+
+End Function
+
+
 Public Function Max2( _
     ByVal a As Double, _
     ByVal b As Double) _
@@ -744,6 +840,114 @@ Public Function LastDataRow( _
                 Exit Function
             End If
         Next r
+
+End Function
+
+
+Public Function LastDataRowAny( _
+    ByVal ws As Worksheet, _
+    ByVal firstRow As Long, _
+    ByVal nCols As Long, _
+    ByVal ignoreCol As Long) _
+    As Long
+'
+'==============================================================================
+'                                LastDataRowAny
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Find the last row with a value in any of the first nCols columns, so
+'   that a row whose ID is blank is still found (#35).
+'
+' INPUTS
+'   ws: the worksheet to scan.
+'   firstRow: first row of the data area.
+'   nCols: number of columns from column A.
+'   ignoreCol: a column that does not count as data, such as a free-text
+'      comment; 0 for none.
+'
+' RETURNS
+'   Row number of the last such row; firstRow - 1 when there is none.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim lastR   As Long       'Last row of the used range
+    Dim v       As Variant    'Block values from firstRow to lastR
+    Dim r       As Long       'Row in v, counted from the bottom
+    Dim c       As Long       'Column in v
+
+'------------------------------------------------------------------------------
+' SCAN
+'------------------------------------------------------------------------------
+        LastDataRowAny = firstRow - 1
+        lastR = UsedLastRow(ws)
+        If lastR < firstRow Then
+            Exit Function
+        End If
+        v = ws.Range(ws.Cells(firstRow, 1), ws.Cells(lastR, nCols)).Value
+        If Not IsArray(v) Then
+            If Not IsBlankCell(v) Then
+                LastDataRowAny = firstRow
+            End If
+            Exit Function
+        End If
+        For r = UBound(v, 1) To 1 Step -1
+            For c = 1 To UBound(v, 2)
+                If c <> ignoreCol Then
+                    If Not IsBlankCell(v(r, c)) Then
+                        LastDataRowAny = firstRow + r - 1
+                        Exit Function
+                    End If
+                End If
+            Next c
+        Next r
+
+End Function
+
+
+Public Function RowHasData( _
+    ByRef data As Variant, _
+    ByVal r As Long, _
+    ByVal nCols As Long, _
+    ByVal ignoreCol As Long) _
+    As Boolean
+'
+'==============================================================================
+'                                  RowHasData
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Tell whether a row of an input block holds any value.
+'
+' INPUTS
+'   data: a 2-D input block; r: the row in it; nCols: columns to check;
+'   ignoreCol: a column that does not count as data; 0 for none.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim c   As Long    'Column
+
+'------------------------------------------------------------------------------
+' CHECK
+'------------------------------------------------------------------------------
+        For c = 1 To nCols
+            If c <> ignoreCol Then
+                If Not IsBlankCell(data(r, c)) Then
+                    RowHasData = True
+                    Exit Function
+                End If
+            End If
+        Next c
 
 End Function
 

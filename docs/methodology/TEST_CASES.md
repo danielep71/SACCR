@@ -174,7 +174,7 @@ Quantities use stable names, each with one meaning only:
 | Netting set | `multiplier` | Number, unit `1` |
 | Netting set | `margin_period_of_risk` | Number, unit `business_days` |
 | Netting set | `cap_applied` | Text: `Y` when the unmargined cap sets the exposure value |
-| Netting set | `netting_set_status` | Text: `VALID`; `INCOMPLETE: <r> of <n> trade(s) rejected`, when the exposure value is withheld; or `NO TRADES` |
+| Netting set | `netting_set_status` | Text: `VALID`; `INCOMPLETE: <r> of <n> trade(s) rejected` or `INVALID: <e> input error(s)`, when the exposure value is withheld; or `NO TRADES` |
 | Trade | `adjusted_notional` | Number in the calculation currency |
 | Trade | `supervisory_delta`, `supervisory_factor` | Number, unit `1` |
 | Trade | `lambda_shift` | Number in the underlying's unit: `1` for a rate, `price` otherwise |

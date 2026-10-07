@@ -10,8 +10,9 @@ Attribute VB_Name = "CaseRunner"
 '   (methodology decision 7, #44).
 '
 ' PUBLIC SURFACE
-'   BeginSuite, BeginCase, AddNettingSet, AddTrade, RunCase, ExpectNumber,
-'   ExpectText and EndSuite, for TestCases only. Option Private Module keeps
+'   BeginSuite, BeginCase, AddNettingSet, AddTrade, SetInputCell, RunCase,
+'   ExpectNumber, ExpectText and EndSuite, for TestCases and
+'   TestInputValidation. Option Private Module keeps
 '   them out of the external workbook automation API.
 '
 ' DEPENDENCIES
@@ -414,6 +415,35 @@ Public Sub AddTrade( _
         rowValues(1, TR_DETACH) = NumberOrBlank(detachmentRate)
         WriteRow GetSheet(SH_TRADES), mNextTradeRow, TR_NCOLS, rowValues
         mNextTradeRow = mNextTradeRow + 1
+
+End Sub
+
+
+Public Sub SetInputCell( _
+    ByVal sheetName As String, _
+    ByVal dataRow As Long, _
+    ByVal col As Long, _
+    ByVal newValue As Variant)
+'
+'==============================================================================
+'                                 SetInputCell
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Overwrite one input cell after AddNettingSet or AddTrade, for invalid
+'   inputs that a JSON fixture cannot express: a blank ID, a duplicate ID,
+'   a typo in a flag. Used by TestInputValidation.
+'
+' INPUTS
+'   sheetName: SH_NS or SH_TRADES.
+'   dataRow: 1 for the first data row.
+'   col: column number, for example TR_ID.
+'   newValue: the value to write; Empty clears the cell.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        GetSheet(sheetName).Cells(FIRST_DATA_ROW + dataRow - 1, col).Value = newValue
 
 End Sub
 
