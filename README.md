@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🏦 SACCR
+# 🏦 SA-CCR Benchmark — Independent Calculation and Validation Toolkit
 
 ### Counterparty credit risk under SA-CCR, built in Excel/VBA
 
