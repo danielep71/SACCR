@@ -57,8 +57,9 @@ Attribute VB_Name = "CORE_Engine"
 '   Invalid inputs are not VBA errors. They are logged as ERROR, WARNING or
 '   INFO lines for the Checks sheet: an invalid trade is excluded and the
 '   run continues; invalid parameters or netting sets stop the run.
-'   LoadParams, WriteChecks and WriteRunInfo contain their own errors; any
-'   other unexpected error propagates to M_Main.
+'   LoadParams, WriteChecks and WriteRunInfo contain their own errors. A
+'   Checks sheet that cannot be written withdraws the results and raises
+'   ERR_CHECKS_WRITE (#36). Any other unexpected error propagates to M_Main.
 '
 ' KNOWN DEVIATION
 '   This module lives in src/core but reads and writes worksheets, which the
@@ -258,6 +259,12 @@ Public Function Calculate( _
 '   not as expected, or a parameter, the factor or FX table, or the netting
 '   sets could not be loaded.
 '
+' ERROR POLICY
+'   Raises ERR_CHECKS_WRITE when the Checks sheet cannot be written, after
+'   clearing the other output sheets: results whose errors and warnings
+'   cannot be shown must not look valid, and the Checks sheet would still
+'   hold the previous run's messages (#36).
+'
 ' STATE OWNERSHIP
 '   Resets all module state, then fills it for this run.
 '
@@ -269,7 +276,8 @@ Public Function Calculate( _
 '------------------------------------------------------------------------------
 ' DECLARE
 '------------------------------------------------------------------------------
-    Dim t0   As Double    'Timer value at the start, for the run duration
+    Dim t0             As Double     'Timer value at the start, for the run duration
+    Dim checksFailure  As String     'Why the Checks sheet could not be written; "" if written
 
 '------------------------------------------------------------------------------
 ' LOAD INPUTS
@@ -302,10 +310,21 @@ Public Function Calculate( _
 '------------------------------------------------------------------------------
 ' WRITE CHECKS AND RUN SUMMARY
 '------------------------------------------------------------------------------
-    'Reached on success and after a failed load.
+    'Reached on success and after a failed load. If the Checks sheet cannot
+    'be written, the results are withdrawn and the failure raised.
 Finish:
-        WriteChecks
-        WriteRunInfo Timer - t0, Calculate, writeOutputs
+        If Not WriteChecks(checksFailure) Then
+            Calculate = False
+            If Not WithdrawOutputs() Then
+                checksFailure = checksFailure & "; the other output sheets could not be cleared either"
+            End If
+        End If
+        WriteRunInfo Timer - t0, Calculate, writeOutputs, checksFailure
+        If Len(checksFailure) > 0 Then
+            Err.Raise ERR_CHECKS_WRITE, "CORE_Engine.Calculate", "The Checks sheet could not be written (" & _
+                      checksFailure & "), so the run's results were withdrawn. Unprotect or repair the Checks " & _
+                      "sheet and run again."
+        End If
 
 End Function
 
@@ -2825,6 +2844,36 @@ Private Sub ClearOutputSheets()
 End Sub
 
 
+Private Function WithdrawOutputs() As Boolean
+'
+'==============================================================================
+'                               WithdrawOutputs
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Clear the output sheets after the Checks sheet could not be written,
+'   so that no result of this run is left looking valid (#36).
+'
+' RETURNS
+'   True when the sheets were cleared.
+'
+' ERROR POLICY
+'   Contains any error and reports it through the result: the caller is
+'   already reporting a failure.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        On Error GoTo Failed
+        ClearOutputSheets
+        WithdrawOutputs = True
+        Exit Function
+
+Failed:
+
+End Function
+
+
 Private Sub WriteBuckets()
 '
 '==============================================================================
@@ -2979,7 +3028,9 @@ Private Sub WriteHedgingSets()
 End Sub
 
 
-Private Sub WriteChecks()
+Private Function WriteChecks( _
+    ByRef failure As String) _
+    As Boolean
 '
 '==============================================================================
 '                                 WriteChecks
@@ -2988,15 +3039,18 @@ Private Sub WriteChecks()
 '   Write the logged messages to the Checks sheet, errors in bold, or a
 '   single "No issues found." line.
 '
+' RETURNS
+'   True when the sheet was written. False when writing failed, with the
+'   reason in failure; Calculate then withdraws the results (#36).
+'
 ' STATE OWNERSHIP
 '   Clears and rewrites the Checks sheet.
 '
 ' ERROR POLICY
-'   Any error stops the writing silently, so that a damaged Checks sheet
-'   does not hide the run's result.
+'   Contains any error and reports it through the result, never silently.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '==============================================================================
 '
 
@@ -3012,7 +3066,8 @@ Private Sub WriteChecks()
 ' WRITE
 '------------------------------------------------------------------------------
     'mLog is stored (field, message); it is transposed into sheet rows.
-        On Error GoTo Done
+        On Error GoTo Failed
+        failure = ""
         Set ws = GetSheet(SH_CHECKS)
         ClearOutputBlock ws, FIRST_DATA_ROW, CK_NCOLS
         If mLogCount = 0 Then
@@ -3020,7 +3075,8 @@ Private Sub WriteChecks()
             arr(1, 1) = SEV_INFO
             arr(1, 5) = "No issues found."
             WriteBlock ws, FIRST_DATA_ROW, arr, 1, CK_NCOLS
-            Exit Sub
+            WriteChecks = True
+            Exit Function
         End If
         ReDim arr(1 To mLogCount, 1 To CK_NCOLS)
         For i = 1 To mLogCount
@@ -3034,15 +3090,23 @@ Private Sub WriteChecks()
                 ws.Cells(FIRST_DATA_ROW + i - 1, 1).Font.Bold = True
             End If
         Next i
-Done:
+        WriteChecks = True
+        Exit Function
 
-End Sub
+'------------------------------------------------------------------------------
+' REPORT FAILURE
+'------------------------------------------------------------------------------
+Failed:
+        failure = "error " & Err.Number & ": " & Err.Description
+
+End Function
 
 
 Private Sub WriteRunInfo( _
     ByVal secs As Double, _
     ByVal completed As Boolean, _
-    ByVal wroteOutputs As Boolean)
+    ByVal wroteOutputs As Boolean, _
+    ByVal checksFailure As String)
 '
 '==============================================================================
 '                                 WriteRunInfo
@@ -3055,6 +3119,7 @@ Private Sub WriteRunInfo( _
 '   completed: the result of Calculate.
 '   wroteOutputs: False for a validation-only run, whose outputs were
 '   cleared rather than written.
+'   checksFailure: why the Checks sheet could not be written; "" if it was.
 '
 ' ERROR POLICY
 '   Best effort: errors are ignored, because the summary is informative only.
@@ -3075,7 +3140,11 @@ Private Sub WriteRunInfo( _
 '------------------------------------------------------------------------------
         On Error Resume Next
         Set ws = GetSheet(SH_RESULTS)
-        If Not wroteOutputs Then
+        If Len(checksFailure) > 0 Then
+            txt = "Last run " & Format$(Now, "yyyy-mm-dd hh:mm:ss") & _
+                  " FAILED - the Checks sheet could not be written (" & checksFailure & _
+                  "); results withdrawn, and Checks may show an earlier run"
+        ElseIf Not wroteOutputs Then
             txt = "Last validation " & Format$(Now, "yyyy-mm-dd hh:mm:ss") & _
                   " | errors " & mErrCount & ", warnings " & mWarnCount & _
                   " | outputs cleared: press Run SA-CCR to calculate"

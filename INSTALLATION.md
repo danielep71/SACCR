@@ -245,15 +245,17 @@ as before, and reports `cleanup=FAIL` if not.
 and **Clear outputs** put calculation mode, events and screen updating back as
 they found them, also when they were off, and that an operation failure and a
 cleanup failure are each raised and leave the workbook ready for the next run.
-Unlike the harness, it runs the real macros, which rewrite the output sheets,
-so use a development workbook. Run:
+It also protects the Checks sheet for one run and checks that the run fails
+with its results withdrawn, then unprotects it. Unlike the harness, it runs the
+real macros, which rewrite the output sheets, so use a development workbook.
+Run:
 
 ```text
 TEST_MainState.RunMainStateTests
 ```
 
-A passing run prints seven `CASE=` lines and ends with
-`RESULT=PASS; cases=7; checks=...; failures=0; caller_state=RESTORED`.
+A passing run prints eight `CASE=` lines and ends with
+`RESULT=PASS; cases=8; checks=...; failures=0; caller_state=RESTORED`.
 
 <a id="numerical-test-cases"></a>
 
