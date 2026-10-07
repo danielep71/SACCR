@@ -1338,7 +1338,9 @@ Private Function LoadNettingSets() As Boolean
 ' READ EACH NETTING SET
 '------------------------------------------------------------------------------
     'An empty row is skipped; a row with data but no ID is an error, so a
-    'netting set cannot silently drop out (#35).
+    'netting set cannot silently drop out (#35). A repeated ID is ignored and
+    'makes the first set with that ID INVALID: which row's terms apply to
+    'its trades is ambiguous, so its EAD is withheld.
         For i = 1 To n
             rowNum = FIRST_DATA_ROW + i - 1
             id = UTxt(data(i, NS_ID))
@@ -1349,7 +1351,10 @@ Private Function LoadNettingSets() As Boolean
                 GoTo NextRow
             End If
             If KeyIndex(mNSIndex, id) > 0 Then
-                LogMsg SEV_ERROR, SH_NS, id, "Duplicate netting set ID - row ignored.", rowNum
+                With mNS(KeyIndex(mNSIndex, id))
+                    .InputErrors = .InputErrors + 1
+                End With
+                LogMsg SEV_ERROR, SH_NS, id, "Netting set ID listed twice - row ignored and EAD withheld.", rowNum
                 GoTo NextRow
             End If
             mNSCount = mNSCount + 1

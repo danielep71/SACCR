@@ -5,13 +5,14 @@ Attribute VB_Name = "TestInputValidation"
 ' PURPOSE
 '   Check that malformed inputs are rejected instead of silently changing
 '   the trade population, the netting-set terms or the parameters (#35):
-'   trade rows with data but no ID, duplicate trade IDs, a missing MtM, an
-'   unreadable date, netting-set fields that cannot be read, a moved or
-'   renamed column, a broken parameter name, a parameter, supervisory
-'   factor or currency listed twice with different values, and a factor or
-'   rate the table loader would not read because of a blank row or key. A
-'   blank optional field, and a duplicate with the same values, must still
-'   be accepted.
+'   trade rows with data but no ID, duplicate trade and netting-set IDs, a
+'   missing MtM, an unreadable date, netting-set fields that cannot be
+'   read, an Excel error value (#N/A) in a trade, netting set or parameter,
+'   a moved or renamed column, a broken parameter name, a parameter,
+'   supervisory factor or currency listed twice with different values, and
+'   a factor or rate the table loader would not read because of a blank
+'   row or key. A blank optional field, and a duplicate with the same
+'   values, must still be accepted.
 '
 ' PUBLIC SURFACE
 '   RunInputValidationTests is the entry point. Option Private Module keeps
@@ -51,8 +52,8 @@ Attribute VB_Name = "TestInputValidation"
 ' MODULE CONSTANTS
 '------------------------------------------------------------------------------
         Private Const VALUATION   As String = "2026-09-30"    'Valuation date of every case
-        Private Const CASES       As Long = 23                'Cases in a complete run
-        Private Const CHECKS      As Long = 23                'Checks in a complete run
+        Private Const CASES       As Long = 27                'Cases in a complete run
+        Private Const CHECKS      As Long = 27                'Checks in a complete run
 
 
 '
@@ -135,6 +136,27 @@ Public Sub RunInputValidationTests()
         StartCase "netting-set-blank-flags-take-defaults", ""
         AddSwap "T1"
         ExpectStatus "VALID"
+
+        StartCase "netting-set-duplicate-id", "N"
+        AddSwap "T1"
+        CaseRunner.SetInputCell SH_NS, 2, NS_ID, "NS1"
+        ExpectStatus "INVALID: 1 input error(s)"
+
+    'Excel error values are invalid, never blank.
+        StartCase "trade-error-value-mtm", "N"
+        AddSwap "T1"
+        CaseRunner.SetInputCell SH_TRADES, 1, TR_MTM, CVErr(xlErrNA)
+        ExpectStatus "INCOMPLETE: 1 of 1 trade(s) rejected"
+
+        StartCase "netting-set-error-value-amount", "N"
+        CaseRunner.SetInputCell SH_NS, 1, NS_NICA, CVErr(xlErrNA)
+        AddSwap "T1"
+        ExpectStatus "INVALID: 1 input error(s)"
+
+        StartCase "params-error-value", "N"
+        AddSwap "T1"
+        CaseRunner.PatchCell SH_PARAMS, ParamsRow(PRM_ALPHA), PRM_VALUE_COL, CVErr(xlErrNA)
+        ExpectStop "Parameter must be a number"
 
     'Sheet layout: a header that differs means a column moved.
         StartCase "layout-trades-header-renamed", "N"
