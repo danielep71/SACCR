@@ -97,6 +97,12 @@ Use only the categories needed by a release.
 
 ### Added
 
+- A source-controlled GitHub Wiki publication system keeps every maintained
+  Wiki page under `docs/wiki/`, validates its catalogue and authority links,
+  publishes the complete page set through `tools/Publish-SACCR-Wiki.cmd`, and
+  records the exact source commit and page hashes in `Wiki-Source.json`.
+  Hosted checks validate the source bundle and a separate observation detects
+  published-Wiki drift.
 - Repository-control files adopted from the Excel VBA project template:
   `.editorconfig`, `.gitattributes` and `.gitignore`. Exported VBA source is
   stored with LF in Git and checked out as CRLF; Office packages are binary and
