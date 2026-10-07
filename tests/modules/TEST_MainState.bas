@@ -6,17 +6,20 @@ Attribute VB_Name = "TEST_MainState"
 '   Check that the workbook macros in M_Main put Excel back exactly as they
 '   found it, on success and on failure, report operation and cleanup
 '   failures separately, and leave the workbook ready for the next run
-'   (issue #43); and that a Checks sheet that cannot be written fails the
-'   run and withdraws its results (issue #36).
+'   (issue #43); that a Checks sheet that cannot be written, or any error
+'   after the outputs are being written, fails the run and withdraws its
+'   results; and that results are reported as out of date once an input
+'   changes (issue #36).
 '
 ' PUBLIC SURFACE
 '   RunMainStateTests is the entry point. Option Private Module keeps it out
 '   of the external workbook automation API.
 '
 ' DEPENDENCIES
-'   M_Main, its test seam gTestFault, and the error numbers in CORE_Config. The
-'   workbook must be built from the template with the full source, because
-'   the macros calculate and write the output sheets.
+'   M_Main and its test seam gTestFault, the CORE_Engine test seam
+'   gEngineFault, and the error numbers in CORE_Config. The workbook must be
+'   built from the template with the full source, because the macros
+'   calculate and write the output sheets.
 '
 ' WORKSHEET SAFETY
 '   Unlike TEST_Harness, this module runs the real macros: they clear and
@@ -28,8 +31,8 @@ Attribute VB_Name = "TEST_MainState"
 '
 ' STATE OWNERSHIP
 '   Sets calculation mode, events and screen updating to known values for
-'   each case and restores the caller's values, gSilent and gTestFault at
-'   the end, also after an unexpected error.
+'   each case and restores the caller's values, gSilent, gTestFault and
+'   gEngineFault at the end, also after an unexpected error.
 '
 ' ERROR POLICY
 '   Expected errors are captured and asserted. An unexpected error is
@@ -56,7 +59,7 @@ Attribute VB_Name = "TEST_MainState"
 '------------------------------------------------------------------------------
 ' MODULE CONSTANTS
 '------------------------------------------------------------------------------
-        Private Const EXPECTED_CASES   As Long = 8    'Cases in a complete run
+        Private Const EXPECTED_CASES   As Long = 10   'Cases in a complete run
 
 '------------------------------------------------------------------------------
 ' MODULE STATE
@@ -128,12 +131,15 @@ Public Sub RunMainStateTests()
         CaseOperationFailure
         CaseCleanupFailure
         CaseChecksUnwritable
+        CaseOutputWriteFailure
+        CaseStaleResults
         CaseSilentFlagPreserved
 
 '------------------------------------------------------------------------------
 ' RESTORE THE CALLER AND REPORT
 '------------------------------------------------------------------------------
         M_Main.gTestFault = ""
+        CORE_Engine.gEngineFault = ""
         M_Main.gSilent = callerSilent
         Application.Calculation = callerCalculation
         Application.EnableEvents = callerEvents
@@ -409,6 +415,200 @@ Failed:
         Fail "run.checks-unwritable", "could not unprotect the Checks sheet: " & Err.Description
 
 End Sub
+
+
+Private Sub CaseOutputWriteFailure()
+'
+'==============================================================================
+'                            CaseOutputWriteFailure
+'------------------------------------------------------------------------------
+' PURPOSE
+'   An error after TradeCalc, Results and Buckets have been written, and
+'   before HedgingSets, is raised unchanged; the output sheets are cleared
+'   so that no table of the stopped run is left, Checks and Results A2 say
+'   why, Excel is restored, and the next run works (#36).
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim result      As String    'Result line of the follow-up run
+    Dim errNumber   As Long      'Error raised by the failed run
+    Dim errText     As String    'Its description
+    Dim summary     As String    'Results A2 after the failed run
+
+'------------------------------------------------------------------------------
+' RUN CASE
+'------------------------------------------------------------------------------
+        On Error GoTo Unexpected
+        BeginCase "run.output-write-failure"
+        SetState xlCalculationAutomatic, False, False
+        CORE_Engine.gEngineFault = "outputs"
+        On Error Resume Next
+        result = M_Main.RunSACCR_Silent()
+        errNumber = Err.Number
+        errText = Err.Description
+        On Error GoTo Unexpected
+        CORE_Engine.gEngineFault = ""
+        Check errNumber = ERR_INJECTED_FAULT, "expected the injected error, got " & errNumber & ": " & errText
+        Check IsBlankCell(GetSheet(SH_TRADECALC).Cells(FIRST_DATA_ROW, 1).Value), "TradeCalc rows were not withdrawn"
+        Check IsBlankCell(GetSheet(SH_RESULTS).Cells(FIRST_DATA_ROW, 1).Value), "Results rows were not withdrawn"
+        Check IsBlankCell(GetSheet(SH_BUCKETS).Cells(FIRST_DATA_ROW, 1).Value), "Buckets rows were not withdrawn"
+        summary = SafeStr(GetSheet(SH_RESULTS).Range(RUNINFO_CELL).Value)
+        Check InStr(1, summary, "results withdrawn", vbTextCompare) > 0, "run summary does not say why: " & summary
+        Check ChecksMention("Injected output failure"), "Checks does not show the error"
+        Check M_Main.ResultsStatus() = "NONE", "results status after a failed run: " & M_Main.ResultsStatus()
+        CheckState xlCalculationAutomatic, False, False
+
+    'The next run works and writes every sheet again.
+        result = M_Main.RunSACCR_Silent()
+        Check Left$(result, 9) = "RESULT=OK", "follow-up run: " & result
+        CheckState xlCalculationAutomatic, False, False
+        Exit Sub
+
+'------------------------------------------------------------------------------
+' HANDLE UNEXPECTED ERROR
+'------------------------------------------------------------------------------
+Unexpected:
+        CORE_Engine.gEngineFault = ""
+        Fail "run.output-write-failure", "unexpected error " & Err.Number & ": " & Err.Description
+
+End Sub
+
+
+Private Sub CaseStaleResults()
+'
+'==============================================================================
+'                               CaseStaleResults
+'------------------------------------------------------------------------------
+' PURPOSE
+'   After a run the results are CURRENT; an edited input makes them STALE
+'   and Results A2 is marked when the sheet is activated; undoing the edit
+'   makes them CURRENT again; Clear outputs makes them NONE (#36).
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim result    As String     'Result line of a run
+    Dim mtmCell   As Range      'MtM of the first trade, edited and restored
+    Dim saved     As Variant    'Its formula
+    Dim summary   As String     'Results A2
+
+'------------------------------------------------------------------------------
+' RUN CASE
+'------------------------------------------------------------------------------
+        On Error GoTo Unexpected
+        BeginCase "results.stale-after-input-change"
+        SetState xlCalculationAutomatic, False, False
+        result = M_Main.RunSACCR_Silent()
+        Check InStr(result, "; inputs=") > 0 And InStr(result, "; inputs=;") = 0, "result line names no inputs: " & result
+        Check M_Main.ResultsStatus() = "CURRENT", "after a run: " & M_Main.ResultsStatus()
+
+    'Edit one input, as a user would, then switch to Results.
+        Set mtmCell = GetSheet(SH_TRADES).Cells(FIRST_DATA_ROW, TR_MTM)
+        saved = mtmCell.Formula
+        mtmCell.Value = ToDbl(mtmCell.Value, 0#) + 1#
+        Check M_Main.ResultsStatus() = "STALE", "after an edit: " & M_Main.ResultsStatus()
+        M_Main.FlagStaleResults
+        summary = SafeStr(GetSheet(SH_RESULTS).Range(RUNINFO_CELL).Value)
+        Check Left$(summary, 11) = "OUT OF DATE", "Results A2 not marked: " & summary
+
+    'Undoing the edit brings the results back in line.
+        mtmCell.Formula = saved
+        Check M_Main.ResultsStatus() = "CURRENT", "after undoing the edit: " & M_Main.ResultsStatus()
+
+    'Clear outputs leaves no results; a new run makes them current again.
+        M_Main.ClearOutputs
+        Check M_Main.ResultsStatus() = "NONE", "after Clear outputs: " & M_Main.ResultsStatus()
+        result = M_Main.RunSACCR_Silent()
+        Check M_Main.ResultsStatus() = "CURRENT", "after a new run: " & M_Main.ResultsStatus()
+        CheckState xlCalculationAutomatic, False, False
+        Exit Sub
+
+'------------------------------------------------------------------------------
+' HANDLE UNEXPECTED ERROR
+'------------------------------------------------------------------------------
+Unexpected:
+        Fail "results.stale-after-input-change", "unexpected error " & Err.Number & ": " & Err.Description
+        RestoreCell mtmCell, saved
+
+End Sub
+
+
+Private Sub RestoreCell( _
+    ByVal target As Range, _
+    ByVal saved As Variant)
+'
+'==============================================================================
+'                                 RestoreCell
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Put back an input cell edited by CaseStaleResults after an unexpected
+'   error.
+'
+' ERROR POLICY
+'   Contained: a failure is reported as a test failure.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        On Error GoTo Failed
+        If Not target Is Nothing Then
+            target.Formula = saved
+        End If
+        Exit Sub
+
+Failed:
+        Fail "results.stale-after-input-change", "could not restore the edited input: " & Err.Description
+
+End Sub
+
+
+Private Function ChecksMention( _
+    ByVal fragment As String) _
+    As Boolean
+'
+'==============================================================================
+'                                ChecksMention
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Tell whether a message on the Checks sheet contains fragment, ignoring
+'   case.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws   As Worksheet    'Checks sheet
+    Dim r    As Long         'Row being read
+
+'------------------------------------------------------------------------------
+' SEARCH
+'------------------------------------------------------------------------------
+    'Checks column 5 holds the message.
+        Set ws = GetSheet(SH_CHECKS)
+        For r = FIRST_DATA_ROW To UsedLastRow(ws)
+            If InStr(1, SafeStr(ws.Cells(r, 5).Value), fragment, vbTextCompare) > 0 Then
+                ChecksMention = True
+                Exit Function
+            End If
+        Next r
+
+End Function
 
 
 Private Sub CaseSilentFlagPreserved()

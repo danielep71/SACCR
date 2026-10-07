@@ -1064,6 +1064,51 @@ Public Function GetParam( _
 End Function
 
 
+Public Function TextHash( _
+    ByVal content As String) _
+    As String
+'
+'==============================================================================
+'                                   TextHash
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Reduce a text to an 8-digit hexadecimal fingerprint, to tell whether
+'   the inputs of a run have changed since (#36). Not a security hash: two
+'   different texts can share a fingerprint, but an edit is missed only
+'   about once in two billion.
+'
+' METHOD
+'   Polynomial hash over the UTF-16 bytes of the text, modulo the prime
+'   2^31 - 1, computed in Double, which holds every intermediate value
+'   exactly.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Const HASH_MODULUS As Double = 2147483647#    'Prime 2^31 - 1
+    Const HASH_BASE    As Double = 131#           'Multiplier per byte
+    Dim bytes()   As Byte      'UTF-16 bytes of the text
+    Dim h         As Double    'Running hash, 0 to HASH_MODULUS - 1
+    Dim i         As Long      'Byte being added
+
+'------------------------------------------------------------------------------
+' HASH
+'------------------------------------------------------------------------------
+        bytes = content
+        For i = 0 To UBound(bytes)
+            h = h * HASH_BASE + bytes(i)
+            h = h - Int(h / HASH_MODULUS) * HASH_MODULUS
+        Next i
+        TextHash = Right$("0000000" & Hex$(CLng(h)), 8)
+
+End Function
+
+
 Public Function BrokenName( _
     ByVal code As String) _
     As Boolean

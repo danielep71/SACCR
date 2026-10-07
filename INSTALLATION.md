@@ -177,7 +177,9 @@ The exact component list is added here with the first VBA source.
    modules) cannot be imported: the VBE would create a new class such as
    `ThisWorkbook1`. Instead, open the `.cls` file in a text editor, copy the code
    below the `Attribute` lines, and paste it into the existing `ThisWorkbook` or
-   sheet module. Sheet code names must match the file names.
+   sheet module. Sheet code names must match the file names. `shResults.cls`
+   carries the code that marks the results as out of date when the Results
+   sheet is activated; the other document modules hold only `Option Explicit`.
 6. Run **Debug → Compile VBAProject**; it must complete with no error.
 7. Save, close and reopen when a clean session is needed, then run the harness
    and the specific scenario under test.
@@ -245,17 +247,19 @@ as before, and reports `cleanup=FAIL` if not.
 and **Clear outputs** put calculation mode, events and screen updating back as
 they found them, also when they were off, and that an operation failure and a
 cleanup failure are each raised and leave the workbook ready for the next run.
-It also protects the Checks sheet for one run and checks that the run fails
-with its results withdrawn, then unprotects it. Unlike the harness, it runs the
-real macros, which rewrite the output sheets, so use a development workbook.
-Run:
+It also protects the Checks sheet for one run, and makes one run fail after
+the first output sheets are written, and checks that each fails with its
+results withdrawn; and it edits one trade after a run and checks that the
+results are reported out of date until the edit is undone. Unlike the
+harness, it runs the real macros, which rewrite the output sheets, so use a
+development workbook. Run:
 
 ```text
 TEST_MainState.RunMainStateTests
 ```
 
-A passing run prints eight `CASE=` lines and ends with
-`RESULT=PASS; cases=8; checks=...; failures=0; caller_state=RESTORED`.
+A passing run prints ten `CASE=` lines and ends with
+`RESULT=PASS; cases=10; checks=...; failures=0; caller_state=RESTORED`.
 
 <a id="numerical-test-cases"></a>
 
@@ -296,8 +300,13 @@ needs a workbook built from the template. Import it with `TEST_CaseRunner` and r
 `RESULT=PASS; cases=27; checks=27; failures=0; restore=PASS`.
 
 For automation, `RunSACCR_Silent` returns a result line such as
-`RESULT=OK; operation=run; errors=0; warnings=0; trades_used=62; trades_read=65; total_ead=...; cleanup=PASS`
-and raises any failure instead of showing a message box.
+`RESULT=OK; operation=run; errors=0; warnings=0; trades_used=62; trades_read=65; incomplete=2; total_ead=...; inputs=...; cleanup=PASS`
+and raises any failure instead of showing a message box. `inputs` is the
+fingerprint of the inputs the results were calculated from, also shown in the
+run summary on Results A2. `M_Main.ResultsStatus()` returns `CURRENT` when the
+results on the sheets match the inputs as they are now, `STALE` when an input
+changed since, and `NONE` when there are no results; activating the Results
+sheet marks A2 `OUT OF DATE` in the `STALE` case.
 
 <a id="validation-record"></a>
 
