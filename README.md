@@ -19,9 +19,13 @@
 
 ## ✨ What this project is
 
-SACCR will calculate exposure at default for derivative netting sets under the
-Standardised Approach for Counterparty Credit Risk (SA-CCR), as an Excel
-workbook driven by exported, reviewable VBA source.
+The Standardized Approach for Counterparty Credit Risk (SA-CCR) is a non-modelled
+regulatory framework used to measure the exposure-at-default (EAD) of derivative
+contracts for bank capital requirements.
+
+**SA-CCR Benchmark** is an Excel/VBA toolkit for independently calculating and
+validating that exposure at netting-set level, with exported, reviewable VBA
+source.
 
 <a id="status"></a>
 
