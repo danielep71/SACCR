@@ -1,6 +1,7 @@
 @echo off
 setlocal EnableExtensions
-cd /d "%~dp0.."
+set "REPO_ROOT=%~dp0.."
+cd /d "%REPO_ROOT%"
 
 set "SCRIPT=%~dp0Sync-SACCR-VBA.ps1"
 
@@ -48,7 +49,7 @@ echo.
 echo Synchronizing VBA source...
 echo.
 
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%" -WorkbookPath "%WORKBOOK%"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%" -WorkbookPath "%WORKBOOK%" -RepoRoot "%REPO_ROOT%"
 set "RC=%ERRORLEVEL%"
 
 echo.
