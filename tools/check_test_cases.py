@@ -73,14 +73,14 @@ ENUMS = {
 
 NETTING_SET_QUANTITIES = {
     "exposure_value", "replacement_cost", "potential_future_exposure", "multiplier",
-    "aggregate_add_on", "margin_period_of_risk", "cap_applied",
+    "aggregate_add_on", "margin_period_of_risk", "cap_applied", "netting_set_status",
     *(f"add_on.{name}" for name in ASSET_CLASSES),
 }
 TRADE_QUANTITIES = {
     "adjusted_notional", "supervisory_delta", "supervisory_factor", "lambda_shift",
     "hedging_set", "trade_status",
 }
-TEXT_QUANTITIES = {"cap_applied", "hedging_set", "trade_status"}
+TEXT_QUANTITIES = {"cap_applied", "hedging_set", "trade_status", "netting_set_status"}
 UNITS = {"1", "business_days", "price"}
 REFERENCE_FIELDS = {"class", "source", "locator", "derivation", "derived_by", "reviewed_by", "date"}
 REQUIRED_REFERENCE = {

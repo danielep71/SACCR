@@ -274,7 +274,7 @@ the other Params values must be the template's. At the end the inputs and
 parameters are written back, the engine is run once more and Excel settings
 are restored. A passing run prints one `CASE=` line per expected file, the
 results per reference class, and
-`RESULT=PASS; cases=18; checks=30; failures=0; restore=PASS`. Illustrative
+`RESULT=PASS; cases=19; checks=36; failures=0; restore=PASS`. Illustrative
 results are counted separately and validate nothing.
 
 For automation, `RunSACCR_Silent` returns a result line such as

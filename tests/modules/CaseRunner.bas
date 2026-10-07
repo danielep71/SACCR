@@ -725,6 +725,8 @@ Private Function OutputColumn( _
                     OutputColumn = 22
                 Case "cap_applied"
                     OutputColumn = 23
+                Case "netting_set_status"
+                    OutputColumn = RS_STATUS_COL
             End Select
         End If
 

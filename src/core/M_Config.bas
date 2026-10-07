@@ -166,8 +166,9 @@ Attribute VB_Name = "M_Config"
         Public Const TC_NCOLS   As Long = 25    'TradeCalc
         Public Const BK_NCOLS   As Long = 11    'Buckets
         Public Const HS_NCOLS   As Long = 14    'HedgingSets
-        Public Const RS_NCOLS   As Long = 27    'Results
+        Public Const RS_NCOLS   As Long = 28    'Results
         Public Const CK_NCOLS   As Long = 5     'Checks
+        Public Const RS_STATUS_COL  As Long = 28    'Results: VALID, INCOMPLETE or NO TRADES
 
 '------------------------------------------------------------------------------
 ' ASSET CLASSES

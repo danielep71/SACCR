@@ -105,6 +105,7 @@ Attribute VB_Name = "M_Engine"
         IsCRR             As Boolean    'Regime = CRR
         V                 As Double     'Sum of trade MtM
         Trades            As Long       'Number of valid trades
+        Rejected          As Long       'Number of trades rejected by validation
     End Type
 
     'One row of the supervisory-factor table on Params.
@@ -196,7 +197,8 @@ Attribute VB_Name = "M_Engine"
 
         Private mTradesRead   As Long            'Trades with an ID
         Private mTradesUsed   As Long            'Trades included in the calculation
-        Private mTotalEAD     As Double          'Sum of netting-set EADs
+        Private mTotalEAD     As Double          'Sum of netting-set EADs, VALID sets only
+        Private mIncomplete   As Long            'Netting sets whose EAD was withheld
 
 '------------------------------------------------------------------------------
 ' RUN PARAMETERS
@@ -268,9 +270,12 @@ Public Function Calculate( _
 '------------------------------------------------------------------------------
 ' LOAD INPUTS
 '------------------------------------------------------------------------------
-    'Any loader that fails has logged why; skip to the Checks output.
+    'Old outputs are cleared first, for validation too, so that a failed or
+    'validation-only run can never leave earlier results looking current
+    '(#36). Any loader that fails has logged why; skip to the Checks output.
         t0 = Timer
         ResetState
+        ClearOutputSheets
 
         If Not LoadParams() Then GoTo Finish
         If Not LoadSFTable() Then GoTo Finish
@@ -295,9 +300,7 @@ Public Function Calculate( _
     'Reached on success and after a failed load.
 Finish:
         WriteChecks
-        If writeOutputs Then
-            WriteRunInfo Timer - t0, Calculate
-        End If
+        WriteRunInfo Timer - t0, Calculate, writeOutputs
 
 End Function
 
@@ -371,6 +374,24 @@ Public Property Get TradesUsed() As Long
 End Property
 
 
+Public Property Get IncompleteCount() As Long
+'
+'==============================================================================
+'                               IncompleteCount
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Number of netting sets in the last run whose EAD was withheld because
+'   at least one of their trades was rejected.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+        IncompleteCount = mIncomplete
+
+End Property
+
+
 Public Property Get TradesRead() As Long
 '
 '==============================================================================
@@ -424,6 +445,7 @@ Private Sub ResetState()
         mTradesRead = 0
         mTradesUsed = 0
         mTotalEAD = 0#
+        mIncomplete = 0
 
 '------------------------------------------------------------------------------
 ' RESET INDEXES AND ARRAYS
@@ -964,6 +986,7 @@ Private Function LoadNettingSets() As Boolean
                 End If
                 .V = 0#
                 .Trades = 0
+                .Rejected = 0
                 .MPOR = 0#
                 .MFMargined = 0#
 
@@ -1549,6 +1572,7 @@ Private Sub ProcessTrades( _
             End If
 
             If Not ok Then LogMsg SEV_ERROR, SH_TRADES, tid, "Trade excluded: " & msg, rowNum
+            If Not ok And nsIdx > 0 Then mNS(nsIdx).Rejected = mNS(nsIdx).Rejected + 1
             If Len(warn) > 0 Then LogMsg SEV_WARN, SH_TRADES, tid, warn, rowNum
 
     '--- TradeCalc row ------------------------------------------------------------
@@ -1952,16 +1976,19 @@ Private Sub ComputeNettingSets( _
 '                              ComputeNettingSets
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Calculate RC, multiplier, PFE and EAD for every netting set with at
-'   least one valid trade, apply the margined-EAD cap, and write the Results
-'   sheet with a total row.
+'   Calculate RC, multiplier, PFE and EAD for every netting set whose
+'   trades are all valid, apply the margined-EAD cap, and write the Results
+'   sheet with one row per input netting set, a status and a total row.
+'   A netting set with a rejected trade is INCOMPLETE: its EAD is withheld,
+'   because a figure on the remaining trades would understate the exposure
+'   (#36). One without trades is NO TRADES.
 '
 ' INPUTS
 '   writeOutputs: True writes the Results sheet.
 '
 ' STATE OWNERSHIP
-'   Adds each EAD to mTotalEAD. A netting set without valid trades is not
-'   reported and gets an INFO message.
+'   Adds each VALID EAD to mTotalEAD and counts INCOMPLETE sets in
+'   mIncomplete. Only VALID sets enter the TOTAL row.
 '
 ' REFERENCE
 '   EAD CRE52.1; cap CRE52.2 and CRR Art. 274(3); RC CRE52.10, CRE52.18 and
@@ -1976,11 +2003,12 @@ Private Sub ComputeNettingSets( _
 '------------------------------------------------------------------------------
 ' DECLARE
 '------------------------------------------------------------------------------
-    'Results columns (RS_NCOLS = 27): 1 ID, 2 counterparty, 3 regime,
+    'Results columns (RS_NCOLS = 28): 1 ID, 2 counterparty, 3 regime,
     '4 margined, 5 trades, 6 MPOR, 7 V, 8 C, 9 RC, 10 to 15 add-ons IR, FX,
     'CR, EQ, CO, OT, 16 aggregate add-on, 17 multiplier, 18 PFE, 19 alpha,
     '20 EAD margined, 21 EAD cap, 22 EAD, 23 cap applied, 24 C (cap basis),
-    '25 RC (cap basis), 26 add-on unmargined, 27 multiplier (cap basis).
+    '25 RC (cap basis), 26 add-on unmargined, 27 multiplier (cap basis),
+    '28 status.
     Dim ws       As Worksheet    'Results sheet
     Dim k        As Long         'Netting set, position in mNS
     Dim a        As Long         'Asset class, or Results column in loops
@@ -2007,8 +2035,19 @@ Private Sub ComputeNettingSets( _
         ReDim outArr(1 To mNSCount + 1, 1 To RS_NCOLS)
         nOut = 0
         For k = 1 To mNSCount
+            If mNS(k).Rejected > 0 Then
+                mIncomplete = mIncomplete + 1
+                LogMsg SEV_ERROR, SH_NS, mNS(k).ID, "EAD withheld: " & mNS(k).Rejected & _
+                       " trade(s) rejected - see the Trades messages."
+                nOut = nOut + 1
+                WriteStatusRow outArr, nOut, k, "INCOMPLETE: " & mNS(k).Rejected & " of " & _
+                               (mNS(k).Trades + mNS(k).Rejected) & " trade(s) rejected"
+                GoTo NextNS
+            End If
             If mNS(k).Trades = 0 Then
-                LogMsg SEV_INFO, SH_NS, mNS(k).ID, "Netting set has no valid trades - not reported."
+                LogMsg SEV_INFO, SH_NS, mNS(k).ID, "Netting set has no trades - no EAD."
+                nOut = nOut + 1
+                WriteStatusRow outArr, nOut, k, "NO TRADES"
                 GoTo NextNS
             End If
             With mNS(k)
@@ -2089,6 +2128,7 @@ Private Sub ComputeNettingSets( _
                 End If
                 outArr(nOut, 19) = .Alpha
                 outArr(nOut, 22) = ead
+                outArr(nOut, RS_STATUS_COL) = "VALID"
 
     'Running totals for V, C, RC, the add-ons, PFE and EAD.
                 tot(7) = tot(7) + .V
@@ -2121,7 +2161,7 @@ NextNS:
                 outArr(nOut, 22) = tot(22)
                 WriteBlock ws, FIRST_DATA_ROW, outArr, nOut, RS_NCOLS
                 FormatColumns ws, FIRST_DATA_ROW, nOut, _
-                    "@|@|@|@|0|0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|0.0000|#,##0|0.00|#,##0|#,##0|#,##0|@|#,##0|#,##0|#,##0|0.0000"
+                    "@|@|@|@|0|0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|#,##0|0.0000|#,##0|0.00|#,##0|#,##0|#,##0|@|#,##0|#,##0|#,##0|0.0000|@"
                 ws.Range(ws.Cells(FIRST_DATA_ROW + nOut - 1, 1), ws.Cells(FIRST_DATA_ROW + nOut - 1, RS_NCOLS)).Font.Bold = True
             End If
         End If
@@ -2136,6 +2176,58 @@ End Sub
 '
 '------------------------------------------------------------------------------
 '
+
+Private Sub WriteStatusRow( _
+    ByRef outArr() As Variant, _
+    ByVal r As Long, _
+    ByVal k As Long, _
+    ByVal status As String)
+'
+'==============================================================================
+'                                WriteStatusRow
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Fill a Results row for a netting set that has no EAD: its identity, its
+'   valid-trade count and its status. The exposure columns stay blank.
+'
+' INPUTS
+'   outArr: the Results rows; r: the row to fill; k: the netting set,
+'   position in mNS; status: the text for the status column.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+        outArr(r, 1) = mNS(k).ID
+        outArr(r, 2) = mNS(k).Counterparty
+        outArr(r, 3) = mNS(k).Regime
+        outArr(r, 4) = IIf(mNS(k).Margined, "Y", "N")
+        outArr(r, 5) = mNS(k).Trades
+        outArr(r, RS_STATUS_COL) = status
+
+End Sub
+
+
+Private Sub ClearOutputSheets()
+'
+'==============================================================================
+'                              ClearOutputSheets
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Clear the TradeCalc, Buckets, HedgingSets and Results tables before a
+'   run. Checks is rewritten by every run.
+'
+' UPDATED
+'   2026-10-06
+'==============================================================================
+'
+        ClearOutputBlock GetSheet(SH_TRADECALC), FIRST_DATA_ROW, TC_NCOLS
+        ClearOutputBlock GetSheet(SH_BUCKETS), FIRST_DATA_ROW, BK_NCOLS
+        ClearOutputBlock GetSheet(SH_HEDGING), FIRST_DATA_ROW, HS_NCOLS
+        ClearOutputBlock GetSheet(SH_RESULTS), FIRST_DATA_ROW, RS_NCOLS
+
+End Sub
+
 
 Private Sub WriteBuckets()
 '
@@ -2353,7 +2445,8 @@ End Sub
 
 Private Sub WriteRunInfo( _
     ByVal secs As Double, _
-    ByVal completed As Boolean)
+    ByVal completed As Boolean, _
+    ByVal wroteOutputs As Boolean)
 '
 '==============================================================================
 '                                 WriteRunInfo
@@ -2364,6 +2457,8 @@ Private Sub WriteRunInfo( _
 ' INPUTS
 '   secs: run duration in seconds.
 '   completed: the result of Calculate.
+'   wroteOutputs: False for a validation-only run, whose outputs were
+'   cleared rather than written.
 '
 ' ERROR POLICY
 '   Best effort: errors are ignored, because the summary is informative only.
@@ -2384,13 +2479,20 @@ Private Sub WriteRunInfo( _
 '------------------------------------------------------------------------------
         On Error Resume Next
         Set ws = GetSheet(SH_RESULTS)
-        If completed Then
+        If Not wroteOutputs Then
+            txt = "Last validation " & Format$(Now, "yyyy-mm-dd hh:mm:ss") & _
+                  " | errors " & mErrCount & ", warnings " & mWarnCount & _
+                  " | outputs cleared: press Run SA-CCR to calculate"
+        ElseIf completed Then
             txt = "Last run " & Format$(Now, "yyyy-mm-dd hh:mm:ss") & _
                   " | reporting date " & Format$(CDate(pAsOf), "yyyy-mm-dd") & _
                   " | ccy " & pRepCcy & _
                   " | trades used " & mTradesUsed & " of " & mTradesRead & _
                   " | errors " & mErrCount & ", warnings " & mWarnCount & _
                   " | " & Format$(secs, "0.00") & " s"
+            If mIncomplete > 0 Then
+                txt = txt & " | EAD withheld for " & mIncomplete & " netting set(s)"
+            End If
         Else
             txt = "Last run " & Format$(Now, "yyyy-mm-dd hh:mm:ss") & _
                   " FAILED - see Checks sheet (" & mErrCount & " errors)"

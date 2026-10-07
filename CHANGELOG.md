@@ -227,6 +227,20 @@ Use only the categories needed by a release.
 
 ### Fixed
 
+- A netting set with a rejected trade no longer reports an EAD computed on
+  its remaining trades (#36). Results has a Status column and a row for
+  every input netting set: `VALID`, `INCOMPLETE: r of n trade(s) rejected`
+  with the exposure columns blank, an error on Checks and no contribution to
+  the TOTAL, or `NO TRADES`. Every run, and every validation, first clears
+  the output sheets, so a failed or validation-only run cannot leave earlier
+  results looking current. The run message, the run summary and
+  `RunSACCR_Silent` (`incomplete=`) report the count of withheld netting
+  sets. In the template, the deliberate error trades `OT-X` and `A11` move
+  to their own netting set `DEMO-REJECTED`, so the CRE99 examples and
+  `NS-ALPHA` still report. The template no longer carries the prototype's
+  saved output rows, which no longer matched these inputs; Results A2 says
+  that no results exist until the workbook is run.
+
 - The workbook macros restore calculation mode, events and screen updating to
   the values they found, including settings that were off, instead of
   switching events and screen updating on (#43). Each setting is restored

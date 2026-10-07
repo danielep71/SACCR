@@ -126,7 +126,8 @@ Public Function RunSACCR_Silent() As String
 '
 ' RETURNS
 '   A result line such as "RESULT=OK; operation=run; errors=0; warnings=0;
-'   trades_used=62; trades_read=65; total_ead=425197517.8; cleanup=PASS".
+'   trades_used=62; trades_read=65; incomplete=0; total_ead=425197517.8;
+'   cleanup=PASS". incomplete counts netting sets whose EAD was withheld.
 '   RESULT=STOPPED means the inputs could not be loaded; see Checks.
 '
 ' STATE OWNERSHIP
@@ -636,6 +637,10 @@ Private Function ReportOutcome( _
                           "Trades used: " & M_Engine.TradesUsed & " of " & M_Engine.TradesRead & vbCrLf & _
                           "Total EAD: " & Format$(M_Engine.TotalEAD, "#,##0") & vbCrLf & _
                           "Errors: " & M_Engine.ErrorCount & "   Warnings: " & M_Engine.WarningCount
+                    If M_Engine.IncompleteCount > 0 Then
+                        msg = msg & vbCrLf & "EAD withheld for " & M_Engine.IncompleteCount & _
+                              " netting set(s) with rejected trades."
+                    End If
                     If M_Engine.ErrorCount > 0 Or M_Engine.WarningCount > 0 Then
                         msg = msg & vbCrLf & vbCrLf & "See the Checks sheet for details."
                     End If
@@ -667,6 +672,7 @@ Private Function ReportOutcome( _
                      "; warnings=" & CStr(M_Engine.WarningCount) & _
                      "; trades_used=" & CStr(M_Engine.TradesUsed) & _
                      "; trades_read=" & CStr(M_Engine.TradesRead) & _
+                     "; incomplete=" & CStr(M_Engine.IncompleteCount) & _
                      "; total_ead=" & Trim$(Str$(M_Engine.TotalEAD))
         End If
         result = result & "; cleanup=" & IIf(Len(cleanupDetails) = 0, "PASS", "FAIL")
