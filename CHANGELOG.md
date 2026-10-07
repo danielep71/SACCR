@@ -231,12 +231,6 @@ Use only the categories needed by a release.
   runs the engine, compares the outputs and restores the workbook. Results
   are reported per reference class.
 
-### Changed
-
-- The repository is renamed `danielep71/VBA-SACCR-Toolkit`. Links, clone
-  instructions and the repository named in the Excel evidence policy use
-  the new name; GitHub redirects the old URLs.
-
 ### Fixed
 
 - A netting set with a rejected trade no longer reports an EAD computed on
