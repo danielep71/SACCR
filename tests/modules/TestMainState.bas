@@ -6,7 +6,8 @@ Attribute VB_Name = "TestMainState"
 '   Check that the workbook macros in M_Main put Excel back exactly as they
 '   found it, on success and on failure, report operation and cleanup
 '   failures separately, and leave the workbook ready for the next run
-'   (issue #43).
+'   (issue #43); and that a Checks sheet that cannot be written fails the
+'   run and withdraws its results (issue #36).
 '
 ' PUBLIC SURFACE
 '   RunMainStateTests is the entry point. Option Private Module keeps it out
@@ -20,8 +21,10 @@ Attribute VB_Name = "TestMainState"
 ' WORKSHEET SAFETY
 '   Unlike TestHarness, this module runs the real macros: they clear and
 '   rewrite TradeCalc, Buckets, HedgingSets, Results and Checks, and
-'   activate the Checks sheet. The last case leaves the outputs of a normal
-'   run. Use a development workbook only.
+'   activate the Checks sheet. One case protects the Checks sheet for one
+'   run and unprotects it again, also after an unexpected error. The last
+'   case leaves the outputs of a normal run. Use a development workbook
+'   only.
 '
 ' STATE OWNERSHIP
 '   Sets calculation mode, events and screen updating to known values for
@@ -37,7 +40,7 @@ Attribute VB_Name = "TestMainState"
 '   TestMainState.RunMainStateTests from the Immediate window.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '
 ' AUTHOR
 '   Daniele Penza
@@ -53,7 +56,7 @@ Attribute VB_Name = "TestMainState"
 '------------------------------------------------------------------------------
 ' MODULE CONSTANTS
 '------------------------------------------------------------------------------
-        Private Const EXPECTED_CASES   As Long = 7    'Cases in a complete run
+        Private Const EXPECTED_CASES   As Long = 8    'Cases in a complete run
 
 '------------------------------------------------------------------------------
 ' MODULE STATE
@@ -124,6 +127,7 @@ Public Sub RunMainStateTests()
         CaseRestoresState "run.manual-off", "run", xlCalculationManual, False, False
         CaseOperationFailure
         CaseCleanupFailure
+        CaseChecksUnwritable
         CaseSilentFlagPreserved
 
 '------------------------------------------------------------------------------
@@ -317,6 +321,92 @@ Private Sub CaseCleanupFailure()
 '------------------------------------------------------------------------------
 Unexpected:
         Fail "run.cleanup-failure", "unexpected error " & Err.Number & ": " & Err.Description
+
+End Sub
+
+
+Private Sub CaseChecksUnwritable()
+'
+'==============================================================================
+'                             CaseChecksUnwritable
+'------------------------------------------------------------------------------
+' PURPOSE
+'   When the Checks sheet cannot be written, here because it is protected,
+'   the run raises ERR_CHECKS_WRITE, clears its results, says why on
+'   Results, restores Excel, and the next run works once the sheet is
+'   writable again (#36).
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim results     As Worksheet    'Results sheet
+    Dim result      As String       'Result line of the follow-up run
+    Dim errNumber   As Long         'Error raised by the failed run
+    Dim errText     As String       'Its description
+
+'------------------------------------------------------------------------------
+' RUN CASE
+'------------------------------------------------------------------------------
+        On Error GoTo Unexpected
+        BeginCase "run.checks-unwritable"
+        SetState xlCalculationAutomatic, False, False
+        Set results = GetSheet(SH_RESULTS)
+        GetSheet(SH_CHECKS).Protect
+        On Error Resume Next
+        result = M_Main.RunSACCR_Silent()
+        errNumber = Err.Number
+        errText = Err.Description
+        On Error GoTo Unexpected
+        GetSheet(SH_CHECKS).Unprotect
+        Check errNumber = ERR_CHECKS_WRITE, "expected the Checks write error, got " & errNumber & ": " & errText
+        Check IsBlankCell(results.Cells(FIRST_DATA_ROW, 1).Value), "Results rows were not withdrawn"
+        Check InStr(1, SafeStr(results.Range(RUNINFO_CELL).Value), "Checks sheet could not be written", _
+                    vbTextCompare) > 0, "run summary does not say why: " & SafeStr(results.Range(RUNINFO_CELL).Value)
+        CheckState xlCalculationAutomatic, False, False
+
+    'With the sheet writable again, the next run works.
+        result = M_Main.RunSACCR_Silent()
+        Check Left$(result, 9) = "RESULT=OK", "follow-up run: " & result
+        CheckState xlCalculationAutomatic, False, False
+        Exit Sub
+
+'------------------------------------------------------------------------------
+' HANDLE UNEXPECTED ERROR
+'------------------------------------------------------------------------------
+Unexpected:
+        Fail "run.checks-unwritable", "unexpected error " & Err.Number & ": " & Err.Description
+        UnprotectChecks
+
+End Sub
+
+
+Private Sub UnprotectChecks()
+'
+'==============================================================================
+'                               UnprotectChecks
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Unprotect the Checks sheet after an unexpected error in
+'   CaseChecksUnwritable, so that the protection never outlives the case.
+'
+' ERROR POLICY
+'   Contained: a failure is reported as a test failure.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        On Error GoTo Failed
+        GetSheet(SH_CHECKS).Unprotect
+        Exit Sub
+
+Failed:
+        Fail "run.checks-unwritable", "could not unprotect the Checks sheet: " & Err.Description
 
 End Sub
 

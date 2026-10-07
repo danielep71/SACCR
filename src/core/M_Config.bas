@@ -216,6 +216,7 @@ Attribute VB_Name = "M_Config"
         Public Const ERR_CLEANUP_FAILED   As Long = vbObjectError + 2050    'Excel settings were not restored
         Public Const ERR_INJECTED_FAULT   As Long = vbObjectError + 2051    'Test seam: injected failure
         Public Const ERR_TEST_SETUP       As Long = vbObjectError + 2052    'Test runner: workbook not set up
+        Public Const ERR_CHECKS_WRITE     As Long = vbObjectError + 2053    'Checks sheet could not be written
 
 '------------------------------------------------------------------------------
 ' SEVERITY LABELS

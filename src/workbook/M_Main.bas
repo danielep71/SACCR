@@ -794,7 +794,7 @@ Private Sub ReportFailure( _
 '------------------------------------------------------------------------------
     'The project's own errors carry a readable description; anything else
     'is shown with its number.
-        If errNumber = ERR_RUN_ACTIVE Then
+        If errNumber = ERR_RUN_ACTIVE Or errNumber = ERR_CHECKS_WRITE Then
             msg = errDescription
         Else
             msg = "Unexpected error " & errNumber & ": " & errDescription

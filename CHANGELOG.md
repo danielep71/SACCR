@@ -291,6 +291,13 @@ Use only the categories needed by a release.
   saved output rows, which no longer matched these inputs; Results A2 says
   that no results exist until the workbook is run.
 
+- A Checks sheet that cannot be written, for example because it is
+  protected, now fails the run (#36). The errors were swallowed: the new
+  results were shown while Checks still held the previous run's messages.
+  The run now clears the other output sheets, says why in Results A2 and
+  raises `ERR_CHECKS_WRITE`; the button shows the reason and
+  `RunSACCR_Silent` raises it. `TestMainState` adds the case.
+
 - The workbook macros restore calculation mode, events and screen updating to
   the values they found, including settings that were off, instead of
   switching events and screen updating on (#43). Each setting is restored
