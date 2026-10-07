@@ -1,6 +1,6 @@
-Attribute VB_Name = "M_Formulas"
+Attribute VB_Name = "SACCR_Formulas"
 '==============================================================================
-' MODULE: M_Formulas
+' MODULE: SACCR_Formulas
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Provide the SA-CCR building blocks as public functions. The engine calls

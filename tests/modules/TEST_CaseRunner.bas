@@ -1,10 +1,10 @@
-Attribute VB_Name = "CaseRunner"
+Attribute VB_Name = "TEST_CaseRunner"
 '==============================================================================
-' MODULE: CaseRunner
+' MODULE: TEST_CaseRunner
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Run the numerical test cases of tests/fixtures and tests/expected
-'   against the engine. The generated module TestCases calls these
+'   against the engine. The generated module TEST_Cases calls these
 '   procedures: for each case it writes the fixture into the input sheets,
 '   runs the engine, and compares the output cells with the expected values
 '   (methodology decision 7, #44).
@@ -12,16 +12,16 @@ Attribute VB_Name = "CaseRunner"
 ' PUBLIC SURFACE
 '   BeginSuite, BeginCase, AddNettingSet, AddTrade, SetInputCell, PatchCell,
 '   PatchName, RunCase, RunCaseExpectingStop, ExpectNumber, ExpectText and
-'   EndSuite, for TestCases and TestInputValidation. Option Private Module
+'   EndSuite, for TEST_Cases and TEST_InputValidation. Option Private Module
 '   keeps them out of the external workbook automation API.
 '
 ' DEPENDENCIES
-'   M_Engine.Calculate; M_Util for sheet access; M_Config for the layout.
+'   CORE_Engine.Calculate; CORE_Util for sheet access; CORE_Config for the layout.
 '   The workbook must be built from the template, because the engine reads
 '   its input sheets and Params.
 '
 ' WORKSHEET SAFETY
-'   Unlike TestHarness, this module writes the NettingSets and Trades input
+'   Unlike TEST_Harness, this module writes the NettingSets and Trades input
 '   rows, the AsOfDate and ReportingCcy parameters, and every output sheet.
 '   BeginSuite saves the inputs and parameters and EndSuite writes them
 '   back and recalculates, so the workbook ends as it started. A cell or
@@ -69,8 +69,8 @@ Attribute VB_Name = "CaseRunner"
 '------------------------------------------------------------------------------
     'Suite progress.
         Private mSuiteActive     As Boolean    'Between BeginSuite and EndSuite
-        Private mExpectedCases   As Long       'Cases TestCases will run
-        Private mExpectedChecks  As Long       'Checks TestCases will run
+        Private mExpectedCases   As Long       'Cases TEST_Cases will run
+        Private mExpectedChecks  As Long       'Checks TEST_Cases will run
         Private mCaseCount       As Long       'Cases started
         Private mCheckCount      As Long       'Checks evaluated
         Private mFailureCount    As Long       'Failed checks, runs and restorations
@@ -123,9 +123,9 @@ Public Sub BeginSuite( _
 '   Save everything the cases will overwrite, then prepare Excel.
 '
 ' INPUTS
-'   expectedCases, expectedChecks: numbers of cases and checks TestCases
+'   expectedCases, expectedChecks: numbers of cases and checks TEST_Cases
 '   will run; a different count fails the suite, so a stale or edited
-'   TestCases module cannot pass with checks missing.
+'   TEST_Cases module cannot pass with checks missing.
 '
 ' ERROR POLICY
 '   Raises if a suite is already active or the inputs cannot be saved;
@@ -140,7 +140,7 @@ Public Sub BeginSuite( _
 ' GUARD AND RESET
 '------------------------------------------------------------------------------
         If mSuiteActive Then
-            Err.Raise ERR_RUN_ACTIVE, "CaseRunner.BeginSuite", "A case suite is already running."
+            Err.Raise ERR_RUN_ACTIVE, "TEST_CaseRunner.BeginSuite", "A case suite is already running."
         End If
         mExpectedCases = expectedCases
         mExpectedChecks = expectedChecks
@@ -188,7 +188,7 @@ Public Sub EndSuite( _
 '   the summary and the RESULT line.
 '
 ' INPUTS
-'   abortReason: why TestCases stopped early; empty after a complete run.
+'   abortReason: why TEST_Cases stopped early; empty after a complete run.
 '
 ' ERROR POLICY
 '   Each restoration step contains its own error; a failed one is printed
@@ -440,7 +440,7 @@ Public Sub SetInputCell( _
 ' PURPOSE
 '   Overwrite one input cell after AddNettingSet or AddTrade, for invalid
 '   inputs that a JSON fixture cannot express: a blank ID, a duplicate ID,
-'   a typo in a flag. Used by TestInputValidation.
+'   a typo in a flag. Used by TEST_InputValidation.
 '
 ' INPUTS
 '   sheetName: SH_NS or SH_TRADES.
@@ -469,7 +469,7 @@ Public Sub PatchCell( _
 ' PURPOSE
 '   Overwrite any cell outside the input rows, such as a header or a row of
 '   a Params table, for one case. The cell is restored at the start of the
-'   next case and by EndSuite. Used by TestInputValidation.
+'   next case and by EndSuite. Used by TEST_InputValidation.
 '
 ' INPUTS
 '   sheetName: a SH_ constant.
@@ -542,7 +542,7 @@ Public Sub RunCase()
 ' RUN
 '------------------------------------------------------------------------------
         On Error GoTo Failed
-        If Not M_Engine.Calculate(True) Then
+        If Not CORE_Engine.Calculate(True) Then
             mFailureCount = mFailureCount + 1
             Debug.Print "FAILURE=" & mCase & ": engine run stopped; see the Checks sheet"
         End If
@@ -593,7 +593,7 @@ Public Sub RunCaseExpectingStop( _
 ' RUN AND CHECK
 '------------------------------------------------------------------------------
         On Error GoTo Failed
-        completed = M_Engine.Calculate(True)
+        completed = CORE_Engine.Calculate(True)
         If completed Then
             Record label, referenceClass, False, "run completed; expected it to stop"
         Else
@@ -1081,7 +1081,7 @@ Private Function RestoreStep( _
                 mAsOfCell.Formula = mSavedAsOf
                 mCcyCell.Formula = mSavedCcy
             Case 3
-                M_Engine.Calculate True
+                CORE_Engine.Calculate True
             Case 4
                 Application.Calculation = mSavedCalculation
             Case 5
@@ -1234,7 +1234,7 @@ Private Function ParamCell( _
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Return the cell the engine reads a parameter from, the same way as
-'   M_Util.GetParam: the workbook name first, then the Params table.
+'   CORE_Util.GetParam: the workbook name first, then the Params table.
 '
 ' ERROR POLICY
 '   Raises when the parameter is in neither place.
@@ -1263,7 +1263,7 @@ Private Function ParamCell( _
         End If
         paramRow = FindHeaderRow(GetSheet(SH_PARAMS), PRM_CODE_COL, code)
         If paramRow = 0 Then
-            Err.Raise ERR_TEST_SETUP, "CaseRunner.ParamCell", "Parameter " & code & " not found."
+            Err.Raise ERR_TEST_SETUP, "TEST_CaseRunner.ParamCell", "Parameter " & code & " not found."
         End If
         Set ParamCell = GetSheet(SH_PARAMS).Cells(paramRow, PRM_VALUE_COL)
 

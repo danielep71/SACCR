@@ -26,7 +26,7 @@ sequence**. Day-to-day contribution is owned by
 | Active branch | `release/1.0.0` |
 | Version file | Not present; created when the first release is prepared ([versioning](#versioning)) |
 | Release evidence tooling | Static checks (`tools/check.py`) and the Excel evidence validator (`tools/check_excel_evidence.py`) |
-| Excel certification procedure | Harness `TestHarness.RunTests`; evidence bundle and validator in [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) |
+| Excel certification procedure | Harness `TEST_Harness.RunTests`; evidence bundle and validator in [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) |
 
 Steps below marked *(to be defined)* are settled with the first distributed
 artifact. Repository setup, milestone v0.0.1, closed without a release; its

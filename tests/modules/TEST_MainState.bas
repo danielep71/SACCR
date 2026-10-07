@@ -1,6 +1,6 @@
-Attribute VB_Name = "TestMainState"
+Attribute VB_Name = "TEST_MainState"
 '==============================================================================
-' MODULE: TestMainState
+' MODULE: TEST_MainState
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Check that the workbook macros in M_Main put Excel back exactly as they
@@ -13,12 +13,12 @@ Attribute VB_Name = "TestMainState"
 '   of the external workbook automation API.
 '
 ' DEPENDENCIES
-'   M_Main, its test seam gTestFault, and the error numbers in M_Config. The
+'   M_Main, its test seam gTestFault, and the error numbers in CORE_Config. The
 '   workbook must be built from the template with the full source, because
 '   the macros calculate and write the output sheets.
 '
 ' WORKSHEET SAFETY
-'   Unlike TestHarness, this module runs the real macros: they clear and
+'   Unlike TEST_Harness, this module runs the real macros: they clear and
 '   rewrite TradeCalc, Buckets, HedgingSets, Results and Checks, and
 '   activate the Checks sheet. The last case leaves the outputs of a normal
 '   run. Use a development workbook only.
@@ -34,7 +34,7 @@ Attribute VB_Name = "TestMainState"
 '
 ' USAGE
 '   Import with the production modules, compile, then run
-'   TestMainState.RunMainStateTests from the Immediate window.
+'   TEST_MainState.RunMainStateTests from the Immediate window.
 '
 ' UPDATED
 '   2026-10-06

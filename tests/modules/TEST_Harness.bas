@@ -1,11 +1,11 @@
-Attribute VB_Name = "TestHarness"
+Attribute VB_Name = "TEST_Harness"
 '==============================================================================
-' MODULE: TestHarness
+' MODULE: TEST_Harness
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Run a deterministic, dependency-free regression suite and report complete,
 '   machine-checkable evidence to the Immediate window. The cases exercise the
-'   SA-CCR worksheet functions in M_Formulas; more SA-CCR cases are added here
+'   SA-CCR worksheet functions in SACCR_Formulas; more SA-CCR cases are added here
 '   as the engine is refactored.
 '
 ' PUBLIC SURFACE
@@ -16,7 +16,7 @@ Attribute VB_Name = "TestHarness"
 '   automation API.
 '
 ' DEPENDENCIES
-'   M_Formulas and the built-in VBA/Excel object models only. No external
+'   SACCR_Formulas and the built-in VBA/Excel object models only. No external
 '   references, workbook fixture, worksheet, donor project, or test framework.
 '
 ' STATE OWNERSHIP
@@ -36,7 +36,7 @@ Attribute VB_Name = "TestHarness"
 '   workbook or worksheet state.
 '
 ' TEST SEAM
-'   Tests the supported M_Formulas surface listed in docs/PUBLIC_API.txt. Core
+'   Tests the supported SACCR_Formulas surface listed in docs/PUBLIC_API.txt. Core
 '   procedures can be exercised by future focused tests without adding
 '   production API.
 '
@@ -46,7 +46,7 @@ Attribute VB_Name = "TestHarness"
 '
 ' USAGE
 '   Import the required production modules first, then run
-'   TestHarness.RunTests from the VBE Immediate window.
+'   TEST_Harness.RunTests from the VBE Immediate window.
 '
 ' UPDATED
 '   2026-10-06
@@ -103,7 +103,7 @@ Public Sub RunTests()
 '   Run all four cases and report six assertions with cleanup evidence.
 '
 ' USAGE
-'   Run TestHarness.RunTests from the VBE Immediate window.
+'   Run TEST_Harness.RunTests from the VBE Immediate window.
 '
 ' STATE OWNERSHIP
 '   Reject an active run before resetting counters. Snapshot four Excel
@@ -144,8 +144,8 @@ Public Sub RunTests()
             Debug.Print "RESULT=FAIL_DIRTY_START; cleanup=NOT_RUN"
             Err.Raise _
                 TEST_ERROR_DIRTY_START, _
-                "TestHarness.RunTests", _
-                "A TestHarness run is already active. Run ResetTests after an interrupted execution."
+                "TEST_Harness.RunTests", _
+                "A TEST_Harness run is already active. Run ResetTests after an interrupted execution."
         End If
 
 '------------------------------------------------------------------------------
@@ -219,7 +219,7 @@ CleanExit:
         If mFailureCount <> 0 Or Not cleanupPassed Or Not mSuiteCompleted Then
             Err.Raise _
                 TEST_ERROR_FAILURES, _
-                "TestHarness.RunTests", _
+                "TEST_Harness.RunTests", _
                 "Regression failed; review the Immediate window report."
         End If
         Exit Sub
@@ -286,7 +286,7 @@ Public Sub RunTestsWithInjectedFailure()
 '   wrong expectation in replacement-cost.exact.
 '
 ' USAGE
-'   Run TestHarness.RunTestsWithInjectedFailure from the VBE Immediate window.
+'   Run TEST_Harness.RunTestsWithInjectedFailure from the VBE Immediate window.
 '   Expected report: MODE=INJECTED_FAILURE and
 '   RESULT=FAIL; completeness=COMPLETE; cases=4; assertions=6; failures=1;
 '   cleanup=PASS, followed by the suite failure error.
@@ -385,11 +385,11 @@ Private Sub TestReplacementCost()
         AssertEqualDouble _
             "SACCR_ReplacementCost(100, 30)", _
             expected, _
-            M_Formulas.SACCR_ReplacementCost(100#, 30#)
+            SACCR_Formulas.SACCR_ReplacementCost(100#, 30#)
         AssertEqualDouble _
             "SACCR_ReplacementCost(10, 20, margined, TH 50, MTA 5, NICA 15)", _
             40#, _
-            M_Formulas.SACCR_ReplacementCost(10#, 20#, True, 50#, 5#, 15#)
+            SACCR_Formulas.SACCR_ReplacementCost(10#, 20#, True, 50#, 5#, 15#)
         Exit Sub
 
 '------------------------------------------------------------------------------
@@ -431,12 +431,12 @@ Private Sub TestMaturityFactor()
         AssertNear _
             "SACCR_MaturityFactor(margined, MPOR 10)", _
             0.3, _
-            M_Formulas.SACCR_MaturityFactor(0#, True, 10#), _
+            SACCR_Formulas.SACCR_MaturityFactor(0#, True, 10#), _
             0.000000000001
         AssertNear _
             "SACCR_MaturityFactor(0.5)", _
             0.707106781186548, _
-            M_Formulas.SACCR_MaturityFactor(0.5), _
+            SACCR_Formulas.SACCR_MaturityFactor(0.5), _
             0.000000000001
         Exit Sub
 
@@ -478,7 +478,7 @@ Private Sub TestCdoDeltaError()
         AssertErrorValue _
             "SACCR_CDODelta(0.5, 0.3)", _
             xlErrNum, _
-            M_Formulas.SACCR_CDODelta(0.5, 0.3, True)
+            SACCR_Formulas.SACCR_CDODelta(0.5, 0.3, True)
         Exit Sub
 
 '------------------------------------------------------------------------------
@@ -523,8 +523,8 @@ Private Sub TestRepeatability()
         On Error GoTo CaseFailed
 
         BeginCase "option-delta.repeatability"
-        firstResult = CDbl(M_Formulas.SACCR_OptionDelta(100#, 100#, 1#, 0.2, True, True))
-        secondResult = CDbl(M_Formulas.SACCR_OptionDelta(100#, 100#, 1#, 0.2, True, True))
+        firstResult = CDbl(SACCR_Formulas.SACCR_OptionDelta(100#, 100#, 1#, 0.2, True, True))
+        secondResult = CDbl(SACCR_Formulas.SACCR_OptionDelta(100#, 100#, 1#, 0.2, True, True))
         AssertEqualDouble "Repeated calls", firstResult, secondResult
         Exit Sub
 

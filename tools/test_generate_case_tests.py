@@ -1,4 +1,4 @@
-"""Tests for the generator of tests/modules/TestCases.bas."""
+"""Tests for the generator of tests/modules/TEST_Cases.bas."""
 import json
 import shutil
 import tempfile
@@ -32,8 +32,8 @@ class GenerateCaseTestsTests(unittest.TestCase):
         module = generator.generate(ROOT)
         expected_files = sorted((ROOT / generator.EXPECTED).glob("*.json"))
         outputs = sum(len(json.loads(p.read_text())["outputs"]) for p in expected_files)
-        self.assertIn(f"CaseRunner.BeginSuite {len(expected_files)}, {outputs}\r\n", module)
-        self.assertEqual(module.count("CaseRunner.Expect"), outputs)
+        self.assertIn(f"TEST_CaseRunner.BeginSuite {len(expected_files)}, {outputs}\r\n", module)
+        self.assertEqual(module.count("TEST_CaseRunner.Expect"), outputs)
         self.assertNotIn("\n", module.replace("\r\n", ""))
 
     def test_check_mode_detects_a_stale_module(self) -> None:

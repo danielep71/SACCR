@@ -17,6 +17,8 @@ VBA_ENCODING = "cp1252"
 VB_NAME = re.compile(r'^Attribute VB_Name = "([^"]+)"\s*$', re.M)
 OPTION_EXPLICIT = re.compile(r"^[ \t]*Option[ \t]+Explicit[ \t]*(?:'.*)?$", re.M | re.I)
 OPTION_PRIVATE = re.compile(r"^[ \t]*Option[ \t]+Private[ \t]+Module[ \t]*(?:'.*)?$", re.M | re.I)
+# Role prefix of every standard module by home; see docs/VBA_HOUSE_STYLE.md.
+ROLE_PREFIXES = (("src/core/", "CORE_"), ("src/modules/", "SACCR_"), ("tests/", "TEST_"))
 # Homes for VBA components; see docs/REPOSITORY_STRUCTURE.md.
 VBA_HOMES = ("src/core/", "src/modules/", "src/classes/", "src/workbook/", "src/forms/",
              "tests/", "examples/")
@@ -78,6 +80,9 @@ def check_component(root: Path, path: str, tracked: set[str], names: dict[str, s
         findings.append(f"{path}: missing Option Explicit")
     if path.startswith("src/core/") and path.lower().endswith(".bas") and not OPTION_PRIVATE.search(text):
         findings.append(f"{path}: core modules must declare Option Private Module")
+    for home, prefix in ROLE_PREFIXES:
+        if path.startswith(home) and path.lower().endswith(".bas") and not Path(path).stem.startswith(prefix):
+            findings.append(f"{path}: standard modules in {home} must be named {prefix}<subject>")
     if path.lower().endswith(".frm"):
         companions = FRX_REFERENCE.findall(text)
         if not companions:

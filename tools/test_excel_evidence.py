@@ -17,12 +17,12 @@ import check_excel_evidence as evidence
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCES = {
-    "src/core/M_Engine.bas": "Attribute VB_Name = \"M_Engine\"\n",
-    "src/modules/M_Formulas.bas": "Attribute VB_Name = \"M_Formulas\"\n",
+    "src/core/CORE_Engine.bas": "Attribute VB_Name = \"CORE_Engine\"\n",
+    "src/modules/SACCR_Formulas.bas": "Attribute VB_Name = \"SACCR_Formulas\"\n",
     "src/forms/FSample.frm": "Attribute VB_Name = \"FSample\"\n",
     "src/forms/FSample.frx": "binary resource\n",
     "src/workbook/SACCR_Template.xlsx": "template bytes\n",
-    "tests/modules/TestHarness.bas": "Attribute VB_Name = \"TestHarness\"\n",
+    "tests/modules/TEST_Harness.bas": "Attribute VB_Name = \"TEST_Harness\"\n",
     "examples/ExampleUse.bas": "Attribute VB_Name = \"ExampleUse\"\n",
     "README.md": "fixture\n",
 }
@@ -75,7 +75,7 @@ class ExcelEvidenceTests(unittest.TestCase):
                 "regression": self.stage("harness.log", self.log),
                 "cleanup": self.stage("session.log", self.session),
             },
-            "harness": {"entry_point": "TestHarness.RunTests", "cases": 4, "assertions": 6,
+            "harness": {"entry_point": "TEST_Harness.RunTests", "cases": 4, "assertions": 6,
                         "failures": 0, "completeness": "COMPLETE", "expected_errors": [
                             {"case": "cdo-delta.invalid-tranche", "status": "PASS",
                              "detail": "Implied by the complete passing suite"}]},
@@ -108,10 +108,10 @@ class ExcelEvidenceTests(unittest.TestCase):
 
     def test_inventory_is_exact_import_set(self) -> None:
         paths = [item["path"] for item in self.record["sources"]]
-        self.assertEqual(paths, ["src/core/M_Engine.bas", "src/forms/FSample.frm",
-                                 "src/forms/FSample.frx", "src/modules/M_Formulas.bas",
-                                 "src/workbook/SACCR_Template.xlsx", "tests/modules/TestHarness.bas"])
-        expected = hashlib.sha256(SOURCES["tests/modules/TestHarness.bas"].encode()).hexdigest()
+        self.assertEqual(paths, ["src/core/CORE_Engine.bas", "src/forms/FSample.frm",
+                                 "src/forms/FSample.frx", "src/modules/SACCR_Formulas.bas",
+                                 "src/workbook/SACCR_Template.xlsx", "tests/modules/TEST_Harness.bas"])
+        expected = hashlib.sha256(SOURCES["tests/modules/TEST_Harness.bas"].encode()).hexdigest()
         self.assertEqual(self.record["sources"][-1]["sha256"], expected)
 
     def test_valid_manual_record_passes_repeatably(self) -> None:
@@ -132,7 +132,7 @@ class ExcelEvidenceTests(unittest.TestCase):
         self.assertInvalid("source inventory")
 
     def test_source_changed_after_candidate(self) -> None:
-        (self.root / "src/core/M_Engine.bas").write_text("changed\n")
+        (self.root / "src/core/CORE_Engine.bas").write_text("changed\n")
         self.commit("Later change")
         self.record["candidate_sha"] = self.git("-C", str(self.root), "rev-parse", "HEAD").strip()
         self.path.write_text(json.dumps(self.record))
@@ -265,7 +265,7 @@ class ExcelEvidenceTests(unittest.TestCase):
     def test_counts_and_expected_errors(self) -> None:
         original = copy.deepcopy(self.record)
         for field, value in (("cases", 3), ("assertions", True), ("failures", 1),
-                             ("entry_point", "TestHarness.RunTestsWithInjectedFailure"),
+                             ("entry_point", "TEST_Harness.RunTestsWithInjectedFailure"),
                              ("expected_errors", [])):
             self.record = copy.deepcopy(original)
             self.record["harness"][field] = value

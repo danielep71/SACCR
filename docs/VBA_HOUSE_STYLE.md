@@ -14,15 +14,16 @@ by [`INSTALLATION.md`](../INSTALLATION.md#importing-vba-into-excel). It adapts
 ## 🏷️ Naming
 
 The VBE lists all components in one flat project, so component names carry
-their role.
+their role in an upper-case prefix. `tools/check_source.py` enforces the
+prefixes for core, facade and test modules.
 
 | Element | Convention | Example |
 | --- | --- | --- |
-| Core module (`src/core/`) | `Core` + subject | `CoreReplacementCost` |
-| Facade module (`src/modules/`) | `Saccr` + subject | `SaccrApi` |
+| Core module (`src/core/`) | `CORE_` + subject | `CORE_Engine` |
+| Public API module (`src/modules/`) | `SACCR_` + subject | `SACCR_Formulas` |
 | Class (`src/classes/`) | `C` + noun | `CNettingSet` |
 | Workbook module (`src/workbook/`) | `ThisWorkbook`; sheets by code name `sh` + noun | `shInputs` |
-| Test module (`tests/`) | `Test` + subject | `TestReplacementCost` |
+| Test module (`tests/`) | `TEST_` + subject | `TEST_Harness` |
 | Example module (`examples/`) | `Example` + subject | `ExampleSingleNettingSet` |
 | Procedure | PascalCase verb phrase | `CalculateAddOn` |
 | Parameter, local variable | camelCase noun | `notionalAmount` |
