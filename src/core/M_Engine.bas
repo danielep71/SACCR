@@ -1025,14 +1025,16 @@ Private Function LoadNettingSets() As Boolean
                 .V = 0#
                 .Trades = 0
                 .Rejected = 0
+                ovr = NsNumber(data(i, NS_MPOR), 0#, "MPOR override", id, rowNum, nsErrors)
                 .InputErrors = nsErrors
                 .MPOR = 0#
                 .MFMargined = 0#
 
     'Effective MPOR of a margined netting set: the floor (cleared or
     'bilateral, raised for large or illiquid sets) plus the remargining
-    'period minus one day, doubled for disputes. An override is accepted
-    'only if it is not below that.
+    'period minus one day, doubled for disputes. The override, read and
+    'validated above for every set, is accepted only if it is not below
+    'that.
                 If .Margined Then
                     If .Cleared Then
                         floorBD = pMPORClr
@@ -1046,8 +1048,6 @@ Private Function LoadNettingSets() As Boolean
                     If .Disputes Then
                         mpor = 2# * mpor
                     End If
-                    ovr = NsNumber(data(i, NS_MPOR), 0#, "MPOR override", id, rowNum, nsErrors)
-                    .InputErrors = nsErrors
                     If ovr > 0# Then
                         If ovr < mpor Then
                             LogMsg SEV_WARN, SH_NS, id, "MPOR override " & CStr(ovr) & _
@@ -1655,6 +1655,9 @@ Private Sub ProcessTrades( _
                             P = CDbl(data(i, TR_PRICE))
                             K = CDbl(data(i, TR_STRIKE))
                             lamIn = data(i, TR_LAMBDA)
+                            If Not IsNum(lamIn) And Not (IsBlankCell(lamIn) And Not IsError(lamIn)) Then
+                                AddErr ok, msg, "lambda must be a number (found " & DescribeValue(lamIn) & ")"
+                            End If
                             If mNS(nsIdx).IsCRR And (ac = AC_IR Or ac = AC_CO) Then
                                 'Delegated Regulation (EU) 2021/931 Art. 5, as amended by 2025/855.
                                 If ac = AC_IR Then
@@ -1668,9 +1671,6 @@ Private Sub ProcessTrades( _
                                     End If
                                 End If
                             Else
-                                If Not IsNum(lamIn) And Not (IsBlankCell(lamIn) And Not IsError(lamIn)) Then
-                                    AddErr ok, msg, "lambda must be a number (found " & DescribeValue(lamIn) & ")"
-                                End If
                                 lam = ToDbl(lamIn, 0#)
                             End If
                             lamOut = lam
