@@ -32,7 +32,7 @@ FIXTURE = {
 PUBLISHED = {"class": "published", "source": "BCBS-279", "locator": "Annex 4, example 1",
              "derivation": "Printed figure", "derived_by": "Author", "reviewed_by": None,
              "date": "2026-10-06"}
-EXPECTED = {
+EXPECTED: dict[str, Any] = {
     "schema_version": 1, "kind": "saccr-expected", "fixture": "sample-case", "regime": "BCBS",
     "outputs": [
         {"quantity": "exposure_value", "rule": "CRE52.1", "value": 569, "unit": "EUR",
