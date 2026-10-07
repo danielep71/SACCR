@@ -311,14 +311,18 @@ try {
     $excel.ScreenUpdating = $false
     $excel.AskToUpdateLinks = $false
     $excel.AutomationSecurity = $msoAutomationSecurityForceDisable
-    $excel.Calculation = $xlCalculationManual
-    $excel.CalculateBeforeSave = $false
 
+    # Some Excel builds reject Application.Calculation changes until at least
+    # one workbook is open (HRESULT 0x800A03EC). Open first, then disable
+    # calculation-before-save for this isolated Excel instance.
     $workbook = $excel.Workbooks.Open($workbookFullPath, 0, $false)
 
     if ($workbook.ReadOnly) {
         throw "Workbook opened read-only. Close any other Excel instance using it."
     }
+
+    $excel.Calculation = $xlCalculationManual
+    $excel.CalculateBeforeSave = $false
 
     $before = Get-SheetSnapshot -Workbook $workbook
 
