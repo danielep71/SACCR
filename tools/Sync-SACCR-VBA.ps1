@@ -243,6 +243,7 @@ function Sync-VbaSource {
 $excel = $null
 $workbook = $null
 $saved = $false
+$backupPath = $null
 
 try {
     $workbookFullPath = Resolve-FullPath -PathValue $WorkbookPath
@@ -355,6 +356,14 @@ try {
     $workbook.Save()
     $saved = $true
 
+    # The backup is only a transactional safety copy. Remove it after a
+    # successful save so repeated synchronizations do not accumulate files.
+    if (-not [string]::IsNullOrWhiteSpace($backupPath) -and
+        (Test-Path -LiteralPath $backupPath -PathType Leaf)) {
+        Remove-Item -LiteralPath $backupPath -Force
+        Write-Host "Backup removed: $backupPath"
+    }
+
     Write-Host ""
     Write-Host "SUCCESS: VBA synchronized. Workbook sheets were not removed or recreated."
 }
@@ -363,6 +372,12 @@ catch {
     if ($null -ne $workbook -and -not $saved) {
         Write-Warning "Synchronization failed. Workbook will close without saving."
     }
+
+    if (-not [string]::IsNullOrWhiteSpace($backupPath) -and
+        (Test-Path -LiteralPath $backupPath -PathType Leaf)) {
+        Write-Warning "Safety backup retained: $backupPath"
+    }
+
     exit 1
 }
 finally {
