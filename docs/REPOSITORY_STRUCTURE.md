@@ -55,7 +55,7 @@ tools/      static checks and evidence tooling; later, build tooling
 | `src/` | Production components that go into the workbook, and the workbook template | Tests, examples, built workbooks |
 | `tests/` | Test modules, synthetic fixtures, reviewed expected values | Production entry points, run output |
 | `examples/` | Examples that use only the public API | Tests, real data |
-| `docs/` | Contracts, architecture, [methodology](methodology/README.md) | Copies of root documents |
+| `docs/` | Contracts, architecture, [methodology](methodology/README.md), and versioned Wiki sources under `docs/wiki/` | Copies of root documents or independently maintained Wiki-only policy |
 | `tools/` | Deterministic checks, build and evidence scripts | Calculation logic |
 
 Each directory explains itself in a `README.md` until real material arrives.
@@ -70,6 +70,15 @@ Subdirectories are created with their first real file, never empty.
 | `src/classes/` | Class modules, e.g. trade or netting-set objects, state managers | Status stated in each class header |
 | `src/workbook/` | Exported document modules: `ThisWorkbook` and sheet modules | Host glue only; no calculation logic |
 | `src/forms/` | UserForms, `.frm` beside its `.frx`, only if a form is ever needed | — |
+
+### Wiki sources
+
+`docs/wiki/` is the reviewed source for every maintained GitHub Wiki page.
+`catalogue.json` defines page order and the authoritative repository document
+behind each guide page; `_Sidebar.md` is generated from that catalogue. The
+published Wiki is a derived artifact and is verified against its recorded source
+commit. Publication and recovery rules are in
+[`WIKI_PUBLICATION.md`](WIKI_PUBLICATION.md).
 
 ### Verification and examples
 
