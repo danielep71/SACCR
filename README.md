@@ -19,13 +19,17 @@
 
 ## ✨ What this project is
 
-The Standardized Approach for Counterparty Credit Risk (SA-CCR) is a non-modelled
-regulatory framework used to measure the exposure-at-default (EAD) of derivative
-contracts for bank capital requirements.
+**SA-CCR (Standardized Approach for Counterparty Credit Risk)** is the Basel
+regulatory framework for determining the exposure at default (EAD) of derivative
+transactions and long-settlement transactions. It is a standardized,
+non-modelled approach that reflects current exposure, potential future exposure,
+netting, collateral and margining arrangements.
 
-**SA-CCR Benchmark** is an Excel/VBA toolkit for independently calculating and
-validating that exposure at netting-set level, with exported, reviewable VBA
-source.
+**SA-CCR Benchmark** is an independent Excel/VBA toolkit designed to reproduce,
+test and reconcile SA-CCR calculations under the Basel Framework and EU CRR.
+
+See [SA-CCR Overview](docs/SA-CCR_OVERVIEW.md) for the regulatory concepts,
+calculation structure and validation approach.
 
 <a id="status"></a>
 
@@ -71,6 +75,7 @@ Requirements, the import procedure and troubleshooting are in
 
 | Document | Covers |
 | --- | --- |
+| [`docs/SA-CCR_OVERVIEW.md`](docs/SA-CCR_OVERVIEW.md) | SA-CCR overview, EAD structure, scope, Basel/CRR framing and validation approach |
 | [`INSTALLATION.md`](INSTALLATION.md) | Developer setup, checks, Excel import and validation record |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | Workflow, commit messages, evidence and pull requests |
 | [`docs/REPOSITORY_STRUCTURE.md`](docs/REPOSITORY_STRUCTURE.md) | Profile decision, source layout, public API boundary |
