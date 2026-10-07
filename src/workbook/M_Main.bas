@@ -639,7 +639,7 @@ Private Function ReportOutcome( _
                           "Errors: " & M_Engine.ErrorCount & "   Warnings: " & M_Engine.WarningCount
                     If M_Engine.IncompleteCount > 0 Then
                         msg = msg & vbCrLf & "EAD withheld for " & M_Engine.IncompleteCount & _
-                              " netting set(s) with rejected trades."
+                              " netting set(s) with rejected trades or invalid inputs."
                     End If
                     If M_Engine.ErrorCount > 0 Or M_Engine.WarningCount > 0 Then
                         msg = msg & vbCrLf & vbCrLf & "See the Checks sheet for details."

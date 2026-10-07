@@ -106,6 +106,7 @@ Attribute VB_Name = "M_Engine"
         V                 As Double     'Sum of trade MtM
         Trades            As Long       'Number of valid trades
         Rejected          As Long       'Number of trades rejected by validation
+        InputErrors       As Long       'Invalid netting-set fields; EAD withheld when > 0
     End Type
 
     'One row of the supervisory-factor table on Params.
@@ -199,6 +200,7 @@ Attribute VB_Name = "M_Engine"
         Private mTradesUsed   As Long            'Trades included in the calculation
         Private mTotalEAD     As Double          'Sum of netting-set EADs, VALID sets only
         Private mIncomplete   As Long            'Netting sets whose EAD was withheld
+        Private mParamError   As Boolean         'A parameter was present but not usable
 
 '------------------------------------------------------------------------------
 ' RUN PARAMETERS
@@ -381,7 +383,7 @@ Public Property Get IncompleteCount() As Long
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Number of netting sets in the last run whose EAD was withheld because
-'   at least one of their trades was rejected.
+'   a trade was rejected or a netting-set field was invalid.
 '
 ' UPDATED
 '   2026-10-06
@@ -446,6 +448,7 @@ Private Sub ResetState()
         mTradesUsed = 0
         mTotalEAD = 0#
         mIncomplete = 0
+        mParamError = False
 
 '------------------------------------------------------------------------------
 ' RESET INDEXES AND ARRAYS
@@ -544,11 +547,14 @@ Private Function NumParam( _
 '
 ' INPUTS
 '   code: a PRM_ code from M_Config.
-'   dflt: value used, with a warning, when the parameter is missing or not
-'   numeric.
+'   dflt: value used, with a warning, when the parameter is blank.
 '
 ' RETURNS
 '   The parameter value, or dflt.
+'
+' ERROR POLICY
+'   A value that is present but not a number is an error and sets
+'   mParamError, so that LoadParams stops the run (#35).
 '
 ' UPDATED
 '   2026-10-06
@@ -566,9 +572,13 @@ Private Function NumParam( _
         v = GetParam(code)
         If IsNum(v) Then
             NumParam = CDbl(v)
+        ElseIf IsBlankCell(v) And Not IsError(v) Then
+            NumParam = dflt
+            LogMsg SEV_WARN, SH_PARAMS, code, "Parameter missing - default " & CStr(dflt) & " used."
         Else
             NumParam = dflt
-            LogMsg SEV_WARN, SH_PARAMS, code, "Parameter missing or not numeric - default " & CStr(dflt) & " used."
+            mParamError = True
+            LogMsg SEV_ERROR, SH_PARAMS, code, "Parameter must be a number (found " & DescribeValue(v) & ")."
         End If
 
 End Function
@@ -632,7 +642,11 @@ Private Function LoadParams() As Boolean
         pRho12 = NumParam(PRM_RHO12, 0.7)
         pRho23 = NumParam(PRM_RHO23, 0.7)
         pRho13 = NumParam(PRM_RHO13, 0.3)
-        pIRFull = ToBool(GetParam(PRM_IRFULL), True)
+        If Not TryBool(GetParam(PRM_IRFULL), True, pIRFull) Then
+            LogMsg SEV_ERROR, SH_PARAMS, PRM_IRFULL, "Parameter must be TRUE or FALSE (found " & _
+                   DescribeValue(GetParam(PRM_IRFULL)) & ")."
+            Exit Function
+        End If
 
 '------------------------------------------------------------------------------
 ' REGIME
@@ -648,6 +662,9 @@ Private Function LoadParams() As Boolean
         End If
         pLamThrIR = NumParam(PRM_LAMIR, 0.001)
         pLamThrCO = NumParam(PRM_LAMCO, 0.1)
+        If mParamError Then
+            Exit Function
+        End If
 
 '------------------------------------------------------------------------------
 ' DAY COUNTS
@@ -694,10 +711,12 @@ Private Function LoadSFTable() As Boolean
 '------------------------------------------------------------------------------
 ' DECLARE
 '------------------------------------------------------------------------------
-    Dim ws   As Worksheet    'Params sheet
-    Dim r    As Long         'Row being read
-    Dim r0   As Long         'Header row of the table
-    Dim k    As String       'Key of the row, upper case
+    Dim ws       As Worksheet    'Params sheet
+    Dim r        As Long         'Row being read
+    Dim r0       As Long         'Header row of the table
+    Dim k        As String       'Key of the row, upper case
+    Dim bad      As Boolean      'Some row has a value that is not a number
+    Dim rowBad   As Boolean      'This row has one
 
 '------------------------------------------------------------------------------
 ' FIND THE TABLE
@@ -727,9 +746,13 @@ Private Function LoadSFTable() As Boolean
                 mSF(mSFCount).Key = k
                 mSF(mSFCount).AssetClass = UTxt(ws.Cells(r, 2).Value)
                 mSF(mSFCount).Category = UTxt(ws.Cells(r, 3).Value)
-                mSF(mSFCount).SF = ToDbl(ws.Cells(r, 4).Value)
-                mSF(mSFCount).Corr = ToDbl(ws.Cells(r, 5).Value)
-                mSF(mSFCount).Vol = ToDbl(ws.Cells(r, 6).Value)
+                rowBad = Not TryDbl(ws.Cells(r, 4).Value, 0#, mSF(mSFCount).SF)
+                rowBad = Not TryDbl(ws.Cells(r, 5).Value, 0#, mSF(mSFCount).Corr) Or rowBad
+                rowBad = Not TryDbl(ws.Cells(r, 6).Value, 0#, mSF(mSFCount).Vol) Or rowBad
+                If rowBad Then
+                    bad = True
+                    LogMsg SEV_ERROR, SH_PARAMS, k, "Supervisory factor, correlation and volatility must be numbers.", r
+                End If
                 mSF(mSFCount).Group = UTxt(ws.Cells(r, 7).Value)
                 mSF(mSFCount).Regimes = UTxt(ws.Cells(r, 8).Value)
                 If mSF(mSFCount).Regimes = "BOTH" Then
@@ -745,6 +768,9 @@ Private Function LoadSFTable() As Boolean
 '------------------------------------------------------------------------------
         If mSFCount = 0 Then
             LogMsg SEV_ERROR, SH_PARAMS, HDR_SF, "Supervisory factor table is empty."
+            Exit Function
+        End If
+        If bad Then
             Exit Function
         End If
         LoadSFTable = True
@@ -917,12 +943,13 @@ Private Function LoadNettingSets() As Boolean
     Dim mpor      As Double       'Effective MPOR, business days
     Dim ovr       As Double       'MPOR override entered; 0 when none
     Dim rg        As String       'Regime of the netting set
+    Dim nsErrors  As Long         'Invalid fields found on the row
 
 '------------------------------------------------------------------------------
 ' READ THE INPUT BLOCK
 '------------------------------------------------------------------------------
         Set ws = GetSheet(SH_NS)
-        lastR = LastDataRow(ws, FIRST_DATA_ROW, NS_ID)
+        lastR = LastDataRowAny(ws, FIRST_DATA_ROW, NS_NCOLS, 0)
         If lastR < FIRST_DATA_ROW Then
             LogMsg SEV_ERROR, SH_NS, "", "No netting sets defined."
             Exit Function
@@ -933,11 +960,17 @@ Private Function LoadNettingSets() As Boolean
 '------------------------------------------------------------------------------
 ' READ EACH NETTING SET
 '------------------------------------------------------------------------------
-    'Rows without an ID are skipped silently.
+    'An empty row is skipped; a row with data but no ID is an error, so a
+    'netting set cannot silently drop out (#35).
         For i = 1 To n
             rowNum = FIRST_DATA_ROW + i - 1
             id = UTxt(data(i, NS_ID))
-            If Len(id) = 0 Then GoTo NextRow
+            If Len(id) = 0 Then
+                If RowHasData(data, i, NS_NCOLS, 0) Then
+                    LogMsg SEV_ERROR, SH_NS, "", "Row has netting-set data but no ID - row ignored.", rowNum
+                End If
+                GoTo NextRow
+            End If
             If KeyIndex(mNSIndex, id) > 0 Then
                 LogMsg SEV_ERROR, SH_NS, id, "Duplicate netting set ID - row ignored.", rowNum
                 GoTo NextRow
@@ -948,34 +981,39 @@ Private Function LoadNettingSets() As Boolean
             End If
             With mNS(mNSCount)
 
-    'Plain fields. The remargining frequency is at least 1 business day;
-    'a missing or non-positive alpha takes the Params value.
+    'Plain fields. A blank field takes its default; a value that cannot be
+    'read is an error that makes the netting set INVALID (#35). The
+    'remargining frequency is at least 1 business day; a non-positive alpha
+    'takes the Params value.
+                nsErrors = 0
                 .ID = id
                 .Counterparty = SafeStr(data(i, NS_CPTY))
-                .Margined = ToBool(data(i, NS_MARGINED), False)
-                .Cleared = ToBool(data(i, NS_CLEARED), False)
-                .RemarginBD = ToDbl(data(i, NS_FREQ), 1#)
+                .Margined = NsFlag(data(i, NS_MARGINED), False, "Margined", id, rowNum, nsErrors)
+                .Cleared = NsFlag(data(i, NS_CLEARED), False, "Centrally cleared", id, rowNum, nsErrors)
+                .RemarginBD = NsNumber(data(i, NS_FREQ), 1#, "Remargin frequency", id, rowNum, nsErrors)
                 If .RemarginBD < 1# Then
                     .RemarginBD = 1#
                 End If
-                .LargeOrIlliquid = ToBool(data(i, NS_LARGE), False)
-                .Disputes = ToBool(data(i, NS_DISPUTE), False)
-                .VM = ToDbl(data(i, NS_VM))
-                .NICA = ToDbl(data(i, NS_NICA))
-                .TH = ToDbl(data(i, NS_TH))
-                .MTA = ToDbl(data(i, NS_MTA))
-                .Alpha = ToDbl(data(i, NS_ALPHA), pAlpha)
+                .LargeOrIlliquid = NsFlag(data(i, NS_LARGE), False, "Large or illiquid", id, rowNum, nsErrors)
+                .Disputes = NsFlag(data(i, NS_DISPUTE), False, "Margin disputes", id, rowNum, nsErrors)
+                .VM = NsNumber(data(i, NS_VM), 0#, "Net VM", id, rowNum, nsErrors)
+                .NICA = NsNumber(data(i, NS_NICA), 0#, "NICA", id, rowNum, nsErrors)
+                .TH = NsNumber(data(i, NS_TH), 0#, "Threshold", id, rowNum, nsErrors)
+                .MTA = NsNumber(data(i, NS_MTA), 0#, "MTA", id, rowNum, nsErrors)
+                .Alpha = NsNumber(data(i, NS_ALPHA), pAlpha, "Alpha override", id, rowNum, nsErrors)
                 If .Alpha <= 0# Then
                     .Alpha = pAlpha
                 End If
 
-    'Regime: blank takes the Params default; an unknown value is warned
-    'about and also takes the default.
+    'Regime: blank takes the Params default; any other value than BCBS or
+    'CRR is an input error.
                 rg = UTxt(data(i, NS_REGIME))
                 If Len(rg) = 0 Then
                     rg = pRegime
                 ElseIf rg <> RG_BCBS And rg <> RG_CRR Then
-                    LogMsg SEV_WARN, SH_NS, id, "Regime override must be BCBS or CRR - default " & pRegime & " used.", rowNum
+                    nsErrors = nsErrors + 1
+                    LogMsg SEV_ERROR, SH_NS, id, "Regime override must be BCBS or CRR (found " & _
+                           DescribeValue(data(i, NS_REGIME)) & ").", rowNum
                     rg = pRegime
                 End If
                 .Regime = rg
@@ -987,6 +1025,7 @@ Private Function LoadNettingSets() As Boolean
                 .V = 0#
                 .Trades = 0
                 .Rejected = 0
+                .InputErrors = nsErrors
                 .MPOR = 0#
                 .MFMargined = 0#
 
@@ -1007,7 +1046,8 @@ Private Function LoadNettingSets() As Boolean
                     If .Disputes Then
                         mpor = 2# * mpor
                     End If
-                    ovr = ToDbl(data(i, NS_MPOR), 0#)
+                    ovr = NsNumber(data(i, NS_MPOR), 0#, "MPOR override", id, rowNum, nsErrors)
+                    .InputErrors = nsErrors
                     If ovr > 0# Then
                         If ovr < mpor Then
                             LogMsg SEV_WARN, SH_NS, id, "MPOR override " & CStr(ovr) & _
@@ -1045,6 +1085,143 @@ End Function
 '
 '------------------------------------------------------------------------------
 '
+
+Private Function NsFlag( _
+    ByVal v As Variant, _
+    ByVal dflt As Boolean, _
+    ByVal fieldName As String, _
+    ByVal nsId As String, _
+    ByVal rowNum As Long, _
+    ByRef nsErrors As Long) _
+    As Boolean
+'
+'==============================================================================
+'                                    NsFlag
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read a Y/N field of a netting set strictly: blank takes the default; an
+'   unrecognised value is logged and counted as an input error (#35).
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim result   As Boolean    'Value read
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        If Not TryBool(v, dflt, result) Then
+            nsErrors = nsErrors + 1
+            LogMsg SEV_ERROR, SH_NS, nsId, fieldName & " must be Y or N (found " & DescribeValue(v) & ").", rowNum
+        End If
+        NsFlag = result
+
+End Function
+
+
+Private Function NsNumber( _
+    ByVal v As Variant, _
+    ByVal dflt As Double, _
+    ByVal fieldName As String, _
+    ByVal nsId As String, _
+    ByVal rowNum As Long, _
+    ByRef nsErrors As Long) _
+    As Double
+'
+'==============================================================================
+'                                   NsNumber
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read a numeric field of a netting set strictly: blank takes the
+'   default; text that is not a number is logged and counted as an input
+'   error (#35).
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim result   As Double    'Value read
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        If Not TryDbl(v, dflt, result) Then
+            nsErrors = nsErrors + 1
+            LogMsg SEV_ERROR, SH_NS, nsId, fieldName & " must be a number (found " & DescribeValue(v) & ").", rowNum
+        End If
+        NsNumber = result
+
+End Function
+
+
+Private Function TradeDate( _
+    ByVal v As Variant, _
+    ByVal fieldName As String, _
+    ByRef ok As Boolean, _
+    ByRef msg As String) _
+    As Double
+'
+'==============================================================================
+'                                  TradeDate
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read a trade date: blank is "not given" (-1); a value that is not a
+'   date makes the trade invalid instead of being treated as blank (#35).
+'
+' RETURNS
+'   The date serial, or -1 when blank or unreadable.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        TradeDate = ToSerial(v)
+        If TradeDate < 0# Then
+            If IsError(v) Or Not IsBlankCell(v) Then
+                AddErr ok, msg, fieldName & " is not a date (found " & DescribeValue(v) & ")"
+            End If
+            TradeDate = -1#
+        End If
+
+End Function
+
+
+Private Function DescribeValue( _
+    ByVal v As Variant) _
+    As String
+'
+'==============================================================================
+'                                DescribeValue
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Describe a cell value for a message: its text in quotes, or "an error
+'   value" for #N/A and the like.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        If IsError(v) Then
+            DescribeValue = "an error value"
+        Else
+            DescribeValue = "'" & SafeStr(v) & "'"
+        End If
+
+End Function
+
 
 Private Sub AddErr( _
     ByRef ok As Boolean, _
@@ -1152,6 +1329,8 @@ Private Sub ProcessTrades( _
     Dim data          As Variant      'Input block, (row, column)
     Dim outArr()      As Variant      'TradeCalc rows, (row, column)
     Dim nOut          As Long         'TradeCalc rows filled
+    Dim seenIds       As Collection   'Trade IDs seen so far, mapped to their sheet row
+    Dim firstRow      As Long         'Sheet row where a duplicate ID first appeared
 
     'Validation state of the current trade.
     Dim ok            As Boolean      'False once any error is found
@@ -1230,7 +1409,7 @@ Private Sub ProcessTrades( _
     'With no trades there is nothing to calculate; the old TradeCalc rows
     'are cleared so they cannot be mistaken for results.
         Set ws = GetSheet(SH_TRADES)
-        lastR = LastDataRow(ws, FIRST_DATA_ROW, TR_ID)
+        lastR = LastDataRowAny(ws, FIRST_DATA_ROW, TR_NCOLS, TR_COMMENT)
         If lastR < FIRST_DATA_ROW Then
             LogMsg SEV_ERROR, SH_TRADES, "", "No trades found."
             If writeOutputs Then
@@ -1246,12 +1425,23 @@ Private Sub ProcessTrades( _
 '------------------------------------------------------------------------------
 ' PROCESS EACH TRADE
 '------------------------------------------------------------------------------
-    'Rows without a trade ID are skipped silently. Every per-trade value is
-    'reset so nothing leaks from the previous trade into the output row.
+    'An empty row is skipped. A row with data but no trade ID is rejected,
+    'and so is a repeated trade ID; either makes its netting set INCOMPLETE
+    '(#35). Every per-trade value is reset so nothing leaks from the
+    'previous trade into the output row.
+        Set seenIds = New Collection
         For i = 1 To n
             rowNum = FIRST_DATA_ROW + i - 1
             tid = SafeStr(data(i, TR_ID))
-            If Len(tid) = 0 Then GoTo NextTrade
+            If Len(tid) = 0 Then
+                If RowHasData(data, i, TR_NCOLS, TR_COMMENT) Then
+                    mTradesRead = mTradesRead + 1
+                    LogMsg SEV_ERROR, SH_TRADES, "", "Row has trade data but no Trade ID - trade rejected.", rowNum
+                    nsIdx = KeyIndex(mNSIndex, UTxt(data(i, TR_NS)))
+                    If nsIdx > 0 Then mNS(nsIdx).Rejected = mNS(nsIdx).Rejected + 1
+                End If
+                GoTo NextTrade
+            End If
             mTradesRead = mTradesRead + 1
             ok = True
             msg = ""
@@ -1284,6 +1474,13 @@ Private Sub ProcessTrades( _
     'nature. Basis and volatility trades form their own hedging sets, one
     'per label, with the factor multiplied by BasisFactor or
     'VolatilityFactor [CRE52.46, CRE52.47].
+            firstRow = KeyIndex(seenIds, tid)
+            If firstRow > 0 Then
+                AddErr ok, msg, "duplicate Trade ID (first used on row " & firstRow & ")"
+            Else
+                KeyAdd seenIds, tid, rowNum
+            End If
+
             nsId = UTxt(data(i, TR_NS))
             nsIdx = KeyIndex(mNSIndex, nsId)
             If nsIdx = 0 Then AddErr ok, msg, "unknown netting set '" & nsId & "'"
@@ -1367,23 +1564,28 @@ Private Sub ProcessTrades( _
             End If
 
     '--- Amounts ---------------------------------------------------------------
-    'The notional is unsigned; Direction gives the sign. A missing MtM is
-    'taken as 0 with a warning; a blank MtM currency means the notional
+    'The notional is unsigned; Direction gives the sign. A missing MtM is an
+    'error, not an assumed 0 (#35); a blank MtM currency means the notional
     'currency. Both amounts are converted to the reporting currency.
             If IsNum(data(i, TR_NOTIONAL)) Then
                 notional = CDbl(data(i, TR_NOTIONAL))
                 If notional < 0# Then AddErr ok, msg, "notional must be positive (use Direction for the sign)"
-            Else
+            ElseIf IsBlankCell(data(i, TR_NOTIONAL)) And Not IsError(data(i, TR_NOTIONAL)) Then
                 AddErr ok, msg, "notional missing"
+            Else
+                AddErr ok, msg, "notional must be a number (found " & DescribeValue(data(i, TR_NOTIONAL)) & ")"
             End If
             nccy = UTxt(data(i, TR_NCCY))
             fxN = FXRate(nccy)
             If fxN < 0# Then AddErr ok, msg, "no FX rate for notional currency '" & nccy & "'"
             If IsNum(data(i, TR_MTM)) Then
                 mtm = CDbl(data(i, TR_MTM))
+            ElseIf IsBlankCell(data(i, TR_MTM)) And Not IsError(data(i, TR_MTM)) Then
+                mtm = 0#
+                AddErr ok, msg, "MtM missing (enter 0 if the trade has no value)"
             Else
                 mtm = 0#
-                AddWarn warn, "MtM missing - 0 assumed"
+                AddErr ok, msg, "MtM must be a number (found " & DescribeValue(data(i, TR_MTM)) & ")"
             End If
             mccy = UTxt(data(i, TR_MCCY))
             If Len(mccy) = 0 Then mccy = nccy
@@ -1395,14 +1597,15 @@ Private Sub ProcessTrades( _
             End If
 
     '--- Dates to year fractions -----------------------------------------------
-    'Missing dates are filled from each other: maturity from the end date,
+    'A date that is present but cannot be read is an error (#35). Missing
+    'dates are filled from each other: maturity from the end date,
     'then from the option expiry; the end date from the maturity. S, E and M
     'are years from the reporting date on the DaysPerYear basis, with S
     'floored at 0.
-            dStart = ToSerial(data(i, TR_START))
-            dEnd = ToSerial(data(i, TR_END))
-            dMat = ToSerial(data(i, TR_MAT))
-            dExp = ToSerial(data(i, TR_EXPIRY))
+            dStart = TradeDate(data(i, TR_START), "start date", ok, msg)
+            dEnd = TradeDate(data(i, TR_END), "end date", ok, msg)
+            dMat = TradeDate(data(i, TR_MAT), "maturity date", ok, msg)
+            dExp = TradeDate(data(i, TR_EXPIRY), "option expiry", ok, msg)
             If dMat < 0# Then dMat = dEnd
             If dMat < 0# Then dMat = dExp
             If dEnd < 0# Then dEnd = dMat
@@ -1465,6 +1668,9 @@ Private Sub ProcessTrades( _
                                     End If
                                 End If
                             Else
+                                If Not IsNum(lamIn) And Not (IsBlankCell(lamIn) And Not IsError(lamIn)) Then
+                                    AddErr ok, msg, "lambda must be a number (found " & DescribeValue(lamIn) & ")"
+                                End If
                                 lam = ToDbl(lamIn, 0#)
                             End If
                             lamOut = lam
@@ -2035,6 +2241,14 @@ Private Sub ComputeNettingSets( _
         ReDim outArr(1 To mNSCount + 1, 1 To RS_NCOLS)
         nOut = 0
         For k = 1 To mNSCount
+            If mNS(k).InputErrors > 0 Then
+                mIncomplete = mIncomplete + 1
+                LogMsg SEV_ERROR, SH_NS, mNS(k).ID, "EAD withheld: " & mNS(k).InputErrors & _
+                       " invalid netting-set field(s)."
+                nOut = nOut + 1
+                WriteStatusRow outArr, nOut, k, "INVALID: " & mNS(k).InputErrors & " input error(s)"
+                GoTo NextNS
+            End If
             If mNS(k).Rejected > 0 Then
                 mIncomplete = mIncomplete + 1
                 LogMsg SEV_ERROR, SH_NS, mNS(k).ID, "EAD withheld: " & mNS(k).Rejected & _
