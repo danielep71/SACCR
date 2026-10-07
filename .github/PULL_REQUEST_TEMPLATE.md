@@ -14,10 +14,10 @@
 
 ### Exact evidence · Reviewable change · Honest boundaries
 
-[![Contributing](https://img.shields.io/badge/guide-CONTRIBUTING-217346?style=flat-square)](https://github.com/danielep71/SACCR/blob/main/CONTRIBUTING.md)
-[![Excel evidence](https://img.shields.io/badge/evidence-EXCEL__EVIDENCE-1D76DB?style=flat-square)](https://github.com/danielep71/SACCR/blob/main/docs/EXCEL_EVIDENCE.md)
-[![Security](https://img.shields.io/badge/security-private%20reporting-d73a49?style=flat-square)](https://github.com/danielep71/SACCR/blob/main/SECURITY.md)
-[![Changelog](https://img.shields.io/badge/changes-Unreleased-d97706?style=flat-square)](https://github.com/danielep71/SACCR/blob/main/CHANGELOG.md)
+[![Contributing](https://img.shields.io/badge/guide-CONTRIBUTING-217346?style=flat-square)](https://github.com/danielep71/VBA-SACCR-Toolkit/blob/main/CONTRIBUTING.md)
+[![Excel evidence](https://img.shields.io/badge/evidence-EXCEL__EVIDENCE-1D76DB?style=flat-square)](https://github.com/danielep71/VBA-SACCR-Toolkit/blob/main/docs/EXCEL_EVIDENCE.md)
+[![Security](https://img.shields.io/badge/security-private%20reporting-d73a49?style=flat-square)](https://github.com/danielep71/VBA-SACCR-Toolkit/blob/main/SECURITY.md)
+[![Changelog](https://img.shields.io/badge/changes-Unreleased-d97706?style=flat-square)](https://github.com/danielep71/VBA-SACCR-Toolkit/blob/main/CHANGELOG.md)
 
 </div>
 
