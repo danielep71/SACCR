@@ -124,7 +124,7 @@ A VBA `Public` declaration is not automatically supported API.
 - **Never supported:** test and example modules. They are not part of the
   workbook.
 
-The manifest lists the ten `SACCR_*` worksheet functions in `M_Formulas`.
+The manifest lists the ten `SACCR_*` worksheet functions in `SACCR_Formulas`.
 
 <a id="known-deviations"></a>
 
@@ -135,9 +135,9 @@ its original structure until it is refactored:
 
 | Rule | Deviation |
 | --- | --- |
-| `src/core` never touches Excel | `M_Engine` and `M_Util` read the input sheets and write the output sheets |
+| `src/core` never touches Excel | `CORE_Engine` and `CORE_Util` read the input sheets and write the output sheets |
 | `src/workbook` holds document modules | `M_Main`, a standard module, holds the sheet-button macros `RunSACCR`, `ValidateInputs` and `ClearOutputs` |
-| Naming rules in `VBA_HOUSE_STYLE.md` | `M_` prefixes instead of `Core`, `Saccr` and the other role prefixes |
+| Naming rules in `VBA_HOUSE_STYLE.md` | `M_Main` keeps the prototype's `M_` prefix; it has no role prefix of its own until it moves out of the standard modules |
 
 Each deviation is removed by a reviewed change, not by reformatting.
 

@@ -17,7 +17,7 @@ Attribute VB_Name = "M_Main"
 '   listed in docs/PUBLIC_API.txt.
 '
 ' DEPENDENCIES
-'   M_Engine for the calculation and its run counters; M_Util and M_Config
+'   CORE_Engine for the calculation and its run counters; CORE_Util and CORE_Config
 '   for the output sheets and the error numbers.
 '
 ' STATE OWNERSHIP
@@ -38,7 +38,7 @@ Attribute VB_Name = "M_Main"
 ' TEST SEAM
 '   gTestFault = "operation" raises ERR_INJECTED_FAULT after the settings
 '   have been changed; gTestFault = "cleanup" makes the calculation-mode
-'   restoration fail. tests/modules/TestMainState.bas uses both. Production
+'   restoration fail. tests/modules/TEST_MainState.bas uses both. Production
 '   code never sets it.
 '
 ' KNOWN DEVIATION
@@ -312,9 +312,9 @@ Private Function ExecuteOperation( _
         End If
         Select Case operation
             Case OP_RUN
-                ok = M_Engine.Calculate(True)
+                ok = CORE_Engine.Calculate(True)
             Case OP_VALIDATE
-                ok = M_Engine.Calculate(False)
+                ok = CORE_Engine.Calculate(False)
             Case OP_CLEAR
                 ClearAllOutputs
                 ok = True
@@ -634,17 +634,17 @@ Private Function ReportOutcome( _
             Case OP_RUN
                 If ok Then
                     msg = "SA-CCR run completed." & vbCrLf & vbCrLf & _
-                          "Trades used: " & M_Engine.TradesUsed & " of " & M_Engine.TradesRead & vbCrLf & _
-                          "Total EAD: " & Format$(M_Engine.TotalEAD, "#,##0") & vbCrLf & _
-                          "Errors: " & M_Engine.ErrorCount & "   Warnings: " & M_Engine.WarningCount
-                    If M_Engine.IncompleteCount > 0 Then
-                        msg = msg & vbCrLf & "EAD withheld for " & M_Engine.IncompleteCount & _
+                          "Trades used: " & CORE_Engine.TradesUsed & " of " & CORE_Engine.TradesRead & vbCrLf & _
+                          "Total EAD: " & Format$(CORE_Engine.TotalEAD, "#,##0") & vbCrLf & _
+                          "Errors: " & CORE_Engine.ErrorCount & "   Warnings: " & CORE_Engine.WarningCount
+                    If CORE_Engine.IncompleteCount > 0 Then
+                        msg = msg & vbCrLf & "EAD withheld for " & CORE_Engine.IncompleteCount & _
                               " netting set(s) with rejected trades or invalid inputs."
                     End If
-                    If M_Engine.ErrorCount > 0 Or M_Engine.WarningCount > 0 Then
+                    If CORE_Engine.ErrorCount > 0 Or CORE_Engine.WarningCount > 0 Then
                         msg = msg & vbCrLf & vbCrLf & "See the Checks sheet for details."
                     End If
-                    style = IIf(M_Engine.ErrorCount > 0, vbExclamation, vbInformation)
+                    style = IIf(CORE_Engine.ErrorCount > 0, vbExclamation, vbInformation)
                 Else
                     msg = "SA-CCR run stopped - see the Checks sheet."
                     style = vbCritical
@@ -652,9 +652,9 @@ Private Function ReportOutcome( _
                 End If
             Case OP_VALIDATE
                 ShowChecksSheet
-                msg = "Validation finished: " & M_Engine.ErrorCount & " error(s), " & _
-                      M_Engine.WarningCount & " warning(s)."
-                style = IIf(M_Engine.ErrorCount > 0, vbExclamation, vbInformation)
+                msg = "Validation finished: " & CORE_Engine.ErrorCount & " error(s), " & _
+                      CORE_Engine.WarningCount & " warning(s)."
+                style = IIf(CORE_Engine.ErrorCount > 0, vbExclamation, vbInformation)
             Case OP_CLEAR
                 msg = ""
                 style = vbInformation
@@ -668,12 +668,12 @@ Private Function ReportOutcome( _
         result = "RESULT=" & IIf(ok, "OK", "STOPPED") & "; operation=" & OperationName(operation)
         If operation <> OP_CLEAR Then
             result = result & _
-                     "; errors=" & CStr(M_Engine.ErrorCount) & _
-                     "; warnings=" & CStr(M_Engine.WarningCount) & _
-                     "; trades_used=" & CStr(M_Engine.TradesUsed) & _
-                     "; trades_read=" & CStr(M_Engine.TradesRead) & _
-                     "; incomplete=" & CStr(M_Engine.IncompleteCount) & _
-                     "; total_ead=" & Trim$(Str$(M_Engine.TotalEAD))
+                     "; errors=" & CStr(CORE_Engine.ErrorCount) & _
+                     "; warnings=" & CStr(CORE_Engine.WarningCount) & _
+                     "; trades_used=" & CStr(CORE_Engine.TradesUsed) & _
+                     "; trades_read=" & CStr(CORE_Engine.TradesRead) & _
+                     "; incomplete=" & CStr(CORE_Engine.IncompleteCount) & _
+                     "; total_ead=" & Trim$(Str$(CORE_Engine.TotalEAD))
         End If
         result = result & "; cleanup=" & IIf(Len(cleanupDetails) = 0, "PASS", "FAIL")
 

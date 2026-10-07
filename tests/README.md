@@ -5,11 +5,11 @@
 
 | Location | Contents | Defined in |
 | --- | --- | --- |
-| `modules/` | Regression modules; `TestHarness.bas` is the harness and its entry point | #7 |
+| `modules/` | Regression modules; `TEST_Harness.bas` is the harness and its entry point | #7 |
 | `fixtures/` | Synthetic inputs: trades, netting sets, collateral terms | [`TEST_CASES.md`](../docs/methodology/TEST_CASES.md) |
 | `expected/` | Expected values per regime, each with its reference class and source | [`TEST_CASES.md`](../docs/methodology/TEST_CASES.md) |
 
-The harness entry point is `TestHarness.RunTests`. How to run it and what a
+The harness entry point is `TEST_Harness.RunTests`. How to run it and what a
 passing log looks like is in
 [`INSTALLATION.md`](../INSTALLATION.md#running-the-harness). Each other
 subdirectory is created with its first real file.
@@ -25,8 +25,8 @@ Rules:
 - Run output, logs and generated workbooks are not committed.
 - `python tools/check.py` validates every fixture and expected file against
   the format (`check_test_cases`) and checks that the generated
-  `modules/TestCases.bas` is current. `TestCases.RunCaseTests` runs them in
-  Excel through `modules/CaseRunner.bas`.
+  `modules/TEST_Cases.bas` is current. `TEST_Cases.RunCaseTests` runs them in
+  Excel through `modules/TEST_CaseRunner.bas`.
 
 <a id="ported-prototype-catalogue"></a>
 

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "repository": "danielep71/VBA-SACCR-Toolkit",
-  "entry_point": "TestHarness.RunTests",
+  "entry_point": "TEST_Harness.RunTests",
   "cases": [
     "replacement-cost.exact",
     "maturity-factor.tolerance",

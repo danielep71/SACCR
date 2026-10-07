@@ -1,6 +1,6 @@
-Attribute VB_Name = "M_Engine"
+Attribute VB_Name = "CORE_Engine"
 '==============================================================================
-' MODULE: M_Engine
+' MODULE: CORE_Engine
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Calculate SA-CCR exposure at default (EAD) for every netting set on the
@@ -36,7 +36,7 @@ Attribute VB_Name = "M_Engine"
 '     ComputeNettingSets: RC, multiplier, PFE and EAD per netting set;
 '     WriteBuckets, WriteHedgingSets, WriteChecks, WriteRunInfo: outputs.
 '   Each trade, bucket and hedging set is stored once in an array, with a
-'   Collection (see M_Util.KeyIndex) mapping its key to its array position.
+'   Collection (see CORE_Util.KeyIndex) mapping its key to its array position.
 '
 ' PUBLIC SURFACE
 '   None outside this VBA project. Calculate and the five run counters are
@@ -44,8 +44,8 @@ Attribute VB_Name = "M_Engine"
 '   external surface.
 '
 ' DEPENDENCIES
-'   M_Config for the layout, M_Util for conversions and sheet access, and
-'   M_Formulas for every regulatory formula.
+'   CORE_Config for the layout, CORE_Util for conversions and sheet access, and
+'   SACCR_Formulas for every regulatory formula.
 '
 ' STATE OWNERSHIP
 '   Owns the module state below. ResetState clears it at the start of each
@@ -206,7 +206,7 @@ Attribute VB_Name = "M_Engine"
 '------------------------------------------------------------------------------
 ' RUN PARAMETERS
 '------------------------------------------------------------------------------
-    'Read from Params by LoadParams; see M_Config for each code.
+    'Read from Params by LoadParams; see CORE_Config for each code.
         Private pAsOf         As Double     'Reporting date, serial
         Private pRepCcy       As String     'Reporting currency
         Private pAlpha        As Double     'Default alpha
@@ -604,7 +604,7 @@ Private Function ValidateSchema() As Boolean
 '------------------------------------------------------------------------------
     'A parameter listed twice with the same value is harmless and warned
     'about; with different values it is ambiguous. A workbook name equal to
-    'the code takes precedence over the Params row (M_Util.GetParam); a
+    'the code takes precedence over the Params row (CORE_Util.GetParam); a
     'broken one would silently fall back to the row.
         codes = Array(PRM_ASOF, PRM_REPCCY, PRM_ALPHA, PRM_FLOOR, PRM_DAYSYEAR, PRM_BDYEAR, _
                       PRM_MINMAT, PRM_SDFLOOR, PRM_MPOR_BIL, PRM_MPOR_CLR, PRM_MPOR_LARGE, _
@@ -691,7 +691,7 @@ Private Function HeadersMatch( _
 '
 ' INPUTS
 '   ws, rowNum: the sheet and its header row.
-'   expectedHeaders: one of the _HEADERS constants in M_Config, starting in
+'   expectedHeaders: one of the _HEADERS constants in CORE_Config, starting in
 '   column A; an empty entry is not checked.
 '
 ' RETURNS
@@ -776,7 +776,7 @@ Private Function NumParam( _
 '   Read a numeric parameter, falling back to its regulatory default.
 '
 ' INPUTS
-'   code: a PRM_ code from M_Config.
+'   code: a PRM_ code from CORE_Config.
 '   dflt: value used, with a warning, when the parameter is blank.
 '
 ' RETURNS

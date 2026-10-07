@@ -8,7 +8,7 @@ the suite counts as complete. Sources and rule IDs come from the
 > [!IMPORTANT]
 > The prototype's 28 TestCatalogue checks are ported as cases (#59): 14 values
 > printed in BCBS 279 Annex 4 are `published`; the other 14 are `illustrative`.
-> They run in Excel through `TestCases.RunCaseTests` ([consumption](#consumption));
+> They run in Excel through `TEST_Cases.RunCaseTests` ([consumption](#consumption));
 > no rule is validated until a run passes and its published values are checked
 > against the source. The mapping is in
 > [`tests/README.md`](../../tests/README.md#ported-prototype-catalogue).
@@ -265,10 +265,10 @@ Each fixture declares one `category`:
 ## ⚙️ Consumption
 
 Decided by the owner on 2026-10-06 (decision 7, #44):
-`tools/generate_case_tests.py` generates `tests/modules/TestCases.bas` from the
+`tools/generate_case_tests.py` generates `tests/modules/TEST_Cases.bas` from the
 JSON files, and `python tools/check.py` fails when the committed module is out
 of date. The generated module holds data only; the hand-written
-`tests/modules/CaseRunner.bas` writes each fixture into the NettingSets and
+`tests/modules/TEST_CaseRunner.bas` writes each fixture into the NettingSets and
 Trades sheets and the AsOfDate and ReportingCcy parameters, runs the engine
 with the case's regime as the netting set's override, compares the output
 cells with the tolerance rule above, and restores the workbook. Running the
