@@ -4,6 +4,7 @@ docs/methodology/TEST_CASES.md, without running Excel."""
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 from datetime import date
@@ -81,7 +82,6 @@ TRADE_QUANTITIES = {
     "hedging_set", "trade_status",
 }
 TEXT_QUANTITIES = {"cap_applied", "hedging_set", "trade_status", "netting_set_status"}
-UNITS = {"1", "business_days", "price"}
 REFERENCE_FIELDS = {"class", "source", "locator", "derivation", "derived_by", "reviewed_by", "date"}
 REQUIRED_REFERENCE = {
     "published": ("source", "locator"),
@@ -91,7 +91,12 @@ REQUIRED_REFERENCE = {
 
 
 def is_number(value: object) -> bool:
-    return isinstance(value, (int, float)) and not isinstance(value, bool)
+    return (isinstance(value, int) and not isinstance(value, bool)) or (
+        isinstance(value, float) and math.isfinite(value))
+
+
+def reject_json_constant(value: str) -> None:
+    raise ValueError(f"non-finite JSON constant {value}")
 
 
 def valid_date(value: object) -> bool:
@@ -136,8 +141,8 @@ def check_fields(where: str, record: object, spec: dict[str, tuple[str, bool]]) 
 
 def load(path: Path, findings: list[str], name: str) -> dict[str, Any] | None:
     try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        data = json.loads(path.read_text(encoding="utf-8"), parse_constant=reject_json_constant)
+    except (UnicodeDecodeError, ValueError) as error:
         findings.append(f"{name}: not valid UTF-8 JSON ({error})")
         return None
     if not isinstance(data, dict):
@@ -174,7 +179,21 @@ def check_fixture(name: str, stem: str, data: dict[str, Any]) -> list[str]:
     return findings
 
 
-def check_measure(where: str, output: dict[str, Any], currency: str) -> list[str]:
+def quantity_unit(output: dict[str, Any], fixture: dict[str, Any]) -> str:
+    """Resolve the documented unit, including the lambda trade's underlying."""
+    quantity = output.get("quantity")
+    if quantity in {"multiplier", "supervisory_delta", "supervisory_factor"}:
+        return "1"
+    if quantity == "margin_period_of_risk":
+        return "business_days"
+    if quantity == "lambda_shift":
+        trade = next((t for t in fixture.get("trades", [])
+                      if isinstance(t, dict) and t.get("id") == output.get("trade")), {})
+        return "1" if trade.get("asset_class") == "interest_rate" else "price"
+    return str(fixture.get("calculation_currency"))
+
+
+def check_measure(where: str, output: dict[str, Any], fixture: dict[str, Any]) -> list[str]:
     """An output carries exactly one of value (with unit and tolerance), text or error."""
     forms = [key for key in ("value", "text", "error") if key in output]
     if len(forms) != 1:
@@ -196,8 +215,9 @@ def check_measure(where: str, output: dict[str, Any], currency: str) -> list[str
         return findings
     findings = check_value(f"{where}.value", "number", output["value"])
     unit = output.get("unit")
-    if unit not in UNITS and unit != currency:
-        findings.append(f"{where}: unit must be the calculation currency {currency} or one of {sorted(UNITS)}")
+    required_unit = quantity_unit(output, fixture)
+    if unit != required_unit:
+        findings.append(f"{where}: unit must be {required_unit} for {quantity}")
     tolerance = output.get("tolerance")
     if not isinstance(tolerance, dict) or set(tolerance) != {"absolute", "relative"} or not all(
             is_number(v) and v >= 0 for v in tolerance.values()):
@@ -244,7 +264,7 @@ def check_output(where: str, output: object, fixture: dict[str, Any], register: 
         findings.append(f"{where}: {quantity} is a netting-set quantity and takes no 'trade'")
     if "catalogue" in output and not CATALOGUE.match(str(output["catalogue"])):
         findings.append(f"{where}: catalogue must look like T01")
-    findings += check_measure(where, output, str(fixture.get("calculation_currency")))
+    findings += check_measure(where, output, fixture)
     return findings + check_reference(f"{where}.reference", output.get("reference"), register)
 
 
