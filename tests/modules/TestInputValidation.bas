@@ -362,8 +362,14 @@ Private Sub AddParamRow( _
 '                                 AddParamRow
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Add a second Params row for a parameter, two rows below the last used
-'   row so that no table on Params runs into it.
+'   Add a second Params row for a parameter in the blank row directly below
+'   the parameter list (LambdaThresholdCO is the last), where a user would
+'   add one. A row further down would fall below the FX table, where the
+'   engine reads a number in column C as a rate after a blank row.
+'
+' ERROR POLICY
+'   Raises ERR_TEST_SETUP when that row is not blank, so that a changed
+'   template fails the suite instead of overwriting a row.
 '
 ' UPDATED
 '   2026-10-07
@@ -378,7 +384,11 @@ Private Sub AddParamRow( _
 '------------------------------------------------------------------------------
 ' WRITE
 '------------------------------------------------------------------------------
-        r = UsedLastRow(GetSheet(SH_PARAMS)) + 2
+        r = ParamsRow(PRM_LAMCO) + 1
+        If Not IsBlankCell(GetSheet(SH_PARAMS).Cells(r, PRM_CODE_COL).Value) Or _
+           Not IsBlankCell(GetSheet(SH_PARAMS).Cells(r, PRM_VALUE_COL).Value) Then
+            Err.Raise ERR_TEST_SETUP, "TestInputValidation.AddParamRow", "Params row " & r & " is not blank."
+        End If
         CaseRunner.PatchCell SH_PARAMS, r, PRM_CODE_COL, code
         CaseRunner.PatchCell SH_PARAMS, r, PRM_VALUE_COL, newValue
 
