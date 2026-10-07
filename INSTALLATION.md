@@ -294,10 +294,23 @@ repeats a netting-set ID and puts `#N/A` in a trade, a netting set and a
 parameter. It also renames a header, breaks a parameter name, duplicates a parameter, a
 supervisory-factor key and a currency, and puts a blank row or a blank key in
 the factor and FX tables, and checks that the run stops, or continues when the
-duplicate has the same values. Every patched cell and name is restored. It
-needs a workbook built from the template. Import it with `TEST_CaseRunner` and run
+duplicate has the same values. For aggregation it gives one credit reference
+two sub-classes, in both orders, and adds a basis trade without a label, a
+reference with a reserved character and an interest-rate risk factor that is
+not a currency. Every patched cell and name is restored. It needs a workbook
+built from the template. Import it with `TEST_CaseRunner` and run
 `TEST_InputValidation.RunInputValidationTests`; it ends with
-`RESULT=PASS; cases=27; checks=27; failures=0; restore=PASS`.
+`RESULT=PASS; cases=32; checks=32; failures=0; restore=PASS`.
+
+### Aggregation tests
+
+`tests/modules/TEST_Aggregation.bas` runs the workbook's own portfolio in its
+row order, reversed and rotated, and checks that Results is the same each time;
+and it checks offsets by comparing outputs with each other: two opposite swaps
+in one bucket offset exactly, and nothing offsets across currencies, netting
+sets, credit entities or between a standard and a basis hedging set. Import it
+with `TEST_CaseRunner` and run `TEST_Aggregation.RunAggregationTests`; it ends
+with `RESULT=PASS; cases=10; checks=10; failures=0; restore=PASS`.
 
 For automation, `RunSACCR_Silent` returns a result line such as
 `RESULT=OK; operation=run; errors=0; warnings=0; trades_used=62; trades_read=65; incomplete=2; total_ead=...; inputs=...; cleanup=PASS`

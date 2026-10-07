@@ -331,6 +331,21 @@ Use only the categories needed by a release.
   history. A failed or validation-only run and Clear outputs remove the
   fingerprint. `TEST_MainState` adds the case.
 
+- Aggregation no longer depends on the order of the trade rows (#37). A
+  credit or equity entity, or a commodity, given two sub-classes in one
+  netting set took the factor and correlation of whichever trade came
+  first, with a warning; the netting set is now `INVALID` with its EAD
+  withheld, whatever the order. A basis or volatility trade without a
+  hedging-set label, which shared one blank hedging set, is rejected, as is
+  a reference or label containing `|` or `#`, which the grouping keys use,
+  and an interest-rate risk factor that is not a 3-letter currency code.
+  References and labels are compared after trimming and in upper case, with
+  no aliases. `TEST_InputValidation` adds five cases and the new
+  `TEST_Aggregation` checks that the demo portfolio gives the same Results
+  in reversed and rotated row order, and that offsets happen exactly within
+  a bucket and never across currencies, netting sets, credit entities or
+  hedging sets.
+
 - The workbook macros restore calculation mode, events and screen updating to
   the values they found, including settings that were off, instead of
   switching events and screen updating on (#43). Each setting is restored

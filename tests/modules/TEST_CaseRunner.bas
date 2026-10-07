@@ -10,10 +10,11 @@ Attribute VB_Name = "TEST_CaseRunner"
 '   (methodology decision 7, #44).
 '
 ' PUBLIC SURFACE
-'   BeginSuite, BeginCase, AddNettingSet, AddTrade, SetInputCell, PatchCell,
-'   PatchName, RunCase, RunCaseExpectingStop, ExpectNumber, ExpectText and
-'   EndSuite, for TEST_Cases and TEST_InputValidation. Option Private Module
-'   keeps them out of the external workbook automation API.
+'   BeginSuite, BeginCase, LoadSavedInputs, AddNettingSet, AddTrade,
+'   SetInputCell, PatchCell, PatchName, RunCase, RunCaseExpectingStop,
+'   OutputNumber, ExpectNumber, ExpectText, ExpectTrue and EndSuite, for
+'   TEST_Cases, TEST_InputValidation and TEST_Aggregation. Option Private
+'   Module keeps them out of the external workbook automation API.
 '
 ' DEPENDENCIES
 '   CORE_Engine.Calculate; CORE_Util for sheet access; CORE_Config for the layout.
@@ -290,6 +291,29 @@ Public Sub BeginCase( _
         mAsOfCell.Value = IsoDate(valuationDate)
         mCcyCell.Value = calculationCurrency
         Debug.Print "CASE=" & mCase
+
+End Sub
+
+
+Public Sub LoadSavedInputs()
+'
+'==============================================================================
+'                               LoadSavedInputs
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Put the workbook's own inputs, saved by BeginSuite, back on the input
+'   sheets for the current case: its NettingSets and Trades rows and its
+'   AsOfDate and ReportingCcy. Used by TEST_Aggregation to run the demo
+'   portfolio in different row orders.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        RestoreBlock GetSheet(SH_NS), NS_NCOLS, mSavedNsAddress, mSavedNs
+        RestoreBlock GetSheet(SH_TRADES), TR_NCOLS, mSavedTrAddress, mSavedTr
+        mAsOfCell.Formula = mSavedAsOf
+        mCcyCell.Formula = mSavedCcy
 
 End Sub
 
@@ -677,6 +701,88 @@ Public Sub ExpectNumber( _
                    quantity & " expected " & expected & ", actual " & Trim$(Str$(CDbl(actual))) & _
                    ", tolerance " & Trim$(Str$(bound))
         End If
+
+End Sub
+
+
+Public Function OutputNumber( _
+    ByVal nettingSetId As String, _
+    ByVal quantity As String) _
+    As Double
+'
+'==============================================================================
+'                                 OutputNumber
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Read a netting-set quantity from Results for any netting set of the
+'   case, for checks that compare outputs with each other rather than with
+'   a fixed expected value.
+'
+' INPUTS
+'   nettingSetId: the netting set's row on Results.
+'   quantity: a netting-set quantity name, as for ExpectNumber.
+'
+' ERROR POLICY
+'   Raises ERR_TEST_SETUP when the row, the column or a number is missing;
+'   the calling suite then fails.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws    As Worksheet    'Results sheet
+    Dim col   As Long         'Output column; 0 when unknown
+    Dim r     As Long         'Output row; 0 when not found
+    Dim v     As Variant      'Cell value
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        Set ws = GetSheet(SH_RESULTS)
+        col = OutputColumn(quantity, False)
+        r = FindHeaderRow(ws, 1, nettingSetId)
+        If col = 0 Or r < FIRST_DATA_ROW Then
+            Err.Raise ERR_TEST_SETUP, "TEST_CaseRunner.OutputNumber", _
+                      quantity & " of " & nettingSetId & " not found on Results."
+        End If
+        v = ws.Cells(r, col).Value
+        If Not IsNum(v) Then
+            Err.Raise ERR_TEST_SETUP, "TEST_CaseRunner.OutputNumber", _
+                      quantity & " of " & nettingSetId & " is not a number (" & SafeStr(v) & ")."
+        End If
+        OutputNumber = CDbl(v)
+
+End Function
+
+
+Public Sub ExpectTrue( _
+    ByVal label As String, _
+    ByVal passed As Boolean, _
+    ByVal detail As String, _
+    ByVal referenceClass As String)
+'
+'==============================================================================
+'                                  ExpectTrue
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Record a check that the caller has evaluated itself, such as a relation
+'   between two outputs.
+'
+' INPUTS
+'   label: the check's name in the report.
+'   passed: the result.
+'   detail: printed when the check fails.
+'   referenceClass: published, independent or illustrative.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        Record label, referenceClass, passed, detail
 
 End Sub
 
