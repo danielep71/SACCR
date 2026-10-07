@@ -208,7 +208,9 @@ Use only the categories needed by a release.
   statements are unchanged from the prototype apart from `Option Private
   Module` in the three core modules, which the import had declared twice.
 - Workbook template `src/workbook/SACCR_Template.xlsx` (#58): the prototype's
-  12 sheets, formulas, named ranges and buttons with its VBA project removed.
+  12 sheets, formulas, named ranges and buttons with its VBA project and its
+  document properties (`docProps/core.xml`, `docProps/app.xml`) removed;
+  `tools/check_source.py` rejects a committed workbook that carries either.
   The workbook is built by saving it as `.xlsm` and importing the source; the
   template is part of the Excel evidence source inventory. Verified in Excel by
   the owner (#58): a workbook built from it with the repository source ran the

@@ -3,6 +3,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 import check_source
@@ -76,6 +77,33 @@ class SourceGateTests(unittest.TestCase):
         self.assertIn("src/core/M_Test.bas: core modules must declare Option Private Module", self.findings())
         self.write("src/core/M_Test.bas", MODULE.replace("Option Explicit", "Option Explicit\r\nOption Private Module"))
         self.assertEqual(self.findings(), [])
+
+    def write_workbook(self, path: str, parts: dict[str, str]) -> None:
+        target = self.root / path
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(target, "w") as package:
+            for name, text in parts.items():
+                package.writestr(name, text)
+
+    def test_committed_workbook_without_metadata_passes(self) -> None:
+        self.write_workbook("src/workbook/T.xlsx", {"[Content_Types].xml": "<Types/>",
+                                                    "_rels/.rels": '<Relationships Target="xl/workbook.xml"/>',
+                                                    "xl/workbook.xml": "<workbook/>"})
+        self.assertEqual(self.findings(), [])
+
+    def test_committed_workbook_with_metadata_or_vba_is_rejected(self) -> None:
+        self.write_workbook("src/workbook/T.xlsx", {"[Content_Types].xml": "<Types/>",
+                                                    "_rels/.rels": '<Relationship Target="docProps/core.xml"/>',
+                                                    "docProps/core.xml": "<coreProperties/>",
+                                                    "xl/vbaProject.bin": "x"})
+        found = self.findings()
+        self.assertIn("src/workbook/T.xlsx: must not contain docProps/core.xml", found)
+        self.assertIn("src/workbook/T.xlsx: must not contain xl/vbaProject.bin", found)
+        self.assertIn("src/workbook/T.xlsx: package still references document properties or a VBA project", found)
+
+    def test_unreadable_workbook_is_rejected(self) -> None:
+        self.write("src/workbook/T.xlsx", "not a zip")
+        self.assertTrue(any("not a readable workbook package" in f for f in self.findings()))
 
     def test_crlf_in_index_is_rejected(self) -> None:
         (self.root / ".gitattributes").write_text("* -text\n")
