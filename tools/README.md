@@ -34,6 +34,29 @@ These are static checks only. None of them compiles VBA, opens Excel, runs a
 test harness or validates any SA-CCR number, and a pass is never evidence that
 the workbook works in Excel.
 
+## Local VBA synchronization
+
+\`Sync-SACCR-VBA.ps1\` synchronizes the repository VBA source into an existing
+local \`.xlsm\` development workbook without intentionally changing worksheets,
+cells, formulas, names, tables or formatting.
+
+From the repository root:
+
+\`\`\`powershell
+.\tools\Sync-SACCR-VBA.ps1 -WorkbookPath "C:\path\to\SACCR.xlsm"
+\`\`\`
+
+The script reads \`src/core/\`, \`src/modules/\` and \`src/workbook/\`. Standard
+modules are replaced from source; \`ThisWorkbook\` and worksheet document modules
+keep their workbook objects and only their code text is replaced. It disables
+Excel events, macro execution, external-link updates and automatic calculation
+while synchronizing, checks that the sheet names/CodeNames are unchanged, and
+creates a timestamped backup unless \`-NoBackup\` is supplied.
+
+It requires Windows desktop Excel and Excel's **Trust access to the VBA project
+object model** setting. The workbook VBA project must not be password-locked.
+
+
 ## VBA checkers: source and adaptations
 
 `check_vba_jumps.py`, `check_vba_conditionals.py` and `check_vba_public_api.py`
