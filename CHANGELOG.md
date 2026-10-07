@@ -97,6 +97,11 @@ Use only the categories needed by a release.
 
 ### Added
 
+- An interest-rate add-on flowchart in `docs/assets/`
+  (`SACCR_IR_AddOn_flow.svg` and a 2080 px PNG). It traces the steps from trade
+  selection to the aggregate add-on, including the maturity factor, basis and
+  volatility hedging sets and time buckets by end date, with Basel CRE52 and
+  CRR references for each step.
 - A source-controlled GitHub Wiki publication system keeps every maintained
   Wiki page under `docs/wiki/`, validates its catalogue and authority links,
   publishes the complete page set through `tools/Publish-SACCR-Wiki.cmd`, and
