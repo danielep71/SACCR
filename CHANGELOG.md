@@ -310,7 +310,7 @@ Use only the categories needed by a release.
   results were shown while Checks still held the previous run's messages.
   The run now clears the other output sheets, says why in Results A2 and
   raises `ERR_CHECKS_WRITE`; the button shows the reason and
-  `RunSACCR_Silent` raises it. `TestMainState` adds the case.
+  `RunSACCR_Silent` raises it. `TEST_MainState` adds the case.
 
 - The workbook macros restore calculation mode, events and screen updating to
   the values they found, including settings that were off, instead of

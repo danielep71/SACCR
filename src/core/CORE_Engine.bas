@@ -321,7 +321,7 @@ Finish:
         End If
         WriteRunInfo Timer - t0, Calculate, writeOutputs, checksFailure
         If Len(checksFailure) > 0 Then
-            Err.Raise ERR_CHECKS_WRITE, "M_Engine.Calculate", "The Checks sheet could not be written (" & _
+            Err.Raise ERR_CHECKS_WRITE, "CORE_Engine.Calculate", "The Checks sheet could not be written (" & _
                       checksFailure & "), so the run's results were withdrawn. Unprotect or repair the Checks " & _
                       "sheet and run again."
         End If
