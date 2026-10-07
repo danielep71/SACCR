@@ -270,6 +270,13 @@ Use only the categories needed by a release.
   key, so such rows, and a value whose key is blank, were silently not read.
   `TestInputValidation` adds four cases.
 
+- A netting-set ID listed twice makes that netting set `INVALID` with its
+  EAD withheld (#35). The second row was ignored with an error, but the set
+  was still reported `VALID` with the first row's collateral terms.
+  `TestInputValidation` adds this case and three with an Excel error value
+  (`#N/A`) in a trade's MtM, a netting-set amount and a parameter, each of
+  which is rejected rather than read as blank.
+
 - A netting set with a rejected trade no longer reports an EAD computed on
   its remaining trades (#36). Results has a Status column and a row for
   every input netting set: `VALID`, `INCOMPLETE: r of n trade(s) rejected`
