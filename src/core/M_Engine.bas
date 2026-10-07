@@ -927,8 +927,9 @@ Private Function LoadSFTable() As Boolean
 '
 ' RETURNS
 '   True when at least one row was read. False, with an error logged, when
-'   the header is missing, the table is empty, a value is not a number, or
-'   a key is listed twice with different values (#35).
+'   the header is missing, the table is empty, a value is not a number, a
+'   key is listed twice with different values, or a row with a factor lies
+'   below the first blank key and would not be read (#35).
 '
 ' STATE OWNERSHIP
 '   Fills mSF, mSFCount and mSFIndex. A key listed twice with the same
@@ -951,6 +952,8 @@ Private Function LoadSFTable() As Boolean
     Dim rowBad   As Boolean        'This row has a value that is not a number
     Dim entry    As tSupervisory   'This row
     Dim idx      As Long           'Position of an earlier row with the key; 0 if none
+    Dim lastR    As Long           'Last row searched for rows after the end
+    Dim fxRow    As Long           'Header row of the FX table; 0 if absent
 
 '------------------------------------------------------------------------------
 ' FIND THE TABLE
@@ -1010,6 +1013,21 @@ Private Function LoadSFTable() As Boolean
         Loop
 
 '------------------------------------------------------------------------------
+' ROWS AFTER THE END
+'------------------------------------------------------------------------------
+    'The table ends at the first blank key. A row further down with a
+    'factor would be dropped silently, so it is an error. The search stops
+    'at the FX table when that follows.
+        lastR = UsedLastRow(ws)
+        fxRow = FindHeaderRow(ws, 1, HDR_FX)
+        If fxRow > r Then
+            lastR = fxRow - 1
+        End If
+        If ValuesAfterEnd(ws, r, lastR, 4, "Supervisory factor") Then
+            bad = True
+        End If
+
+'------------------------------------------------------------------------------
 ' CHECK
 '------------------------------------------------------------------------------
         If mSFCount = 0 Then
@@ -1059,8 +1077,9 @@ Private Function LoadFXTable() As Boolean
 '
 ' RETURNS
 '   True when the table was read. False, with an error logged, when the
-'   header is missing or a currency is listed twice with different rates
-'   (#35).
+'   header is missing, a currency is listed twice with different rates, or
+'   a row with a rate lies below the first blank currency and would not be
+'   read (#35).
 '
 ' STATE OWNERSHIP
 '   Fills mFXRate, mFXCount and mFXIndex. A rate that is missing or not
@@ -1083,7 +1102,9 @@ Private Function LoadFXTable() As Boolean
     Dim k      As String       'Currency code, upper case
     Dim rate   As Double       'Rate of the row; -1 when missing
     Dim idx    As Long         'Position of an earlier row with the currency; 0 if none
-    Dim bad    As Boolean      'Some currency is listed with two different rates
+    Dim bad    As Boolean      'A currency conflicts or a rate would not be read
+    Dim lastR  As Long         'Last row searched for rows after the end
+    Dim sfRow  As Long         'Header row of the factor table; 0 if absent
 
 '------------------------------------------------------------------------------
 ' FIND THE TABLE
@@ -1122,6 +1143,21 @@ Private Function LoadFXTable() As Boolean
             End If
             r = r + 1
         Loop
+
+'------------------------------------------------------------------------------
+' ROWS AFTER THE END
+'------------------------------------------------------------------------------
+    'As for the factor table: a rate below the first blank currency would be
+    'dropped silently. The search stops at the factor table when that
+    'follows.
+        lastR = UsedLastRow(ws)
+        sfRow = FindHeaderRow(ws, 1, HDR_SF)
+        If sfRow > r Then
+            lastR = sfRow - 1
+        End If
+        If ValuesAfterEnd(ws, r, lastR, 3, "FX") Then
+            bad = True
+        End If
         If bad Then
             Exit Function
         End If
@@ -1140,6 +1176,63 @@ Private Function LoadFXTable() As Boolean
             LogMsg SEV_WARN, SH_PARAMS, pRepCcy, "Rate of the reporting currency is not 1."
         End If
         LoadFXTable = True
+
+End Function
+
+
+Private Function ValuesAfterEnd( _
+    ByVal ws As Worksheet, _
+    ByVal endRow As Long, _
+    ByVal lastR As Long, _
+    ByVal valueCol As Long, _
+    ByVal tableName As String) _
+    As Boolean
+'
+'==============================================================================
+'                                ValuesAfterEnd
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Find rows of a Params table that its loader will not read: from the
+'   blank key that ends the table down to lastR, any row with a number in
+'   the table's value column. Each is logged as an error (#35).
+'
+' INPUTS
+'   ws: Params sheet.
+'   endRow: the row with the blank key that ended the table.
+'   lastR: last row to search.
+'   valueCol: the column that always holds a number in a table row:
+'   4 (factor) or 3 (rate).
+'   tableName: for the messages.
+'
+' RETURNS
+'   True when such a row was found.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim r     As Long      'Row being checked
+    Dim k     As String    'Key in column A, upper case
+
+'------------------------------------------------------------------------------
+' SEARCH
+'------------------------------------------------------------------------------
+        For r = endRow To lastR
+            If IsNum(ws.Cells(r, valueCol).Value) Then
+                ValuesAfterEnd = True
+                k = UTxt(ws.Cells(r, 1).Value)
+                If Len(k) = 0 Then
+                    LogMsg SEV_ERROR, SH_PARAMS, "", tableName & " row has a value but no key - not read.", r
+                Else
+                    LogMsg SEV_ERROR, SH_PARAMS, k, tableName & " row below a blank row - not read; " & _
+                           "remove the blank row.", r
+                End If
+            End If
+        Next r
 
 End Function
 

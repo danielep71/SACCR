@@ -265,6 +265,11 @@ Use only the categories needed by a release.
   with the same values is a warning. `TestInputValidation` adds ten cases for
   these rules.
 
+- A supervisory factor or FX rate below a blank row of its table on Params
+  is reported and stops the run (#35). Each table ends at its first blank
+  key, so such rows, and a value whose key is blank, were silently not read.
+  `TestInputValidation` adds four cases.
+
 - A netting set with a rejected trade no longer reports an EAD computed on
   its remaining trades (#36). Results has a Status column and a row for
   every input netting set: `VALID`, `INCOMPLETE: r of n trade(s) rejected`
