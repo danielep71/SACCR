@@ -195,16 +195,16 @@ The detailed and authoritative project scope is maintained in
 ## Regulatory references
 
 - **Basel Committee on Banking Supervision — Basel Framework, CRE52:
-  Standardised approach to counterparty credit risk**  
+  Standardised approach to counterparty credit risk**\
   https://www.bis.org/committees/bcbs/basel-framework/standard/cre?allChapters=true&chapter=50
 - **Basel Committee on Banking Supervision — CRE51:
-  Counterparty credit risk overview**  
+  Counterparty credit risk overview**\
   https://www.bis.org/committees/bcbs/basel-framework/standard/cre/51/
 - **Regulation (EU) No 575/2013 (CRR), as amended** — Part Three, Title II,
   Chapter 6, Section 3, Articles 274–280f. The exact consolidated version used by
   the calculator is maintained in the project's
   [regulatory source register](../methodology/README.md#source-register).
-- **European Banking Authority — Single Rulebook Q&A**  
+- **European Banking Authority — Single Rulebook Q&A**\
   Individual Q&As are used as interpretative evidence where relevant, but are
   not treated as substitutes for the Level 1 legal text or as general numerical
   benchmark suites.
