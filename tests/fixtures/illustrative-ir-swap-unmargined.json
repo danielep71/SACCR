@@ -10,17 +10,40 @@
   "netting_set": {
     "id": "NS1",
     "margined": false,
-    "collateral_net_amount": 0
+    "cleared": false,
+    "remargin_period_business_days": null,
+    "large_or_illiquid": false,
+    "margin_disputes": false,
+    "mpor_override_business_days": null,
+    "variation_margin_net_amount": 0,
+    "independent_collateral_net_amount": 0,
+    "threshold_amount": 0,
+    "minimum_transfer_amount": 0,
+    "alpha_factor": null
   },
   "trades": [
     {
       "id": "T1",
       "asset_class": "interest_rate",
-      "currency": "EUR",
+      "sub_class": null,
+      "risk_factor": "EUR",
+      "instrument": "linear",
+      "direction": "long",
+      "option_type": null,
+      "nature": "standard",
+      "hedging_set_label": null,
       "notional_amount": 10000000,
+      "market_value_amount": 100000,
       "start_date": "2026-01-02",
       "end_date": "2031-01-02",
-      "market_value_amount": 100000
+      "maturity_date": "2031-01-02",
+      "option_expiry_date": null,
+      "underlying_price": null,
+      "strike_price": null,
+      "lambda_price": null,
+      "attachment_rate": null,
+      "detachment_rate": null,
+      "description": "Five-year swap, format example"
     }
   ]
 }

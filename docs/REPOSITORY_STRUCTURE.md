@@ -52,7 +52,7 @@ tools/      static checks and evidence tooling; later, build tooling
 
 | Directory | Owns | Must not own |
 | --- | --- | --- |
-| `src/` | Production components that go into the workbook | Tests, examples, workbooks |
+| `src/` | Production components that go into the workbook, and the workbook template | Tests, examples, built workbooks |
 | `tests/` | Test modules, synthetic fixtures, reviewed expected values | Production entry points, run output |
 | `examples/` | Examples that use only the public API | Tests, real data |
 | `docs/` | Contracts, architecture, [methodology](methodology/README.md) | Copies of root documents |
@@ -115,7 +115,22 @@ A VBA `Public` declaration is not automatically supported API.
 - **Never supported:** test and example modules. They are not part of the
   workbook.
 
-The manifest currently lists only the setup scaffold, `SaccrScaffold`.
+The manifest lists the ten `SACCR_*` worksheet functions in `M_Formulas`.
+
+<a id="known-deviations"></a>
+
+### Known deviations: imported prototype engine
+
+The engine imported from the prototype workbook `SACCR_Calculator.xlsm` keeps
+its original structure until it is refactored:
+
+| Rule | Deviation |
+| --- | --- |
+| `src/core` never touches Excel | `M_Engine` and `M_Util` read the input sheets and write the output sheets |
+| `src/workbook` holds document modules | `M_Main`, a standard module, holds the sheet-button macros `RunSACCR`, `ValidateInputs` and `ClearOutputs` |
+| Naming rules in `VBA_HOUSE_STYLE.md` | `M_` prefixes instead of `Core`, `Saccr` and the other role prefixes |
+
+Each deviation is removed by a reviewed change, not by reformatting.
 
 ## 🚦 Placement rules
 
@@ -127,7 +142,9 @@ The manifest currently lists only the setup scaffold, `SaccrScaffold`.
 4. Fixtures are synthetic; never commit real trades, counterparties or
    portfolios.
 5. Workbooks are built from source and never committed, except at an exact
-   path explicitly re-included in `.gitignore`.
+   path explicitly re-included in `.gitignore`. The one such path is
+   `src/workbook/SACCR_Template.xlsx`, the macro-free template that holds the
+   sheets, formulas, named ranges and buttons; it contains no VBA.
 6. A new location becomes contractual only when this document, the directory
    README, `INSTALLATION.md` and the checks are updated together.
 

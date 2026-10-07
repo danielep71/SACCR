@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "kind": "saccr-expected",
+  "fixture": "illustrative-other-risks",
+  "regime": "BCBS",
+  "outputs": [
+    {
+      "quantity": "trade_status",
+      "rule": "CRE52",
+      "trade": "OT-1",
+      "text": "EXCLUDED",
+      "reference": {
+        "class": "illustrative",
+        "source": "BCBS",
+        "locator": "CRE52 (five asset classes)",
+        "derivation": "Prototype TestCatalogue T26 (Other-risks trade in a BCBS netting set is rejected; CRE52 (five asset classes); hand calculation from the regulation; workbook reference OT-X, Status). The catalogue reads trade OT-X, which has the same inputs as OT-1 in this fixture. Value from a hand calculation from the regulation that has not been reviewed; illustrative until an independent derivation is committed and reviewed.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T26"
+    },
+    {
+      "quantity": "netting_set_status",
+      "rule": "CRE52",
+      "text": "INCOMPLETE: 3 of 3 trade(s) rejected",
+      "reference": {
+        "class": "illustrative",
+        "source": "BCBS",
+        "locator": "Engine contract, issue #36",
+        "derivation": "Engine behaviour required by #36, not a regulatory figure: a netting set with a rejected trade reports no EAD.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      }
+    }
+  ]
+}

@@ -31,8 +31,10 @@ and removal**. Contribution workflow is owned by
 ## 🧭 Current status
 
 Repository setup, milestone **v0.0.1**, is complete. There is **no SA-CCR
-calculation yet**: the only VBA is a neutral scaffold and the regression harness
-that tests it. There is no workbook or add-in to install.
+release yet**: the VBA is the prototype engine imported from
+`SACCR_Calculator.xlsm`, plus the regression harness. The
+workbook is built from the macro-free template `src/workbook/SACCR_Template.xlsx`
+and the VBA in `src/` and `tests/`.
 
 | Topic | Status |
 | --- | --- |
@@ -141,26 +143,36 @@ The exact component list is added here with the first VBA source.
 
 1. Start from one exact commit in a Git checkout, so `.bas`, `.cls` and `.frm`
    files have CRLF line endings. Never mix components from different commits.
-2. Create a new blank workbook and save it as **Excel Macro-Enabled Workbook
-   (`.xlsm`)** outside the checkout, or in an ignored location such as
-   `test-results/`. Workbooks are never committed.
+2. Open `src/workbook/SACCR_Template.xlsx` from the checkout and save it with
+   **File → Save As** as **Excel Macro-Enabled Workbook (`.xlsm`)** outside the
+   checkout, or in an ignored location such as `test-results/`. The template
+   holds the 12 sheets, named ranges, formulas and buttons, and no VBA. Built
+   workbooks are never committed.
 3. Open the VBE (**Alt+F11**) and check **Tools → References** shows only the
    four default references listed under [supported hosts](#supported-hosts).
 4. Import with **File → Import File**, in this order:
    1. every file in `src/core/`;
    2. every file in `src/classes/`;
    3. every file in `src/modules/`;
-   4. every `.frm` in `src/forms/` (its `.frx` loads with it; never import a
+   4. every standard module (`.bas`) in `src/workbook/`, currently `M_Main`;
+      the `.cls` document modules there are pasted, not imported (step 5);
+   5. every `.frm` in `src/forms/` (its `.frx` loads with it; never import a
       `.frx`);
-   5. for a development workbook only: `tests/` and `examples/` modules.
+   6. for a development workbook only: `tests/` and `examples/` modules.
 
    Current components, in import order:
 
    | # | File | Component | Role |
    | ---: | --- | --- | --- |
-   | 1 | `src/core/CoreScaffold.bas` | `CoreScaffold` | Internal; neutral checked division for the scaffold |
-   | 2 | `src/modules/SaccrScaffold.bas` | `SaccrScaffold` | Public facade (`docs/PUBLIC_API.txt`) |
-   | 3 | `tests/modules/TestHarness.bas` | `TestHarness` | Regression harness; development workbook only |
+   | 1 | `src/core/M_Config.bas` | `M_Config` | Internal; sheet layout and parameter constants |
+   | 2 | `src/core/M_Engine.bas` | `M_Engine` | Internal; SA-CCR calculation run |
+   | 3 | `src/core/M_Util.bas` | `M_Util` | Internal; conversions and sheet helpers |
+   | 4 | `src/modules/M_Formulas.bas` | `M_Formulas` | Public worksheet functions `SACCR_*` (`docs/PUBLIC_API.txt`) |
+   | 5 | `src/workbook/M_Main.bas` | `M_Main` | Sheet-button macros `RunSACCR`, `ValidateInputs`, `ClearOutputs` |
+   | 6 | `tests/modules/TestHarness.bas` | `TestHarness` | Regression harness; development workbook only |
+
+   The sheet buttons call `RunSACCR`, `ValidateInputs` and `ClearOutputs`, so
+   they work once `M_Main` is imported.
 5. **Document modules** in `src/workbook/` (`ThisWorkbook.cls` and sheet
    modules) cannot be imported: the VBE would create a new class such as
    `ThisWorkbook1`. Instead, open the `.cls` file in a text editor, copy the code
@@ -192,7 +204,7 @@ match the file name.
 
 ## ▶️ Running the harness
 
-After importing the three components above and compiling, open the Immediate
+After importing the components above and compiling, open the Immediate
 window (**Ctrl+G**) and run:
 
 ```text
@@ -216,7 +228,8 @@ To see the failure path, run:
 TestHarness.RunTestsWithInjectedFailure
 ```
 
-It runs the same suite with one deliberately wrong expectation and must print
+It runs the same suite with one deliberately wrong expectation, in
+`replacement-cost.exact`, and must print
 `MODE=INJECTED_FAILURE` and
 `RESULT=FAIL; completeness=COMPLETE; cases=4; assertions=6; failures=1; cleanup=PASS`,
 followed by the suite failure error. If a run is interrupted, run
@@ -225,6 +238,48 @@ followed by the suite failure error. If a run is interrupted, run
 The harness never changes Excel settings. It checks that `Calculation`,
 `DisplayAlerts`, `EnableEvents` and `ScreenUpdating` are the same after the run
 as before, and reports `cleanup=FAIL` if not.
+
+### Workbook macro state tests
+
+`tests/modules/TestMainState.bas` checks that **Run SA-CCR**, **Validate inputs**
+and **Clear outputs** put calculation mode, events and screen updating back as
+they found them, also when they were off, and that an operation failure and a
+cleanup failure are each raised and leave the workbook ready for the next run.
+Unlike the harness, it runs the real macros, which rewrite the output sheets,
+so use a development workbook. Run:
+
+```text
+TestMainState.RunMainStateTests
+```
+
+A passing run prints seven `CASE=` lines and ends with
+`RESULT=PASS; cases=7; checks=...; failures=0; caller_state=RESTORED`.
+
+<a id="numerical-test-cases"></a>
+
+### Numerical test cases
+
+`tests/modules/TestCases.bas` is generated from `tests/fixtures` and
+`tests/expected`; never edit it by hand. After changing a JSON file, run
+`python tools/generate_case_tests.py` and import the regenerated module.
+Import it with `tests/modules/CaseRunner.bas`, then run:
+
+```text
+TestCases.RunCaseTests
+```
+
+Each case writes its fixture into the NettingSets and Trades rows and the
+AsOfDate and ReportingCcy parameters, runs the engine and checks the outputs;
+the other Params values must be the template's. At the end the inputs and
+parameters are written back, the engine is run once more and Excel settings
+are restored. A passing run prints one `CASE=` line per expected file, the
+results per reference class, and
+`RESULT=PASS; cases=19; checks=36; failures=0; restore=PASS`. Illustrative
+results are counted separately and validate nothing.
+
+For automation, `RunSACCR_Silent` returns a result line such as
+`RESULT=OK; operation=run; errors=0; warnings=0; trades_used=62; trades_read=65; total_ead=...; cleanup=PASS`
+and raises any failure instead of showing a message box.
 
 <a id="validation-record"></a>
 

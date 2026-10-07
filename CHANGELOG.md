@@ -155,8 +155,10 @@ Use only the categories needed by a release.
   assertions with stable case names, refuses to report `PASS` unless all
   expected cases and assertions ran, verifies Excel settings are unchanged, and
   prints a machine-readable `RESULT=` line. `RunTestsWithInjectedFailure`
-  demonstrates the failure path. It exercises a neutral scaffold
-  (`CoreScaffold`, `SaccrScaffold`) that the SA-CCR engine will replace.
+  demonstrates the failure path. Its four cases exercise the engine's worksheet
+  functions: replacement cost, maturity factor, the CDO-delta `#NUM!` result
+  for an invalid tranche, and option-delta repeatability. The v0.0.1 setup
+  scaffold it first tested (`CoreScaffold`, `SaccrScaffold`) is removed.
 - Excel evidence bound to an exact commit:
   [`docs/EXCEL_EVIDENCE.md`](docs/EXCEL_EVIDENCE.md) gives the manual
   Windows/Excel procedure and record format, and
@@ -188,12 +190,69 @@ Use only the categories needed by a release.
   identity, static checks, Excel evidence, regression coverage, risk,
   provenance and SA-CCR-specific review.
 
+- Prototype SA-CCR engine imported from the owner's `SACCR_Calculator.xlsm`
+  (engine v1.1.0): `M_Config`, `M_Engine` and `M_Util` in `src/core`, the ten
+  `SACCR_*` worksheet functions in `src/modules/M_Formulas` (added to
+  `docs/PUBLIC_API.txt`), and the sheet-button macros in `src/workbook/M_Main`
+  with the 13 document modules. It covers both regimes (CRR default, Basel
+  CRE52 per netting set), the CRR other-risks class and the margined-EAD cap.
+  The five standard modules are laid out in the house style (#60): module and
+  procedure banners giving purpose, inputs, results and regulatory
+  references, one commented declaration per line, and section comments. Their
+  statements are unchanged from the prototype apart from `Option Private
+  Module` in the three core modules, which the import had declared twice.
+- Workbook template `src/workbook/SACCR_Template.xlsx` (#58): the prototype's
+  12 sheets, formulas, named ranges and buttons with its VBA project removed.
+  The workbook is built by saving it as `.xlsm` and importing the source; the
+  template is part of the Excel evidence source inventory. Verified in Excel by
+  the owner (#58): a workbook built from it with the repository source ran the
+  harness and Run SA-CCR with the prototype's results.
+
+- The prototype TestCatalogue's 28 checks as versioned test cases (#59): 12
+  fixtures in `tests/fixtures` with expected files per regime in
+  `tests/expected`, mapped in `tests/README.md`. The 14 figures printed in BCBS
+  279 Annex 4 are `published`; the 14 that came from an unavailable Python
+  script or unreviewed hand calculations are `illustrative`. Each value and
+  tolerance matches the catalogue. `docs/methodology/TEST_CASES.md` defines
+  the full fixture vocabulary, trade-level and text results, and currencies,
+  and `tools/check_test_cases.py` validates the files in `python
+  tools/check.py`.
+
+- The numerical test cases run against the engine in Excel (#44, decision 7):
+  `tools/generate_case_tests.py` generates `tests/modules/TestCases.bas` from
+  the JSON files, checked in `python tools/check.py`, and
+  `tests/modules/CaseRunner.bas` writes each fixture into the input sheets,
+  runs the engine, compares the outputs and restores the workbook. Results
+  are reported per reference class.
+
 ### Fixed
+
+- A netting set with a rejected trade no longer reports an EAD computed on
+  its remaining trades (#36). Results has a Status column and a row for
+  every input netting set: `VALID`, `INCOMPLETE: r of n trade(s) rejected`
+  with the exposure columns blank, an error on Checks and no contribution to
+  the TOTAL, or `NO TRADES`. Every run, and every validation, first clears
+  the output sheets, so a failed or validation-only run cannot leave earlier
+  results looking current. The run message, the run summary and
+  `RunSACCR_Silent` (`incomplete=`) report the count of withheld netting
+  sets. In the template, the deliberate error trades `OT-X` and `A11` move
+  to their own netting set `DEMO-REJECTED`, so the CRE99 examples and
+  `NS-ALPHA` still report. The template no longer carries the prototype's
+  saved output rows, which no longer matched these inputs; Results A2 says
+  that no results exist until the workbook is run.
+
+- The workbook macros restore calculation mode, events and screen updating to
+  the values they found, including settings that were off, instead of
+  switching events and screen updating on (#43). Each setting is restored
+  independently; the original error is kept and a cleanup failure is reported
+  separately (`ERR_CLEANUP_FAILED`). A second operation started while one is
+  running is refused. `RunSACCR_Silent` restores the previous silent flag,
+  returns a machine-readable result line and raises failures instead of
+  printing them. `tests/modules/TestMainState.bas` covers these cases in Excel.
 
 - Allow scheduled traffic exports without relying on a webhook payload, while
   retaining the default-branch restriction for manual dispatches (review #53).
   The analytics environment also restricts access to main independently.
-
 - VBA jump checks resolve labels separately in each reachable compilation
   environment; mutually exclusive labels cannot hide missing targets or create
   false duplicates (PRs #21 and #24).
@@ -209,8 +268,9 @@ Use only the categories needed by a release.
 
 ### Known limitations
 
-- The only VBA is the neutral scaffold and the regression harness; there is no
-  SA-CCR calculation yet. No automated check compiles VBA or runs Excel.
+- The imported engine is not yet validated under the repository's test-case
+  policy and keeps the deviations listed in `docs/REPOSITORY_STRUCTURE.md`. No
+  automated check compiles VBA or runs Excel.
 - Excel evidence is manual and covers one 64-bit host; 32-bit is untested.
 - The methodology sources are registered but not yet verified against their
   official texts.

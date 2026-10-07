@@ -131,11 +131,11 @@ an issue, unless it creates concrete security impact.
 
 ### Current risk surfaces
 
-- **Runtime.** The only VBA is a neutral scaffold and the regression harness.
-  They use no files, network, native code (`Declare`) or UI, and the harness
-  only reads Excel settings to verify they are unchanged. This section will
-  describe the engine's file, network, native-code and UI behavior when it
-  exists.
+- **Runtime.** The engine imported from the prototype workbook reads its own
+  input sheets and writes its own output sheets, shows message boxes, and
+  switches screen updating, events and calculation mode during a run. It uses
+  no files, network, native code (`Declare`), `Shell` or `CreateObject`. The
+  harness only reads Excel settings.
 - **Automation.** Every workflow checkout that can run code under review sets
   `persist-credentials: false`, so that code never receives Git credentials.
   The one exception is the daily traffic export, whose job runs only on the

@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "kind": "saccr-expected",
+  "fixture": "cre99-example-1",
+  "regime": "BCBS",
+  "outputs": [
+    {
+      "quantity": "adjusted_notional",
+      "rule": "CRE52.34",
+      "trade": "EX1-T1",
+      "value": 78694,
+      "unit": "EUR",
+      "tolerance": {
+        "absolute": 0.5,
+        "relative": 0
+      },
+      "reference": {
+        "class": "published",
+        "source": "BCBS-279",
+        "locator": "Annex 4, example 1 (also Basel Framework CRE99)",
+        "derivation": "Prototype TestCatalogue T01 (Example 1: adjusted notional, 10y swap; CRE99 ex.1 / BCBS 279 Annex 4; official published value (rounded); workbook reference EX1-T1, Adjusted notional d). Printed figure, rounded; not yet re-checked against the registered text.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T01"
+    },
+    {
+      "quantity": "supervisory_delta",
+      "rule": "CRE52.40",
+      "trade": "EX1-T3",
+      "value": -0.27,
+      "unit": "1",
+      "tolerance": {
+        "absolute": 0.005,
+        "relative": 0
+      },
+      "reference": {
+        "class": "published",
+        "source": "BCBS-279",
+        "locator": "Annex 4, example 1 (also Basel Framework CRE99)",
+        "derivation": "Prototype TestCatalogue T02 (Example 1: supervisory delta, swaption; CRE99 ex.1; official published value (rounded); workbook reference EX1-T3, Supervisory delta). Printed figure, rounded; not yet re-checked against the registered text.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T02"
+    },
+    {
+      "quantity": "add_on.interest_rate",
+      "rule": "CRE52.57",
+      "value": 347,
+      "unit": "EUR",
+      "tolerance": {
+        "absolute": 0.5,
+        "relative": 0
+      },
+      "reference": {
+        "class": "published",
+        "source": "BCBS-279",
+        "locator": "Annex 4, example 1 (also Basel Framework CRE99)",
+        "derivation": "Prototype TestCatalogue T03 (Example 1: IR add-on; CRE99 ex.1; official published value (rounded); workbook reference BCBS-EX1, AddOn IR). Printed figure, rounded; not yet re-checked against the registered text.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T03"
+    },
+    {
+      "quantity": "exposure_value",
+      "rule": "CRE52.1",
+      "value": 569,
+      "unit": "EUR",
+      "tolerance": {
+        "absolute": 0.5,
+        "relative": 0
+      },
+      "reference": {
+        "class": "published",
+        "source": "BCBS-279",
+        "locator": "Annex 4, example 1 (also Basel Framework CRE99)",
+        "derivation": "Prototype TestCatalogue T04 (Example 1: EAD; CRE99 ex.1; official published value (rounded); workbook reference BCBS-EX1, EAD). Printed figure, rounded; not yet re-checked against the registered text.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T04"
+    }
+  ]
+}

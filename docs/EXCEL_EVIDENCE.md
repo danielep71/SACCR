@@ -31,7 +31,7 @@ the logs it cites. The record binds:
 | Item | Bound to |
 | --- | --- |
 | Candidate | Full 40-character commit SHA; the import log must name it |
-| Sources | Every `.bas`, `.cls` and `.frm` under `src/` and `tests/` at that commit, plus each form's `.frx`, with the SHA-256 of the exact bytes stored in Git. `examples/` is not imported |
+| Sources | Every `.bas`, `.cls` and `.frm` under `src/` and `tests/` at that commit, plus each form's `.frx` and the workbook template `src/workbook/SACCR_Template.xlsx`, with the SHA-256 of the exact bytes stored in Git. `examples/` is not imported |
 | Policy | `.github/excel-evidence-policy.json` **at that commit**: repository, entry point, ordered cases, assertion count, expected-error cases and required references |
 | Environment | Excel version and build, Office bitness, Windows version and architecture, VBA runtime, references, macro policy and VBA-project access as found, and `trust_changes: false` |
 | Logs | Each cited log's SHA-256; a log changed after the record was written fails |
@@ -78,10 +78,10 @@ clone, to print the inventory and validate the bundle.
      setting and whether *Trust access to the VBA project object model* is on.
      Do not change either.
 4. **Build the workbook** exactly as in
-   [Importing VBA into Excel](../INSTALLATION.md#importing-vba-into-excel): a new
-   blank `.xlsm` outside the checkout, the four default references, the
-   components imported in order from this checkout, then **Debug → Compile
-   VBAProject**. Write in `session.log` the files imported, the references
+   [Importing VBA into Excel](../INSTALLATION.md#importing-vba-into-excel): the
+   template from this checkout saved as `.xlsm` outside the checkout, the four
+   default references, the components imported in order from this checkout,
+   then **Debug → Compile VBAProject**. Write in `session.log` the files imported, the references
    listed in **Tools → References** and the compile result.
 5. **Run the harness once.** Clear the Immediate window (**Ctrl+G**, then
    **Ctrl+A**, **Delete**), run `TestHarness.RunTests`, and copy the whole
@@ -142,7 +142,7 @@ Replace every value with what was observed. This shape is not evidence.
   },
   "sources": "PASTE THE --inventory OUTPUT HERE (a JSON array)",
   "stages": {
-    "import": {"status": "PASS", "detail": "Imported the inventory into a new blank .xlsm", "log": {"path": "session.log", "sha256": "SESSION_LOG_DIGEST"}},
+    "import": {"status": "PASS", "detail": "Imported the inventory into the template saved as .xlsm", "log": {"path": "session.log", "sha256": "SESSION_LOG_DIGEST"}},
     "compile": {"status": "PASS", "detail": "Debug > Compile VBAProject completed with no error", "log": {"path": "session.log", "sha256": "SESSION_LOG_DIGEST"}},
     "regression": {"status": "PASS", "detail": "TestHarness.RunTests, complete report", "log": {"path": "harness.log", "sha256": "HARNESS_LOG_DIGEST"}},
     "cleanup": {"status": "PASS", "detail": "Harness cleanup PASS; test workbook closed", "log": {"path": "session.log", "sha256": "SESSION_LOG_DIGEST"}}
@@ -154,7 +154,7 @@ Replace every value with what was observed. This shape is not evidence.
     "failures": 0,
     "completeness": "COMPLETE",
     "expected_errors": [
-      {"case": "ratio.zero-denominator", "status": "PASS", "detail": "Implied by the complete passing suite"}
+      {"case": "cdo-delta.invalid-tranche", "status": "PASS", "detail": "Implied by the complete passing suite"}
     ]
   }
 }
@@ -179,8 +179,8 @@ Rules the validator applies:
   parsed, and it must have no `RESULT=` line: a run that printed one finished
   and is recorded as `PASS` or `FAIL`.
 - The expected-error result is inferred from the complete passing suite, which
-  includes the error-number, source and description assertions; it is not a
-  separate observation.
+  includes the assertion that an invalid CDO tranche returns `#NUM!`; it is not
+  a separate observation.
 - If the harness reports `cleanup=FAIL`, the cleanup stage must be `FAIL`.
 
 When Excel was not run, use the same identity and time fields with

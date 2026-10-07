@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "kind": "saccr-expected",
+  "fixture": "cre99-example-2",
+  "regime": "BCBS",
+  "outputs": [
+    {
+      "quantity": "multiplier",
+      "rule": "CRE52.23",
+      "value": 0.965,
+      "unit": "1",
+      "tolerance": {
+        "absolute": 0.0005,
+        "relative": 0
+      },
+      "reference": {
+        "class": "published",
+        "source": "BCBS-279",
+        "locator": "Annex 4, example 2 (also Basel Framework CRE99)",
+        "derivation": "Prototype TestCatalogue T05 (Example 2: multiplier; CRE99 ex.2; official published value (rounded); workbook reference BCBS-EX2, Multiplier). Printed figure, rounded; not yet re-checked against the registered text.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T05"
+    },
+    {
+      "quantity": "exposure_value",
+      "rule": "CRE52.1",
+      "value": 381,
+      "unit": "EUR",
+      "tolerance": {
+        "absolute": 0.5,
+        "relative": 0
+      },
+      "reference": {
+        "class": "published",
+        "source": "BCBS-279",
+        "locator": "Annex 4, example 2 (also Basel Framework CRE99)",
+        "derivation": "Prototype TestCatalogue T06 (Example 2: EAD; CRE99 ex.2; official published value (rounded); workbook reference BCBS-EX2, EAD). Printed figure, rounded; not yet re-checked against the registered text.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      },
+      "catalogue": "T06"
+    }
+  ]
+}

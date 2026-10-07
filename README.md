@@ -28,8 +28,9 @@ workbook driven by exported, reviewable VBA source.
 ## 🧭 Status
 
 Repository setup, milestone **v0.0.1**, is complete; its accepted baseline is
-recorded in [issue #13](https://github.com/danielep71/SACCR/issues/13). No
-calculation code exists yet. SACCR uses the **application** profile: the
+recorded in [issue #13](https://github.com/danielep71/SACCR/issues/13). The
+prototype engine (CRR and Basel CRE52) has been imported as source; it is not
+yet validated under the repository's test-case policy. SACCR uses the **application** profile: the
 deliverable is a workbook built from the exported source, around a
 host-independent calculation core
 ([repository structure](docs/REPOSITORY_STRUCTURE.md)). Setup established:

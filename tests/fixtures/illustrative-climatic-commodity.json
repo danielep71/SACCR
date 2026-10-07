@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "kind": "saccr-fixture",
+  "id": "illustrative-climatic-commodity",
+  "synthetic": true,
+  "description": "Heating-degree-day swap mapped to its own climatic commodity hedging set under CRR.",
+  "category": "nominal",
+  "calculation_currency": "EUR",
+  "valuation_date": "2026-09-30",
+  "netting_set": {
+    "id": "CLIMATE",
+    "margined": false,
+    "cleared": false,
+    "remargin_period_business_days": null,
+    "large_or_illiquid": false,
+    "margin_disputes": false,
+    "mpor_override_business_days": null,
+    "variation_margin_net_amount": 0,
+    "independent_collateral_net_amount": 0,
+    "threshold_amount": 0,
+    "minimum_transfer_amount": 0,
+    "alpha_factor": null
+  },
+  "trades": [
+    {
+      "id": "CL-1",
+      "asset_class": "commodity",
+      "sub_class": "CLIMATIC",
+      "risk_factor": "HDD LONDON",
+      "instrument": "linear",
+      "direction": "long",
+      "option_type": null,
+      "nature": "standard",
+      "hedging_set_label": null,
+      "notional_amount": 1000,
+      "market_value_amount": 5,
+      "start_date": null,
+      "end_date": null,
+      "maturity_date": "2027-03-31",
+      "option_expiry_date": null,
+      "underlying_price": null,
+      "strike_price": null,
+      "lambda_price": null,
+      "attachment_rate": null,
+      "detachment_rate": null,
+      "description": "Heating-degree-day swap"
+    }
+  ]
+}

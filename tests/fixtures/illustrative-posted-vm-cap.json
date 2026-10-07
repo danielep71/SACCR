@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "kind": "saccr-fixture",
+  "id": "illustrative-posted-vm-cap",
+  "synthetic": true,
+  "description": "Margined netting set that has posted variation margin: the unmargined cap binds under CRR but not under BCBS.",
+  "category": "regime",
+  "calculation_currency": "EUR",
+  "valuation_date": "2026-09-30",
+  "netting_set": {
+    "id": "VMCAP",
+    "margined": true,
+    "cleared": false,
+    "remargin_period_business_days": 1,
+    "large_or_illiquid": false,
+    "margin_disputes": false,
+    "mpor_override_business_days": null,
+    "variation_margin_net_amount": -1300000000,
+    "independent_collateral_net_amount": 0,
+    "threshold_amount": 0,
+    "minimum_transfer_amount": 0,
+    "alpha_factor": null
+  },
+  "trades": [
+    {
+      "id": "VMC-1",
+      "asset_class": "interest_rate",
+      "sub_class": null,
+      "risk_factor": "EUR",
+      "instrument": "linear",
+      "direction": "short",
+      "option_type": null,
+      "nature": "standard",
+      "hedging_set_label": null,
+      "notional_amount": 5845000000,
+      "market_value_amount": -1100000000,
+      "start_date": null,
+      "end_date": "2036-09-27",
+      "maturity_date": "2036-09-27",
+      "option_expiry_date": null,
+      "underlying_price": null,
+      "strike_price": null,
+      "lambda_price": null,
+      "attachment_rate": null,
+      "detachment_rate": null,
+      "description": "10y IRS, MtM -1.1bn, VM posted 1.3bn"
+    }
+  ]
+}

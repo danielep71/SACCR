@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "kind": "saccr-expected",
+  "fixture": "illustrative-partly-rejected",
+  "regime": "CRR",
+  "outputs": [
+    {
+      "quantity": "trade_status",
+      "rule": "CRR.274.2",
+      "trade": "PR-1",
+      "text": "OK",
+      "reference": {
+        "class": "illustrative",
+        "source": "CRR",
+        "locator": "Engine contract, issue #36",
+        "derivation": "The valid trade is still calculated and shown on TradeCalc.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      }
+    },
+    {
+      "quantity": "trade_status",
+      "rule": "CRR.274.2",
+      "trade": "PR-2",
+      "text": "EXCLUDED",
+      "reference": {
+        "class": "illustrative",
+        "source": "CRR",
+        "locator": "Engine contract, issue #36",
+        "derivation": "A trade whose maturity is before the valuation date is rejected.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      }
+    },
+    {
+      "quantity": "netting_set_status",
+      "rule": "CRR.274.2",
+      "text": "INCOMPLETE: 1 of 2 trade(s) rejected",
+      "reference": {
+        "class": "illustrative",
+        "source": "CRR",
+        "locator": "Engine contract, issue #36",
+        "derivation": "Engine behaviour required by #36, not a regulatory figure: a netting set with a rejected trade reports no EAD.",
+        "derived_by": "Daniele Penza",
+        "reviewed_by": null,
+        "date": "2026-10-06"
+      }
+    }
+  ]
+}

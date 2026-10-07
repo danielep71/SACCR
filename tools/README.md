@@ -14,13 +14,15 @@ pull request's whole range.
 
 | Gate | Checks |
 | --- | --- |
-| `tool-tests` | Fixtures for the source gate and public-API roles (`test_tooling.py`), regression cases from reviews (`test_review_regressions.py`) and synthetic Excel evidence records (`test_excel_evidence.py`) |
+| `tool-tests` | Fixtures for the source gate and public-API roles (`test_tooling.py`), regression cases from reviews (`test_review_regressions.py`), synthetic Excel evidence records (`test_excel_evidence.py`), test-case files (`test_test_cases.py`) and the case-module generator (`test_generate_case_tests.py`) |
 | `check_committed_whitespace-fixtures` | Self-test of the whitespace gate |
 | `check_source` | Every tracked text file is stored with LF in Git (CRLF, mixed or lone-CR blobs declared as text fail); VBA components sit only in the locations defined in `docs/REPOSITORY_STRUCTURE.md`, and modules in `src/core/` declare `Option Private Module`; exported VBA (`.bas`, `.cls`, `.frm`) checks out as CRLF, decodes as cp1252, has `Option Explicit` and a `VB_Name` equal to its filename and unique in the project; each `.frm` references a tracked `.frx` large enough for its offset; `CHANGELOG.md` starts with `## [Unreleased]`, uses `## [X.Y.Z] - YYYY-MM-DD` release headings with real calendar dates and has a link reference for each; once a release exists, `VERSION` holds the newest one |
 | `check_committed_whitespace` | `git diff --check` on staged and unstaged changes (local) or on the committed range (`--ci`) |
 | `check_vba_jumps` | Every `GoTo`, `GoSub`, `Resume` and `On Error GoTo` target is a label in the same procedure |
 | `check_vba_conditionals` | `#If`/`#ElseIf`/`#Else`/`#End If` are balanced and use only `VBA6`, `VBA7`, `Win32`, `Win64`; `Declare` in reachable 64-bit branches is `PtrSafe`; no `#Const` |
+| `check_test_cases` | Every fixture and expected file under `tests/` follows `docs/methodology/TEST_CASES.md`: envelope, declared fields with their types and units, quantity names and forms, trade references, tolerances, reference classes with their required fields and registered sources, the `illustrative-` naming rule and unique catalogue IDs. It does not run any case |
 | `check_vba_public_api` | Every `Public` declaration in `src/modules/` is listed, with its exact signature, in `docs/PUBLIC_API.txt`, and nothing else is; no implicit public procedures; one identifier per public `Const` or variable; no name collisions |
+| `generated-case-tests` | `tests/modules/TestCases.bas` is exactly what `tools/generate_case_tests.py` generates from the current fixtures and expected files |
 | `*-fixtures` | Each VBA checker and the whitespace gate run their own positive and negative self-tests first |
 
 `check_excel_evidence.py` is not a gate: it validates a manual Excel evidence
@@ -31,6 +33,28 @@ See [`docs/EXCEL_EVIDENCE.md`](../docs/EXCEL_EVIDENCE.md).
 These are static checks only. None of them compiles VBA, opens Excel, runs a
 test harness or validates any SA-CCR number, and a pass is never evidence that
 the workbook works in Excel.
+
+## Local VBA synchronization
+
+`Sync-SACCR-VBA.ps1` synchronizes the repository VBA source into an existing
+local `.xlsm` development workbook without intentionally changing worksheets,
+cells, formulas, names, tables or formatting.
+
+From the repository root:
+
+```powershell
+.\tools\Sync-SACCR-VBA.ps1 -WorkbookPath "C:\path\to\SACCR.xlsm"
+```
+
+The script reads `src/core/`, `src/modules/` and `src/workbook/`. Standard
+modules are replaced from source; `ThisWorkbook` and worksheet document modules
+keep their workbook objects and only their code text is replaced. It disables
+Excel events, macro execution, external-link updates and automatic calculation
+while synchronizing, checks that the sheet names/CodeNames are unchanged, and
+creates a timestamped backup unless `-NoBackup` is supplied.
+
+It requires Windows desktop Excel and Excel's **Trust access to the VBA project
+object model** setting. The workbook VBA project must not be password-locked.
 
 ## VBA checkers: source and adaptations
 
@@ -55,10 +79,9 @@ targets. It reports anything it cannot resolve (calls through `Object` or
 repository runs it as advisory only, because it needs a per-project manifest of
 VBA projects and its value grows with the number of modules.
 
-SACCR's only VBA so far is a three-module scaffold and harness, so there is
-little for it to resolve. It should be adopted, advisory first, once the engine
-spans several core modules and a facade.
-Until then the VBA compiler in Excel is the call-resolution check.
+The imported prototype engine now spans three core modules, a facade and the
+workbook macros, so adopting it, advisory first, is due with the engine
+refactor. Until then the VBA compiler in Excel is the call-resolution check.
 
 ## GitHub Actions
 
