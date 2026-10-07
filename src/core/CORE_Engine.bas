@@ -39,9 +39,10 @@ Attribute VB_Name = "CORE_Engine"
 '   Collection (see CORE_Util.KeyIndex) mapping its key to its array position.
 '
 ' PUBLIC SURFACE
-'   None outside this VBA project. Calculate and the five run counters are
-'   Public for M_Main; Option Private Module keeps them off the supported
-'   external surface.
+'   None outside this VBA project. Calculate, the run counters and the
+'   run-fingerprint procedures (InputFingerprint, LastRunInputs,
+'   ForgetRunInputs) are Public for M_Main; Option Private Module keeps them
+'   off the supported external surface.
 '
 ' DEPENDENCIES
 '   CORE_Config for the layout, CORE_Util for conversions and sheet access, and
@@ -205,6 +206,7 @@ Attribute VB_Name = "CORE_Engine"
         Private mTotalEAD     As Double          'Sum of netting-set EADs, VALID sets only
         Private mIncomplete   As Long            'Netting sets whose EAD was withheld
         Private mParamError   As Boolean         'A parameter was present but not usable
+        Private mRunInputs    As String          'Input fingerprint of this run; "" unless it completed
 
 '------------------------------------------------------------------------------
 ' TEST SEAM
@@ -338,12 +340,22 @@ Finish:
             If Not WithdrawOutputs() Then
                 checksFailure = checksFailure & "; the other output sheets could not be cleared either"
             End If
+            ForgetRunInputs
             WriteRunInfo Timer - t0, False, writeOutputs, "the Checks sheet could not be written (" & _
                          checksFailure & "); results withdrawn, and Checks may show an earlier run"
             On Error GoTo 0
             Err.Raise ERR_CHECKS_WRITE, "CORE_Engine.Calculate", "The Checks sheet could not be written (" & _
                       checksFailure & "), so the run's results were withdrawn. Unprotect or repair the Checks " & _
                       "sheet and run again."
+        End If
+
+    'Only a completed run that wrote its outputs leaves results; remember
+    'its inputs so that later edits show the results as out of date.
+        If Calculate And writeOutputs Then
+            mRunInputs = InputFingerprint()
+            RememberRunInputs mRunInputs
+        Else
+            ForgetRunInputs
         End If
         WriteRunInfo Timer - t0, Calculate, writeOutputs, ""
         Exit Function
@@ -359,6 +371,8 @@ Failed:
         errSource = Err.Source
         errDescription = Err.Description
         Calculate = False
+        mRunInputs = ""
+        ForgetRunInputs
         If Not WithdrawOutputs() Then
             errDescription = errDescription & " The output sheets could not be cleared either."
         End If
@@ -476,6 +490,24 @@ Public Property Get TradesRead() As Long
 End Property
 
 
+Public Property Get RunInputs() As String
+'
+'==============================================================================
+'                                  RunInputs
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Input fingerprint of the last run, "" unless it completed and wrote its
+'   outputs. Identifies the inputs behind a result line (#36).
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        RunInputs = mRunInputs
+
+End Property
+
+
 '
 '------------------------------------------------------------------------------
 '
@@ -514,6 +546,7 @@ Private Sub ResetState()
         mTotalEAD = 0#
         mIncomplete = 0
         mParamError = False
+        mRunInputs = ""
 
 '------------------------------------------------------------------------------
 ' RESET INDEXES AND ARRAYS
@@ -2887,6 +2920,207 @@ Private Sub ClearOutputSheets()
 End Sub
 
 
+'
+'------------------------------------------------------------------------------
+'
+'                               RUN FINGERPRINT
+'
+'------------------------------------------------------------------------------
+'
+
+Public Function InputFingerprint() As String
+'
+'==============================================================================
+'                               InputFingerprint
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Fingerprint everything a run reads: the NettingSets and Trades input
+'   rows (without the unread Comment column) and Params columns A to H,
+'   which hold the parameters and the factor and FX tables (#36).
+'
+' RETURNS
+'   An 8-digit hexadecimal fingerprint (CORE_Util.TextHash). Equal
+'   fingerprints mean the inputs are, all but certainly, unchanged.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Const PARAMS_COLS As Long = 8    'Params columns A to H
+    Dim parts(1 To 3)   As String    'Text of each input block
+
+'------------------------------------------------------------------------------
+' FINGERPRINT
+'------------------------------------------------------------------------------
+        parts(1) = BlockText(GetSheet(SH_NS), FIRST_DATA_ROW, NS_NCOLS)
+        parts(2) = BlockText(GetSheet(SH_TRADES), FIRST_DATA_ROW, TR_COMMENT - 1)
+        parts(3) = BlockText(GetSheet(SH_PARAMS), 1, PARAMS_COLS)
+        InputFingerprint = TextHash(Join(parts, Chr$(29)))
+
+End Function
+
+
+Private Function BlockText( _
+    ByVal ws As Worksheet, _
+    ByVal firstRow As Long, _
+    ByVal nCols As Long) _
+    As String
+'
+'==============================================================================
+'                                  BlockText
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Write a block of cells as one text, cell by cell, from firstRow to the
+'   last row with a value. Blank rows below it are left out, so that a
+'   used range that grew without new values does not change the text.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim lastR    As Long        'Last used row
+    Dim data     As Variant     'Cell values, Value2 (dates as serials)
+    Dim nRows    As Long        'Rows up to the last with a value
+    Dim pieces() As String      'One text per cell
+    Dim r        As Long        'Row of data
+    Dim c        As Long        'Column of data
+    Dim k        As Long        'Position in pieces
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+        lastR = UsedLastRow(ws)
+        If lastR < firstRow Then
+            Exit Function
+        End If
+        data = ws.Range(ws.Cells(firstRow, 1), ws.Cells(lastR, nCols)).Value2
+        For r = UBound(data, 1) To 1 Step -1
+            If RowHasData(data, r, nCols, 0) Then
+                nRows = r
+                Exit For
+            End If
+        Next r
+        If nRows = 0 Then
+            Exit Function
+        End If
+
+'------------------------------------------------------------------------------
+' WRITE AS TEXT
+'------------------------------------------------------------------------------
+    'Chr$(31) separates cells; the column count fixes where rows end.
+        ReDim pieces(1 To nRows * nCols)
+        For r = 1 To nRows
+            For c = 1 To nCols
+                k = k + 1
+                If IsError(data(r, c)) Then
+                    pieces(k) = "#ERR"
+                Else
+                    pieces(k) = CStr(data(r, c))
+                End If
+            Next c
+        Next r
+        BlockText = Join(pieces, Chr$(31))
+
+End Function
+
+
+Public Function LastRunInputs() As String
+'
+'==============================================================================
+'                                LastRunInputs
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Return the input fingerprint stored by the last completed run, or ""
+'   when no run's results are on the sheets.
+'
+' ERROR POLICY
+'   Contains the expected error of a missing name.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim wbName   As Name    'The stored name, Nothing when absent
+
+'------------------------------------------------------------------------------
+' READ
+'------------------------------------------------------------------------------
+    'The name refers to a text constant: ="5A428560".
+        On Error Resume Next
+        Set wbName = ThisWorkbook.Names(RUN_INPUTS_NAME)
+        Err.Clear
+        On Error GoTo 0
+        If Not wbName Is Nothing Then
+            LastRunInputs = Replace(Replace(wbName.RefersTo, "=", ""), """", "")
+        End If
+
+End Function
+
+
+Private Sub RememberRunInputs( _
+    ByVal fingerprint As String)
+'
+'==============================================================================
+'                              RememberRunInputs
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Store the input fingerprint of a completed run in a hidden workbook
+'   name.
+'
+' ERROR POLICY
+'   Best effort: a workbook whose names cannot be changed (protected
+'   structure) still runs; its results are then reported as unknown.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        On Error GoTo Failed
+        ThisWorkbook.Names.Add Name:=RUN_INPUTS_NAME, RefersTo:="=""" & fingerprint & """", Visible:=False
+        Exit Sub
+
+Failed:
+        ForgetRunInputs
+
+End Sub
+
+
+Public Sub ForgetRunInputs()
+'
+'==============================================================================
+'                               ForgetRunInputs
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Remove the stored fingerprint, because no run's results are on the
+'   sheets: after a failed or validation-only run, and after Clear outputs.
+'
+' ERROR POLICY
+'   Contains any error, including the expected missing name.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        On Error GoTo Failed
+        ThisWorkbook.Names(RUN_INPUTS_NAME).Delete
+
+Failed:
+
+End Sub
+
+
 Private Function WithdrawOutputs() As Boolean
 '
 '==============================================================================
@@ -3196,6 +3430,7 @@ Private Sub WriteRunInfo( _
                   " | ccy " & pRepCcy & _
                   " | trades used " & mTradesUsed & " of " & mTradesRead & _
                   " | errors " & mErrCount & ", warnings " & mWarnCount & _
+                  " | inputs " & mRunInputs & _
                   " | " & Format$(secs, "0.00") & " s"
             If mIncomplete > 0 Then
                 txt = txt & " | EAD withheld for " & mIncomplete & " netting set(s)"

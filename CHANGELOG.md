@@ -320,6 +320,17 @@ Use only the categories needed by a release.
   A2, and raises it unchanged. `TEST_MainState` adds the case, through a
   test seam that fails the run after TradeCalc, Results and Buckets.
 
+- Results are recognised as out of date once an input changes (#36). A
+  completed run stores a fingerprint of everything it read (NettingSets,
+  Trades without the Comment column, and Params) in a hidden workbook name,
+  shows it in Results A2 and in the `RunSACCR_Silent` result line
+  (`inputs=`), and `M_Main.ResultsStatus()` compares it with the inputs as
+  they are now: `CURRENT`, `STALE` or `NONE`. Activating the Results sheet
+  marks A2 `OUT OF DATE` when stale. The check runs on activation, not on
+  every edit, because a macro that changes the workbook clears Excel's undo
+  history. A failed or validation-only run and Clear outputs remove the
+  fingerprint. `TEST_MainState` adds the case.
+
 - The workbook macros restore calculation mode, events and screen updating to
   the values they found, including settings that were off, instead of
   switching events and screen updating on (#43). Each setting is restored

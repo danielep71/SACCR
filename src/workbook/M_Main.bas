@@ -13,6 +13,10 @@ Attribute VB_Name = "M_Main"
 '   ClearOutputs: empty every output sheet.
 '   RunSACCR_Silent: RunSACCR for automation. Returns a machine-readable
 '   result line and raises errors instead of showing them.
+'   ResultsStatus: whether the results on the sheets match the current
+'   inputs (CURRENT, STALE or NONE).
+'   FlagStaleResults: mark the Results sheet when they do not; called when
+'   the Results sheet is activated.
 '   The sheet buttons call the first three by name. These macros are not
 '   listed in docs/PUBLIC_API.txt.
 '
@@ -49,7 +53,7 @@ Attribute VB_Name = "M_Main"
 '   Excel VBA; no references beyond the defaults.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '
 ' AUTHOR
 '   Daniele Penza
@@ -127,7 +131,9 @@ Public Function RunSACCR_Silent() As String
 ' RETURNS
 '   A result line such as "RESULT=OK; operation=run; errors=0; warnings=0;
 '   trades_used=62; trades_read=65; incomplete=0; total_ead=425197517.8;
-'   cleanup=PASS". incomplete counts netting sets whose EAD was withheld.
+'   inputs=5A428560; cleanup=PASS". incomplete counts netting sets whose
+'   EAD was withheld; inputs is the fingerprint of the inputs the results
+'   were calculated from, empty when there are none.
 '   RESULT=STOPPED means the inputs could not be loaded; see Checks.
 '
 ' STATE OWNERSHIP
@@ -220,6 +226,86 @@ Public Sub ClearOutputs()
 ' CLEAR
 '------------------------------------------------------------------------------
         ExecuteOperation OP_CLEAR
+
+End Sub
+
+
+Public Function ResultsStatus() As String
+'
+'==============================================================================
+'                                ResultsStatus
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Tell whether the results on the output sheets were calculated from the
+'   inputs as they are now (#36).
+'
+' RETURNS
+'   CURRENT: the inputs match the last completed run.
+'   STALE: the inputs changed after it; the results are out of date.
+'   NONE: no completed run's results are on the sheets.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim stored   As String    'Fingerprint stored by the last completed run
+
+'------------------------------------------------------------------------------
+' COMPARE
+'------------------------------------------------------------------------------
+        stored = CORE_Engine.LastRunInputs()
+        If Len(stored) = 0 Then
+            ResultsStatus = "NONE"
+        ElseIf stored = CORE_Engine.InputFingerprint() Then
+            ResultsStatus = "CURRENT"
+        Else
+            ResultsStatus = "STALE"
+        End If
+
+End Function
+
+
+Public Sub FlagStaleResults()
+'
+'==============================================================================
+'                               FlagStaleResults
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Put an OUT OF DATE marker in front of the run summary in Results A2
+'   when the inputs changed after the last run (#36). The check runs when
+'   the Results sheet is activated rather than on every edit, because a
+'   macro that changes the workbook clears Excel's undo history.
+'
+' ERROR POLICY
+'   Contains every error: activating a sheet must never fail.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Const STALE_MARK As String = "OUT OF DATE - inputs changed since this run. "
+    Dim summary   As Range    'Results A2
+
+'------------------------------------------------------------------------------
+' MARK
+'------------------------------------------------------------------------------
+        On Error GoTo Failed
+        If ResultsStatus() = "STALE" Then
+            Set summary = GetSheet(SH_RESULTS).Range(RUNINFO_CELL)
+            If Left$(SafeStr(summary.Value), Len(STALE_MARK)) <> STALE_MARK Then
+                summary.Value = STALE_MARK & SafeStr(summary.Value)
+            End If
+        End If
+
+Failed:
 
 End Sub
 
@@ -372,6 +458,7 @@ Private Sub ClearAllOutputs()
         ClearOutputBlock GetSheet(SH_HEDGING), FIRST_DATA_ROW, HS_NCOLS
         ClearOutputBlock GetSheet(SH_RESULTS), FIRST_DATA_ROW, RS_NCOLS
         ClearOutputBlock GetSheet(SH_CHECKS), FIRST_DATA_ROW, CK_NCOLS
+        CORE_Engine.ForgetRunInputs
         GetSheet(SH_RESULTS).Range(RUNINFO_CELL).Value = "Outputs cleared " & Format$(Now, "yyyy-mm-dd hh:mm:ss")
 
 End Sub
@@ -673,7 +760,8 @@ Private Function ReportOutcome( _
                      "; trades_used=" & CStr(CORE_Engine.TradesUsed) & _
                      "; trades_read=" & CStr(CORE_Engine.TradesRead) & _
                      "; incomplete=" & CStr(CORE_Engine.IncompleteCount) & _
-                     "; total_ead=" & Trim$(Str$(CORE_Engine.TotalEAD))
+                     "; total_ead=" & Trim$(Str$(CORE_Engine.TotalEAD)) & _
+                     "; inputs=" & CORE_Engine.RunInputs
         End If
         result = result & "; cleanup=" & IIf(Len(cleanupDetails) = 0, "PASS", "FAIL")
 

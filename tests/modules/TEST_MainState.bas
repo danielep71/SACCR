@@ -6,9 +6,10 @@ Attribute VB_Name = "TEST_MainState"
 '   Check that the workbook macros in M_Main put Excel back exactly as they
 '   found it, on success and on failure, report operation and cleanup
 '   failures separately, and leave the workbook ready for the next run
-'   (issue #43); and that a Checks sheet that cannot be written, or any
-'   error after the outputs are being written, fails the run and withdraws
-'   its results (issue #36).
+'   (issue #43); that a Checks sheet that cannot be written, or any error
+'   after the outputs are being written, fails the run and withdraws its
+'   results; and that results are reported as out of date once an input
+'   changes (issue #36).
 '
 ' PUBLIC SURFACE
 '   RunMainStateTests is the entry point. Option Private Module keeps it out
@@ -58,7 +59,7 @@ Attribute VB_Name = "TEST_MainState"
 '------------------------------------------------------------------------------
 ' MODULE CONSTANTS
 '------------------------------------------------------------------------------
-        Private Const EXPECTED_CASES   As Long = 9    'Cases in a complete run
+        Private Const EXPECTED_CASES   As Long = 10   'Cases in a complete run
 
 '------------------------------------------------------------------------------
 ' MODULE STATE
@@ -131,6 +132,7 @@ Public Sub RunMainStateTests()
         CaseCleanupFailure
         CaseChecksUnwritable
         CaseOutputWriteFailure
+        CaseStaleResults
         CaseSilentFlagPreserved
 
 '------------------------------------------------------------------------------
@@ -459,6 +461,7 @@ Private Sub CaseOutputWriteFailure()
         summary = SafeStr(GetSheet(SH_RESULTS).Range(RUNINFO_CELL).Value)
         Check InStr(1, summary, "results withdrawn", vbTextCompare) > 0, "run summary does not say why: " & summary
         Check ChecksMention("Injected output failure"), "Checks does not show the error"
+        Check M_Main.ResultsStatus() = "NONE", "results status after a failed run: " & M_Main.ResultsStatus()
         CheckState xlCalculationAutomatic, False, False
 
     'The next run works and writes every sheet again.
@@ -473,6 +476,100 @@ Private Sub CaseOutputWriteFailure()
 Unexpected:
         CORE_Engine.gEngineFault = ""
         Fail "run.output-write-failure", "unexpected error " & Err.Number & ": " & Err.Description
+
+End Sub
+
+
+Private Sub CaseStaleResults()
+'
+'==============================================================================
+'                               CaseStaleResults
+'------------------------------------------------------------------------------
+' PURPOSE
+'   After a run the results are CURRENT; an edited input makes them STALE
+'   and Results A2 is marked when the sheet is activated; undoing the edit
+'   makes them CURRENT again; Clear outputs makes them NONE (#36).
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim result    As String     'Result line of a run
+    Dim mtmCell   As Range      'MtM of the first trade, edited and restored
+    Dim saved     As Variant    'Its formula
+    Dim summary   As String     'Results A2
+
+'------------------------------------------------------------------------------
+' RUN CASE
+'------------------------------------------------------------------------------
+        On Error GoTo Unexpected
+        BeginCase "results.stale-after-input-change"
+        SetState xlCalculationAutomatic, False, False
+        result = M_Main.RunSACCR_Silent()
+        Check InStr(result, "; inputs=") > 0 And InStr(result, "; inputs=;") = 0, "result line names no inputs: " & result
+        Check M_Main.ResultsStatus() = "CURRENT", "after a run: " & M_Main.ResultsStatus()
+
+    'Edit one input, as a user would, then switch to Results.
+        Set mtmCell = GetSheet(SH_TRADES).Cells(FIRST_DATA_ROW, TR_MTM)
+        saved = mtmCell.Formula
+        mtmCell.Value = ToDbl(mtmCell.Value, 0#) + 1#
+        Check M_Main.ResultsStatus() = "STALE", "after an edit: " & M_Main.ResultsStatus()
+        M_Main.FlagStaleResults
+        summary = SafeStr(GetSheet(SH_RESULTS).Range(RUNINFO_CELL).Value)
+        Check Left$(summary, 11) = "OUT OF DATE", "Results A2 not marked: " & summary
+
+    'Undoing the edit brings the results back in line.
+        mtmCell.Formula = saved
+        Check M_Main.ResultsStatus() = "CURRENT", "after undoing the edit: " & M_Main.ResultsStatus()
+
+    'Clear outputs leaves no results; a new run makes them current again.
+        M_Main.ClearOutputs
+        Check M_Main.ResultsStatus() = "NONE", "after Clear outputs: " & M_Main.ResultsStatus()
+        result = M_Main.RunSACCR_Silent()
+        Check M_Main.ResultsStatus() = "CURRENT", "after a new run: " & M_Main.ResultsStatus()
+        CheckState xlCalculationAutomatic, False, False
+        Exit Sub
+
+'------------------------------------------------------------------------------
+' HANDLE UNEXPECTED ERROR
+'------------------------------------------------------------------------------
+Unexpected:
+        Fail "results.stale-after-input-change", "unexpected error " & Err.Number & ": " & Err.Description
+        RestoreCell mtmCell, saved
+
+End Sub
+
+
+Private Sub RestoreCell( _
+    ByVal target As Range, _
+    ByVal saved As Variant)
+'
+'==============================================================================
+'                                 RestoreCell
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Put back an input cell edited by CaseStaleResults after an unexpected
+'   error.
+'
+' ERROR POLICY
+'   Contained: a failure is reported as a test failure.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        On Error GoTo Failed
+        If Not target Is Nothing Then
+            target.Formula = saved
+        End If
+        Exit Sub
+
+Failed:
+        Fail "results.stale-after-input-change", "could not restore the edited input: " & Err.Description
 
 End Sub
 

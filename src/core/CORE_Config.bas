@@ -95,6 +95,13 @@ Attribute VB_Name = "CORE_Config"
         Public Const PRM_LAMCO        As String = "LambdaThresholdCO"      'CRR lambda threshold, CO
 
 '------------------------------------------------------------------------------
+' RUN FINGERPRINT
+'------------------------------------------------------------------------------
+    'Hidden workbook name holding the input fingerprint of the last
+    'completed run, so that results can be recognised as out of date (#36).
+        Public Const RUN_INPUTS_NAME   As String = "SACCR_RunInputs"    'Absent when no results exist
+
+'------------------------------------------------------------------------------
 ' REGIMES
 '------------------------------------------------------------------------------
     'Regime codes accepted on Params and as a netting-set override.
