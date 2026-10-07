@@ -25,8 +25,7 @@ param(
     [string]$WorkbookPath,
 
     [Parameter(Mandatory = $false)]
-    [ValidateNotNullOrEmpty()]
-    [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),
+    [string]$RepoRoot,
 
     [Parameter(Mandatory = $false)]
     [switch]$NoBackup,
@@ -37,6 +36,18 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+# Resolve the repository root after parameter binding. $PSScriptRoot is not
+# reliable as a parameter default in every Windows PowerShell invocation mode.
+if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
+    $scriptPath = $MyInvocation.MyCommand.Path
+    if ([string]::IsNullOrWhiteSpace($scriptPath)) {
+        throw "Cannot determine the script path. Supply -RepoRoot explicitly."
+    }
+
+    $scriptDirectory = Split-Path -Parent $scriptPath
+    $RepoRoot = Split-Path -Parent $scriptDirectory
+}
 
 $vbext_ct_StdModule = 1
 $vbext_ct_ClassModule = 2
