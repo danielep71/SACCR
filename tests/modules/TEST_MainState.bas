@@ -6,17 +6,19 @@ Attribute VB_Name = "TEST_MainState"
 '   Check that the workbook macros in M_Main put Excel back exactly as they
 '   found it, on success and on failure, report operation and cleanup
 '   failures separately, and leave the workbook ready for the next run
-'   (issue #43); and that a Checks sheet that cannot be written fails the
-'   run and withdraws its results (issue #36).
+'   (issue #43); and that a Checks sheet that cannot be written, or any
+'   error after the outputs are being written, fails the run and withdraws
+'   its results (issue #36).
 '
 ' PUBLIC SURFACE
 '   RunMainStateTests is the entry point. Option Private Module keeps it out
 '   of the external workbook automation API.
 '
 ' DEPENDENCIES
-'   M_Main, its test seam gTestFault, and the error numbers in CORE_Config. The
-'   workbook must be built from the template with the full source, because
-'   the macros calculate and write the output sheets.
+'   M_Main and its test seam gTestFault, the CORE_Engine test seam
+'   gEngineFault, and the error numbers in CORE_Config. The workbook must be
+'   built from the template with the full source, because the macros
+'   calculate and write the output sheets.
 '
 ' WORKSHEET SAFETY
 '   Unlike TEST_Harness, this module runs the real macros: they clear and
@@ -28,8 +30,8 @@ Attribute VB_Name = "TEST_MainState"
 '
 ' STATE OWNERSHIP
 '   Sets calculation mode, events and screen updating to known values for
-'   each case and restores the caller's values, gSilent and gTestFault at
-'   the end, also after an unexpected error.
+'   each case and restores the caller's values, gSilent, gTestFault and
+'   gEngineFault at the end, also after an unexpected error.
 '
 ' ERROR POLICY
 '   Expected errors are captured and asserted. An unexpected error is
@@ -56,7 +58,7 @@ Attribute VB_Name = "TEST_MainState"
 '------------------------------------------------------------------------------
 ' MODULE CONSTANTS
 '------------------------------------------------------------------------------
-        Private Const EXPECTED_CASES   As Long = 8    'Cases in a complete run
+        Private Const EXPECTED_CASES   As Long = 9    'Cases in a complete run
 
 '------------------------------------------------------------------------------
 ' MODULE STATE
@@ -128,12 +130,14 @@ Public Sub RunMainStateTests()
         CaseOperationFailure
         CaseCleanupFailure
         CaseChecksUnwritable
+        CaseOutputWriteFailure
         CaseSilentFlagPreserved
 
 '------------------------------------------------------------------------------
 ' RESTORE THE CALLER AND REPORT
 '------------------------------------------------------------------------------
         M_Main.gTestFault = ""
+        CORE_Engine.gEngineFault = ""
         M_Main.gSilent = callerSilent
         Application.Calculation = callerCalculation
         Application.EnableEvents = callerEvents
@@ -409,6 +413,105 @@ Failed:
         Fail "run.checks-unwritable", "could not unprotect the Checks sheet: " & Err.Description
 
 End Sub
+
+
+Private Sub CaseOutputWriteFailure()
+'
+'==============================================================================
+'                            CaseOutputWriteFailure
+'------------------------------------------------------------------------------
+' PURPOSE
+'   An error after TradeCalc, Results and Buckets have been written, and
+'   before HedgingSets, is raised unchanged; the output sheets are cleared
+'   so that no table of the stopped run is left, Checks and Results A2 say
+'   why, Excel is restored, and the next run works (#36).
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim result      As String    'Result line of the follow-up run
+    Dim errNumber   As Long      'Error raised by the failed run
+    Dim errText     As String    'Its description
+    Dim summary     As String    'Results A2 after the failed run
+
+'------------------------------------------------------------------------------
+' RUN CASE
+'------------------------------------------------------------------------------
+        On Error GoTo Unexpected
+        BeginCase "run.output-write-failure"
+        SetState xlCalculationAutomatic, False, False
+        CORE_Engine.gEngineFault = "outputs"
+        On Error Resume Next
+        result = M_Main.RunSACCR_Silent()
+        errNumber = Err.Number
+        errText = Err.Description
+        On Error GoTo Unexpected
+        CORE_Engine.gEngineFault = ""
+        Check errNumber = ERR_INJECTED_FAULT, "expected the injected error, got " & errNumber & ": " & errText
+        Check IsBlankCell(GetSheet(SH_TRADECALC).Cells(FIRST_DATA_ROW, 1).Value), "TradeCalc rows were not withdrawn"
+        Check IsBlankCell(GetSheet(SH_RESULTS).Cells(FIRST_DATA_ROW, 1).Value), "Results rows were not withdrawn"
+        Check IsBlankCell(GetSheet(SH_BUCKETS).Cells(FIRST_DATA_ROW, 1).Value), "Buckets rows were not withdrawn"
+        summary = SafeStr(GetSheet(SH_RESULTS).Range(RUNINFO_CELL).Value)
+        Check InStr(1, summary, "results withdrawn", vbTextCompare) > 0, "run summary does not say why: " & summary
+        Check ChecksMention("Injected output failure"), "Checks does not show the error"
+        CheckState xlCalculationAutomatic, False, False
+
+    'The next run works and writes every sheet again.
+        result = M_Main.RunSACCR_Silent()
+        Check Left$(result, 9) = "RESULT=OK", "follow-up run: " & result
+        CheckState xlCalculationAutomatic, False, False
+        Exit Sub
+
+'------------------------------------------------------------------------------
+' HANDLE UNEXPECTED ERROR
+'------------------------------------------------------------------------------
+Unexpected:
+        CORE_Engine.gEngineFault = ""
+        Fail "run.output-write-failure", "unexpected error " & Err.Number & ": " & Err.Description
+
+End Sub
+
+
+Private Function ChecksMention( _
+    ByVal fragment As String) _
+    As Boolean
+'
+'==============================================================================
+'                                ChecksMention
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Tell whether a message on the Checks sheet contains fragment, ignoring
+'   case.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws   As Worksheet    'Checks sheet
+    Dim r    As Long         'Row being read
+
+'------------------------------------------------------------------------------
+' SEARCH
+'------------------------------------------------------------------------------
+    'Checks column 5 holds the message.
+        Set ws = GetSheet(SH_CHECKS)
+        For r = FIRST_DATA_ROW To UsedLastRow(ws)
+            If InStr(1, SafeStr(ws.Cells(r, 5).Value), fragment, vbTextCompare) > 0 Then
+                ChecksMention = True
+                Exit Function
+            End If
+        Next r
+
+End Function
 
 
 Private Sub CaseSilentFlagPreserved()

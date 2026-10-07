@@ -59,7 +59,9 @@ Attribute VB_Name = "CORE_Engine"
 '   run continues; invalid parameters or netting sets stop the run.
 '   LoadParams, WriteChecks and WriteRunInfo contain their own errors. A
 '   Checks sheet that cannot be written withdraws the results and raises
-'   ERR_CHECKS_WRITE (#36). Any other unexpected error propagates to M_Main.
+'   ERR_CHECKS_WRITE (#36). Any other unexpected error during a run also
+'   withdraws the results, is logged on Checks and in the run summary, and
+'   is raised unchanged to M_Main (#36).
 '
 ' KNOWN DEVIATION
 '   This module lives in src/core but reads and writes worksheets, which the
@@ -205,6 +207,14 @@ Attribute VB_Name = "CORE_Engine"
         Private mParamError   As Boolean         'A parameter was present but not usable
 
 '------------------------------------------------------------------------------
+' TEST SEAM
+'------------------------------------------------------------------------------
+    'Set only by TEST_MainState: "outputs" raises ERR_INJECTED_FAULT after
+    'the first output sheets are written, to prove that a failed run
+    'withdraws them (#36). Empty in normal use.
+        Public gEngineFault   As String
+
+'------------------------------------------------------------------------------
 ' RUN PARAMETERS
 '------------------------------------------------------------------------------
     'Read from Params by LoadParams; see CORE_Config for each code.
@@ -263,7 +273,10 @@ Public Function Calculate( _
 '   Raises ERR_CHECKS_WRITE when the Checks sheet cannot be written, after
 '   clearing the other output sheets: results whose errors and warnings
 '   cannot be shown must not look valid, and the Checks sheet would still
-'   hold the previous run's messages (#36).
+'   hold the previous run's messages (#36). Any other error during the run
+'   clears the output sheets too, so that a run stopped halfway cannot
+'   leave tables from two runs, is logged on Checks and in the run summary,
+'   and is raised unchanged.
 '
 ' STATE OWNERSHIP
 '   Resets all module state, then fills it for this run.
@@ -276,8 +289,11 @@ Public Function Calculate( _
 '------------------------------------------------------------------------------
 ' DECLARE
 '------------------------------------------------------------------------------
-    Dim t0             As Double     'Timer value at the start, for the run duration
-    Dim checksFailure  As String     'Why the Checks sheet could not be written; "" if written
+    Dim t0               As Double     'Timer value at the start, for the run duration
+    Dim checksFailure    As String     'Why the Checks sheet could not be written; "" if written
+    Dim errNumber        As Long       'Unexpected error: number
+    Dim errSource        As String     'Unexpected error: source
+    Dim errDescription   As String     'Unexpected error: description
 
 '------------------------------------------------------------------------------
 ' LOAD INPUTS
@@ -287,6 +303,7 @@ Public Function Calculate( _
     '(#36). Any loader that fails has logged why; skip to the Checks output.
         t0 = Timer
         ResetState
+        On Error GoTo Failed
         ClearOutputSheets
 
         If Not ValidateSchema() Then GoTo Finish
@@ -303,6 +320,9 @@ Public Function Calculate( _
         ComputeNettingSets writeOutputs
         If writeOutputs Then
             WriteBuckets
+            If gEngineFault = "outputs" Then
+                Err.Raise ERR_INJECTED_FAULT, "CORE_Engine.Calculate", "Injected output failure."
+            End If
             WriteHedgingSets
         End If
         Calculate = True
@@ -318,13 +338,36 @@ Finish:
             If Not WithdrawOutputs() Then
                 checksFailure = checksFailure & "; the other output sheets could not be cleared either"
             End If
-        End If
-        WriteRunInfo Timer - t0, Calculate, writeOutputs, checksFailure
-        If Len(checksFailure) > 0 Then
+            WriteRunInfo Timer - t0, False, writeOutputs, "the Checks sheet could not be written (" & _
+                         checksFailure & "); results withdrawn, and Checks may show an earlier run"
+            On Error GoTo 0
             Err.Raise ERR_CHECKS_WRITE, "CORE_Engine.Calculate", "The Checks sheet could not be written (" & _
                       checksFailure & "), so the run's results were withdrawn. Unprotect or repair the Checks " & _
                       "sheet and run again."
         End If
+        WriteRunInfo Timer - t0, Calculate, writeOutputs, ""
+        Exit Function
+
+'------------------------------------------------------------------------------
+' HANDLE UNEXPECTED ERROR
+'------------------------------------------------------------------------------
+    'Whatever was written so far is withdrawn, the error is logged on Checks
+    'and in the run summary, both best effort, and it is raised unchanged
+    'for M_Main to report.
+Failed:
+        errNumber = Err.Number
+        errSource = Err.Source
+        errDescription = Err.Description
+        Calculate = False
+        If Not WithdrawOutputs() Then
+            errDescription = errDescription & " The output sheets could not be cleared either."
+        End If
+        LogMsg SEV_ERROR, "", "", "Run stopped by error " & errNumber & ": " & errDescription & _
+               " - results withdrawn."
+        WriteChecks checksFailure
+        WriteRunInfo Timer - t0, False, writeOutputs, "error " & errNumber & ": " & errDescription & _
+                     "; results withdrawn"
+        Err.Raise errNumber, errSource, errDescription
 
 End Function
 
@@ -3106,7 +3149,7 @@ Private Sub WriteRunInfo( _
     ByVal secs As Double, _
     ByVal completed As Boolean, _
     ByVal wroteOutputs As Boolean, _
-    ByVal checksFailure As String)
+    ByVal failure As String)
 '
 '==============================================================================
 '                                 WriteRunInfo
@@ -3119,7 +3162,8 @@ Private Sub WriteRunInfo( _
 '   completed: the result of Calculate.
 '   wroteOutputs: False for a validation-only run, whose outputs were
 '   cleared rather than written.
-'   checksFailure: why the Checks sheet could not be written; "" if it was.
+'   failure: why the run failed after it started writing, for example the
+'   Checks sheet could not be written; "" otherwise.
 '
 ' ERROR POLICY
 '   Best effort: errors are ignored, because the summary is informative only.
@@ -3140,10 +3184,8 @@ Private Sub WriteRunInfo( _
 '------------------------------------------------------------------------------
         On Error Resume Next
         Set ws = GetSheet(SH_RESULTS)
-        If Len(checksFailure) > 0 Then
-            txt = "Last run " & Format$(Now, "yyyy-mm-dd hh:mm:ss") & _
-                  " FAILED - the Checks sheet could not be written (" & checksFailure & _
-                  "); results withdrawn, and Checks may show an earlier run"
+        If Len(failure) > 0 Then
+            txt = "Last run " & Format$(Now, "yyyy-mm-dd hh:mm:ss") & " FAILED - " & failure
         ElseIf Not wroteOutputs Then
             txt = "Last validation " & Format$(Now, "yyyy-mm-dd hh:mm:ss") & _
                   " | errors " & mErrCount & ", warnings " & mWarnCount & _

@@ -312,6 +312,14 @@ Use only the categories needed by a release.
   raises `ERR_CHECKS_WRITE`; the button shows the reason and
   `RunSACCR_Silent` raises it. `TEST_MainState` adds the case.
 
+- A run stopped by an unexpected error no longer leaves output tables from
+  two runs (#36). An error after the engine had started writing, for
+  example on Results or HedgingSets, left the sheets already written with
+  this run's values and the others empty or from the previous run. The run
+  now clears every output sheet, logs the error on Checks and in Results
+  A2, and raises it unchanged. `TEST_MainState` adds the case, through a
+  test seam that fails the run after TradeCalc, Results and Buckets.
+
 - The workbook macros restore calculation mode, events and screen updating to
   the values they found, including settings that were off, instead of
   switching events and screen updating on (#43). Each setting is restored
