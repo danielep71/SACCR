@@ -29,6 +29,7 @@ Attribute VB_Name = "M_Engine"
 '
 ' FLOW
 '   Calculate runs, in order:
+'     ClearOutputSheets, ValidateSchema: clear old results, check the layout;
 '     LoadParams, LoadSFTable, LoadFXTable, LoadNettingSets: read the inputs;
 '     ProcessTrades: one row per trade, collected into buckets;
 '     ComputeHedgingSets: buckets into hedging-set and asset-class add-ons;
@@ -68,7 +69,7 @@ Attribute VB_Name = "M_Engine"
 '   Excel VBA; no references beyond the defaults.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '
 ' AUTHOR
 '   Daniele Penza
@@ -253,8 +254,9 @@ Public Function Calculate( _
 '
 ' RETURNS
 '   True when the run completed. Individual trades may still have been
-'   excluded; the Checks sheet lists them. False when a parameter, the
-'   factor or FX table, or the netting sets could not be loaded.
+'   excluded; the Checks sheet lists them. False when the sheet layout is
+'   not as expected, or a parameter, the factor or FX table, or the netting
+'   sets could not be loaded.
 '
 ' STATE OWNERSHIP
 '   Resets all module state, then fills it for this run.
@@ -279,6 +281,7 @@ Public Function Calculate( _
         ResetState
         ClearOutputSheets
 
+        If Not ValidateSchema() Then GoTo Finish
         If Not LoadParams() Then GoTo Finish
         If Not LoadSFTable() Then GoTo Finish
         If Not LoadFXTable() Then GoTo Finish
@@ -529,6 +532,233 @@ End Sub
 '
 '------------------------------------------------------------------------------
 '
+'                                SCHEMA CHECK
+'
+'------------------------------------------------------------------------------
+'
+
+Private Function ValidateSchema() As Boolean
+'
+'==============================================================================
+'                                ValidateSchema
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Check the workbook layout before any input is read (#35). The engine
+'   reads every input by column number, so a column inserted, deleted or
+'   moved would silently shift values into the wrong fields.
+'
+' RETURNS
+'   True when the input sheets exist, every column the engine reads has its
+'   expected header, no parameter is listed twice with different values and
+'   no parameter name is broken. False otherwise, with an error logged for
+'   each problem found.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws         As Worksheet    'Params sheet
+    Dim ok         As Boolean      'No problem found so far
+    Dim r0         As Long         'Header row of a Params table
+    Dim lastR      As Long         'Last used row of Params
+    Dim grid       As Variant      'Params columns A to C, rows 1 to lastR
+    Dim codes      As Variant      'Every parameter code
+    Dim i          As Long         'Index into codes
+    Dim r          As Long         'Params row being compared
+    Dim firstRow   As Long         'First Params row holding the code; 0 if none
+
+'------------------------------------------------------------------------------
+' INPUT SHEETS
+'------------------------------------------------------------------------------
+    'A missing output sheet has already raised in ClearOutputSheets.
+        ok = SheetPresent(SH_PARAMS)
+        ok = SheetPresent(SH_NS) And ok
+        ok = SheetPresent(SH_TRADES) And ok
+        If Not ok Then
+            Exit Function
+        End If
+
+'------------------------------------------------------------------------------
+' COLUMN HEADERS
+'------------------------------------------------------------------------------
+    'A missing factor or FX table header is reported by its loader.
+        Set ws = GetSheet(SH_PARAMS)
+        ok = HeadersMatch(GetSheet(SH_NS), HEADER_ROW, NS_HEADERS) And ok
+        ok = HeadersMatch(GetSheet(SH_TRADES), HEADER_ROW, TR_HEADERS) And ok
+        ok = HeadersMatch(ws, HEADER_ROW, PRM_HEADERS) And ok
+        r0 = FindHeaderRow(ws, 1, HDR_SF)
+        If r0 > 0 Then
+            ok = HeadersMatch(ws, r0, SF_HEADERS) And ok
+        End If
+        r0 = FindHeaderRow(ws, 1, HDR_FX)
+        If r0 > 0 Then
+            ok = HeadersMatch(ws, r0, FX_HEADERS) And ok
+        End If
+
+'------------------------------------------------------------------------------
+' PARAMETERS
+'------------------------------------------------------------------------------
+    'A parameter listed twice with the same value is harmless and warned
+    'about; with different values it is ambiguous. A workbook name equal to
+    'the code takes precedence over the Params row (M_Util.GetParam); a
+    'broken one would silently fall back to the row.
+        codes = Array(PRM_ASOF, PRM_REPCCY, PRM_ALPHA, PRM_FLOOR, PRM_DAYSYEAR, PRM_BDYEAR, _
+                      PRM_MINMAT, PRM_SDFLOOR, PRM_MPOR_BIL, PRM_MPOR_CLR, PRM_MPOR_LARGE, _
+                      PRM_BASIS, PRM_VOLF, PRM_RHO12, PRM_RHO23, PRM_RHO13, PRM_IRFULL, _
+                      PRM_REGIME, PRM_LAMIR, PRM_LAMCO)
+        lastR = UsedLastRow(ws)
+        If lastR >= 1 Then
+            grid = ws.Range(ws.Cells(1, 1), ws.Cells(lastR, PRM_VALUE_COL)).Value
+        End If
+        For i = LBound(codes) To UBound(codes)
+            If BrokenName(codes(i)) Then
+                ok = False
+                LogMsg SEV_ERROR, SH_PARAMS, codes(i), "Workbook name '" & codes(i) & _
+                       "' no longer refers to a cell (#REF!)."
+            End If
+            firstRow = 0
+            For r = 1 To lastR
+                If StrComp(SafeStr(grid(r, PRM_CODE_COL)), codes(i), vbTextCompare) = 0 Then
+                    If firstRow = 0 Then
+                        firstRow = r
+                    ElseIf SameValue(grid(firstRow, PRM_VALUE_COL), grid(r, PRM_VALUE_COL)) Then
+                        LogMsg SEV_WARN, SH_PARAMS, codes(i), "Parameter listed twice with the same value (rows " & _
+                               firstRow & " and " & r & ").", r
+                    Else
+                        ok = False
+                        LogMsg SEV_ERROR, SH_PARAMS, codes(i), "Parameter listed twice with different values (rows " & _
+                               firstRow & " and " & r & ").", r
+                    End If
+                End If
+            Next r
+        Next i
+        ValidateSchema = ok
+
+End Function
+
+
+Private Function SheetPresent( _
+    ByVal sheetName As String) _
+    As Boolean
+'
+'==============================================================================
+'                                 SheetPresent
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Tell whether this workbook has a worksheet with the given tab name, and
+'   log an error when it has not.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws   As Worksheet    'Worksheet being compared
+
+'------------------------------------------------------------------------------
+' SEARCH
+'------------------------------------------------------------------------------
+        For Each ws In ThisWorkbook.Worksheets
+            If StrComp(ws.Name, sheetName, vbTextCompare) = 0 Then
+                SheetPresent = True
+                Exit Function
+            End If
+        Next ws
+        LogMsg SEV_ERROR, sheetName, "", "Sheet '" & sheetName & "' not found."
+
+End Function
+
+
+Private Function HeadersMatch( _
+    ByVal ws As Worksheet, _
+    ByVal rowNum As Long, _
+    ByVal expectedHeaders As String) _
+    As Boolean
+'
+'==============================================================================
+'                                 HeadersMatch
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Compare a header row with the expected headers, ignoring case and
+'   surrounding spaces, and log an error for each header that differs.
+'
+' INPUTS
+'   ws, rowNum: the sheet and its header row.
+'   expectedHeaders: one of the _HEADERS constants in M_Config, starting in
+'   column A; an empty entry is not checked.
+'
+' RETURNS
+'   True when every checked header matches.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim headers   As Variant    'Expected headers, from index 0 for column A
+    Dim c         As Long       'Index into headers
+    Dim found     As Variant    'Header cell value
+
+'------------------------------------------------------------------------------
+' COMPARE
+'------------------------------------------------------------------------------
+        HeadersMatch = True
+        headers = Split(expectedHeaders, "|")
+        For c = 0 To UBound(headers)
+            If Len(headers(c)) > 0 Then
+                found = ws.Cells(rowNum, c + 1).Value
+                If StrComp(SafeStr(found), headers(c), vbTextCompare) <> 0 Then
+                    HeadersMatch = False
+                    LogMsg SEV_ERROR, ws.Name, ws.Cells(rowNum, c + 1).Address(False, False), _
+                           "Header must be '" & headers(c) & "' (found " & DescribeValue(found) & _
+                           ") - a column was inserted, deleted or moved, or the header renamed.", rowNum
+                End If
+            End If
+        Next c
+
+End Function
+
+
+Private Function SameValue( _
+    ByVal a As Variant, _
+    ByVal b As Variant) _
+    As Boolean
+'
+'==============================================================================
+'                                  SameValue
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Compare two cell values: numbers exactly, text ignoring case and
+'   surrounding spaces. An error value is never the same as anything.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        If IsError(a) Or IsError(b) Then
+            SameValue = False
+        ElseIf IsNum(a) And IsNum(b) Then
+            SameValue = (CDbl(a) = CDbl(b))
+        Else
+            SameValue = (StrComp(SafeStr(a), SafeStr(b), vbTextCompare) = 0)
+        End If
+
+End Function
+
+
+'
+'------------------------------------------------------------------------------
+'
 '                                INPUT LOADING
 '
 '------------------------------------------------------------------------------
@@ -697,26 +927,30 @@ Private Function LoadSFTable() As Boolean
 '
 ' RETURNS
 '   True when at least one row was read. False, with an error logged, when
-'   the header is missing or the table is empty.
+'   the header is missing, the table is empty, a value is not a number, or
+'   a key is listed twice with different values (#35).
 '
 ' STATE OWNERSHIP
-'   Fills mSF, mSFCount and mSFIndex. A duplicate key is warned about and
-'   the first row kept. "BOTH" in the Regimes column is stored as blank.
+'   Fills mSF, mSFCount and mSFIndex. A key listed twice with the same
+'   values is warned about and the first row kept. "BOTH" in the Regimes
+'   column is stored as blank.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '==============================================================================
 '
 
 '------------------------------------------------------------------------------
 ' DECLARE
 '------------------------------------------------------------------------------
-    Dim ws       As Worksheet    'Params sheet
-    Dim r        As Long         'Row being read
-    Dim r0       As Long         'Header row of the table
-    Dim k        As String       'Key of the row, upper case
-    Dim bad      As Boolean      'Some row has a value that is not a number
-    Dim rowBad   As Boolean      'This row has one
+    Dim ws       As Worksheet      'Params sheet
+    Dim r        As Long           'Row being read
+    Dim r0       As Long           'Header row of the table
+    Dim k        As String         'Key of the row, upper case
+    Dim bad      As Boolean        'Some row is unusable or conflicts
+    Dim rowBad   As Boolean        'This row has a value that is not a number
+    Dim entry    As tSupervisory   'This row
+    Dim idx      As Long           'Position of an earlier row with the key; 0 if none
 
 '------------------------------------------------------------------------------
 ' FIND THE TABLE
@@ -736,29 +970,41 @@ Private Function LoadSFTable() As Boolean
         r = r0 + 1
         Do While Not IsBlankCell(ws.Cells(r, 1).Value)
             k = UTxt(ws.Cells(r, 1).Value)
-            If KeyIndex(mSFIndex, k) > 0 Then
-                LogMsg SEV_WARN, SH_PARAMS, k, "Duplicate supervisory factor key - first occurrence used.", r
-            Else
+            entry.Key = k
+            entry.AssetClass = UTxt(ws.Cells(r, 2).Value)
+            entry.Category = UTxt(ws.Cells(r, 3).Value)
+            rowBad = Not TryDbl(ws.Cells(r, 4).Value, 0#, entry.SF)
+            rowBad = Not TryDbl(ws.Cells(r, 5).Value, 0#, entry.Corr) Or rowBad
+            rowBad = Not TryDbl(ws.Cells(r, 6).Value, 0#, entry.Vol) Or rowBad
+            entry.Group = UTxt(ws.Cells(r, 7).Value)
+            entry.Regimes = UTxt(ws.Cells(r, 8).Value)
+            If entry.Regimes = "BOTH" Then
+                entry.Regimes = ""
+            End If
+            If rowBad Then
+                bad = True
+                LogMsg SEV_ERROR, SH_PARAMS, k, "Supervisory factor, correlation and volatility must be numbers.", r
+            End If
+
+    'A key seen before: the same values are harmless, different values are
+    'ambiguous and stop the run. A row with a value that is not a number has
+    'already been reported.
+            idx = KeyIndex(mSFIndex, k)
+            If idx = 0 Then
                 mSFCount = mSFCount + 1
                 If mSFCount > UBound(mSF) Then
                     ReDim Preserve mSF(1 To mSFCount * 2)
                 End If
-                mSF(mSFCount).Key = k
-                mSF(mSFCount).AssetClass = UTxt(ws.Cells(r, 2).Value)
-                mSF(mSFCount).Category = UTxt(ws.Cells(r, 3).Value)
-                rowBad = Not TryDbl(ws.Cells(r, 4).Value, 0#, mSF(mSFCount).SF)
-                rowBad = Not TryDbl(ws.Cells(r, 5).Value, 0#, mSF(mSFCount).Corr) Or rowBad
-                rowBad = Not TryDbl(ws.Cells(r, 6).Value, 0#, mSF(mSFCount).Vol) Or rowBad
-                If rowBad Then
-                    bad = True
-                    LogMsg SEV_ERROR, SH_PARAMS, k, "Supervisory factor, correlation and volatility must be numbers.", r
-                End If
-                mSF(mSFCount).Group = UTxt(ws.Cells(r, 7).Value)
-                mSF(mSFCount).Regimes = UTxt(ws.Cells(r, 8).Value)
-                If mSF(mSFCount).Regimes = "BOTH" Then
-                    mSF(mSFCount).Regimes = ""
-                End If
+                mSF(mSFCount) = entry
                 KeyAdd mSFIndex, k, mSFCount
+            ElseIf Not rowBad Then
+                If SameFactorRow(mSF(idx), entry) Then
+                    LogMsg SEV_WARN, SH_PARAMS, k, "Supervisory factor key listed twice with the same values - " & _
+                           "first occurrence used.", r
+                Else
+                    bad = True
+                    LogMsg SEV_ERROR, SH_PARAMS, k, "Supervisory factor key listed twice with different values.", r
+                End If
             End If
             r = r + 1
         Loop
@@ -778,6 +1024,29 @@ Private Function LoadSFTable() As Boolean
 End Function
 
 
+Private Function SameFactorRow( _
+    ByRef first As tSupervisory, _
+    ByRef other As tSupervisory) _
+    As Boolean
+'
+'==============================================================================
+'                                SameFactorRow
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Tell whether two rows of the supervisory-factor table hold the same
+'   values in every column the engine reads.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        SameFactorRow = (first.AssetClass = other.AssetClass) And (first.Category = other.Category) And _
+                        (first.SF = other.SF) And (first.Corr = other.Corr) And (first.Vol = other.Vol) And _
+                        (first.Group = other.Group) And (first.Regimes = other.Regimes)
+
+End Function
+
+
 Private Function LoadFXTable() As Boolean
 '
 '==============================================================================
@@ -789,17 +1058,19 @@ Private Function LoadFXTable() As Boolean
 '   per one unit of the currency.
 '
 ' RETURNS
-'   True when the table was found. False, with an error logged, when the
-'   header is missing.
+'   True when the table was read. False, with an error logged, when the
+'   header is missing or a currency is listed twice with different rates
+'   (#35).
 '
 ' STATE OWNERSHIP
 '   Fills mFXRate, mFXCount and mFXIndex. A rate that is missing or not
-'   positive is warned about and the currency left out; for a duplicate
-'   currency the first rate is kept. The reporting currency is added at
-'   rate 1 if absent, and warned about if its rate is not 1.
+'   positive is warned about and the currency left out; a currency listed
+'   twice with the same rate is warned about and the first row kept. The
+'   reporting currency is added at rate 1 if absent, and warned about if
+'   its rate is not 1.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '==============================================================================
 '
 
@@ -811,6 +1082,8 @@ Private Function LoadFXTable() As Boolean
     Dim r0     As Long         'Header row of the table
     Dim k      As String       'Currency code, upper case
     Dim rate   As Double       'Rate of the row; -1 when missing
+    Dim idx    As Long         'Position of an earlier row with the currency; 0 if none
+    Dim bad    As Boolean      'Some currency is listed with two different rates
 
 '------------------------------------------------------------------------------
 ' FIND THE TABLE
@@ -825,22 +1098,33 @@ Private Function LoadFXTable() As Boolean
 '------------------------------------------------------------------------------
 ' READ ROWS
 '------------------------------------------------------------------------------
+    'A currency seen before: the same rate is harmless, a different rate is
+    'ambiguous and stops the run.
         r = r0 + 1
         Do While Not IsBlankCell(ws.Cells(r, 1).Value)
             k = UTxt(ws.Cells(r, 1).Value)
             rate = ToDbl(ws.Cells(r, 3).Value, -1#)
+            idx = KeyIndex(mFXIndex, k)
             If rate <= 0# Then
                 LogMsg SEV_WARN, SH_PARAMS, k, "FX rate missing or not positive - currency ignored.", r
-            ElseIf KeyIndex(mFXIndex, k) = 0 Then
+            ElseIf idx = 0 Then
                 mFXCount = mFXCount + 1
                 If mFXCount > UBound(mFXRate) Then
                     ReDim Preserve mFXRate(1 To mFXCount * 2)
                 End If
                 mFXRate(mFXCount) = rate
                 KeyAdd mFXIndex, k, mFXCount
+            ElseIf mFXRate(idx) = rate Then
+                LogMsg SEV_WARN, SH_PARAMS, k, "Currency listed twice with the same rate - first row used.", r
+            Else
+                bad = True
+                LogMsg SEV_ERROR, SH_PARAMS, k, "Currency listed twice with different rates.", r
             End If
             r = r + 1
         Loop
+        If bad Then
+            Exit Function
+        End If
 
 '------------------------------------------------------------------------------
 ' ENSURE THE REPORTING CURRENCY

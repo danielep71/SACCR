@@ -4,10 +4,13 @@ Attribute VB_Name = "TestInputValidation"
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Check that malformed inputs are rejected instead of silently changing
-'   the trade population or the netting-set terms (#35): trade rows with
-'   data but no ID, duplicate trade IDs, a missing MtM, an unreadable date,
-'   and netting-set fields that cannot be read. A blank optional field must
-'   still take its default.
+'   the trade population, the netting-set terms or the parameters (#35):
+'   trade rows with data but no ID, duplicate trade IDs, a missing MtM, an
+'   unreadable date, netting-set fields that cannot be read, a moved or
+'   renamed column, a broken parameter name, and a parameter, supervisory
+'   factor or currency listed twice with different values. A blank
+'   optional field, and a duplicate with the same values, must still be
+'   accepted.
 '
 ' PUBLIC SURFACE
 '   RunInputValidationTests is the entry point. Option Private Module keeps
@@ -17,11 +20,13 @@ Attribute VB_Name = "TestInputValidation"
 '   CaseRunner, which writes the inputs, runs the engine, restores the
 '   workbook and reports. These inputs cannot be expressed as JSON
 '   fixtures, so they are written here directly, as TEST_CASES.md allows
-'   for invalid inputs.
+'   for invalid inputs. The table cases find their rows on Params by key
+'   (CO_OTHER, USD, CHF), so they need the template's Params sheet.
 '
 ' WORKSHEET SAFETY
-'   As CaseRunner: inputs and outputs are rewritten during the run and
-'   restored at the end. Use a development workbook.
+'   As CaseRunner: inputs, outputs, and the headers, Params cells and
+'   workbook name a case patches are rewritten during the run and
+'   restored. Use a development workbook.
 '
 ' USAGE
 '   Run TestInputValidation.RunInputValidationTests from the Immediate
@@ -44,8 +49,8 @@ Attribute VB_Name = "TestInputValidation"
 ' MODULE CONSTANTS
 '------------------------------------------------------------------------------
         Private Const VALUATION   As String = "2026-09-30"    'Valuation date of every case
-        Private Const CASES       As Long = 9                 'Cases in a complete run
-        Private Const CHECKS      As Long = 9                 'Checks in a complete run
+        Private Const CASES       As Long = 19                'Cases in a complete run
+        Private Const CHECKS      As Long = 19                'Checks in a complete run
 
 
 '
@@ -68,6 +73,15 @@ Public Sub RunInputValidationTests()
 '   2026-10-07
 '==============================================================================
 '
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim r   As Long    'Params row a table case patches
+
+'------------------------------------------------------------------------------
+' RUN CASES
+'------------------------------------------------------------------------------
         CaseRunner.BeginSuite CASES, CHECKS
         On Error GoTo Failed
 
@@ -118,6 +132,68 @@ Public Sub RunInputValidationTests()
 
         StartCase "netting-set-blank-flags-take-defaults", ""
         AddSwap "T1"
+        ExpectStatus "VALID"
+
+    'Sheet layout: a header that differs means a column moved.
+        StartCase "layout-trades-header-renamed", "N"
+        AddSwap "T1"
+        CaseRunner.PatchCell SH_TRADES, HEADER_ROW, TR_NOTIONAL, "Nominal"
+        ExpectStop "Header must be 'Notional'"
+
+        StartCase "layout-netting-sets-column-shifted", "N"
+        AddSwap "T1"
+        CaseRunner.PatchCell SH_NS, HEADER_ROW, NS_NICA, "Threshold TH"
+        ExpectStop "Header must be 'NICA'"
+
+        StartCase "layout-params-value-header-renamed", "N"
+        AddSwap "T1"
+        CaseRunner.PatchCell SH_PARAMS, HEADER_ROW, PRM_VALUE_COL, "Amount"
+        ExpectStop "Header must be 'Value'"
+
+        StartCase "layout-broken-parameter-name", "N"
+        AddSwap "T1"
+        CaseRunner.PatchName PRM_ALPHA, "=#REF!"
+        ExpectStop "no longer refers to a cell"
+
+    'Duplicates: the same values are accepted, different values stop the run.
+        StartCase "params-duplicate-different-value", "N"
+        AddSwap "T1"
+        AddParamRow PRM_ALPHA, 1.2
+        ExpectStop "Parameter listed twice with different values"
+
+        StartCase "params-duplicate-same-value", "N"
+        AddSwap "T1"
+        AddParamRow PRM_ALPHA, ParamsValue(PRM_ALPHA, PRM_VALUE_COL)
+        ExpectStatus "VALID"
+
+    'CO_OTHER becomes a second CO_METALS row: it differs in category and
+    'hedging set, unless those are patched too.
+        StartCase "factor-table-duplicate-different-values", "N"
+        AddSwap "T1"
+        r = ParamsRow("CO_OTHER")
+        CaseRunner.PatchCell SH_PARAMS, r, 1, "CO_METALS"
+        ExpectStop "Supervisory factor key listed twice with different values"
+
+        StartCase "factor-table-duplicate-same-values", "N"
+        AddSwap "T1"
+        r = ParamsRow("CO_OTHER")
+        CaseRunner.PatchCell SH_PARAMS, r, 1, "CO_METALS"
+        CaseRunner.PatchCell SH_PARAMS, r, 3, "METALS"
+        CaseRunner.PatchCell SH_PARAMS, r, 7, "METALS"
+        ExpectStatus "VALID"
+
+    'CHF becomes a second USD row, at CHF's rate or at USD's.
+        StartCase "fx-table-duplicate-different-rates", "N"
+        AddSwap "T1"
+        r = ParamsRow("CHF")
+        CaseRunner.PatchCell SH_PARAMS, r, 1, "USD"
+        ExpectStop "Currency listed twice with different rates"
+
+        StartCase "fx-table-duplicate-same-rate", "N"
+        AddSwap "T1"
+        r = ParamsRow("CHF")
+        CaseRunner.PatchCell SH_PARAMS, r, 1, "USD"
+        CaseRunner.PatchCell SH_PARAMS, r, 3, ParamsValue("USD", 3)
         ExpectStatus "VALID"
 
         CaseRunner.EndSuite ""
@@ -174,6 +250,113 @@ Private Sub AddSwap( _
 '
         CaseRunner.AddTrade tradeId, "IR", "", "EUR", "Linear", "Long", "", "Standard", "", _
                             "10000", "30", "", "2031-09-30", "2031-09-30", "", "", "", "", "", ""
+
+End Sub
+
+
+Private Sub ExpectStop( _
+    ByVal messagePart As String)
+'
+'==============================================================================
+'                                  ExpectStop
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Run the case and check that the run stopped with an ERROR on Checks
+'   containing messagePart.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        CaseRunner.RunCaseExpectingStop "stop", messagePart, "illustrative"
+
+End Sub
+
+
+Private Function ParamsRow( _
+    ByVal key As String) _
+    As Long
+'
+'==============================================================================
+'                                  ParamsRow
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Return the Params row whose column A holds key: a parameter code, a
+'   supervisory-factor key or a currency.
+'
+' ERROR POLICY
+'   Raises ERR_TEST_SETUP when the key is not on Params, so that a changed
+'   template fails the suite instead of patching the wrong row.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim r   As Long    'Row found; 0 when absent
+
+'------------------------------------------------------------------------------
+' FIND
+'------------------------------------------------------------------------------
+        r = FindHeaderRow(GetSheet(SH_PARAMS), 1, key)
+        If r = 0 Then
+            Err.Raise ERR_TEST_SETUP, "TestInputValidation.ParamsRow", "'" & key & "' not found in column A of Params."
+        End If
+        ParamsRow = r
+
+End Function
+
+
+Private Function ParamsValue( _
+    ByVal key As String, _
+    ByVal col As Long) _
+    As Variant
+'
+'==============================================================================
+'                                 ParamsValue
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Return a value from the Params row whose column A holds key.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+        ParamsValue = GetSheet(SH_PARAMS).Cells(ParamsRow(key), col).Value
+
+End Function
+
+
+Private Sub AddParamRow( _
+    ByVal code As String, _
+    ByVal newValue As Variant)
+'
+'==============================================================================
+'                                 AddParamRow
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Add a second Params row for a parameter, two rows below the last used
+'   row so that no table on Params runs into it.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim r   As Long    'The new row
+
+'------------------------------------------------------------------------------
+' WRITE
+'------------------------------------------------------------------------------
+        r = UsedLastRow(GetSheet(SH_PARAMS)) + 2
+        CaseRunner.PatchCell SH_PARAMS, r, PRM_CODE_COL, code
+        CaseRunner.PatchCell SH_PARAMS, r, PRM_VALUE_COL, newValue
 
 End Sub
 

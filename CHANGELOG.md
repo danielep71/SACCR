@@ -253,6 +253,18 @@ Use only the categories needed by a release.
   Blank optional fields still take their documented defaults.
   `tests/modules/TestInputValidation.bas` covers these cases in Excel.
 
+- The run stops when the workbook layout or the parameter tables are
+  ambiguous (#35). Before reading any input, the engine checks that the
+  Params, NettingSets and Trades sheets exist and that every column it reads
+  by number has its expected header (`M_Config` `_HEADERS` constants), so an
+  inserted, deleted or moved column cannot shift values into the wrong
+  fields. A parameter workbook name that no longer refers to a cell (`#REF!`)
+  and a parameter listed twice on Params with different values stop the run.
+  A supervisory-factor key or currency listed twice with different values
+  also stops it, instead of the first row being used silently; a duplicate
+  with the same values is a warning. `TestInputValidation` adds ten cases for
+  these rules.
+
 - A netting set with a rejected trade no longer reports an EAD computed on
   its remaining trades (#36). Results has a Status column and a row for
   every input netting set: `VALID`, `INCOMPLETE: r of n trade(s) rejected`

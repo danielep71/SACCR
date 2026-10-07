@@ -6,9 +6,9 @@ Attribute VB_Name = "M_Config"
 '   Hold every layout constant the SA-CCR engine depends on: sheet names,
 '   header and first data rows, the column of each input field, the width of
 '   each output table, parameter codes, regime and asset-class codes, the
-'   severity labels written to the Checks sheet, and the error numbers raised
-'   by the workbook macros. When a sheet layout changes,
-'   it changes here and nowhere else.
+'   severity labels written to the Checks sheet, the expected column
+'   headers, and the error numbers raised by the workbook macros. When a
+'   sheet layout changes, it changes here and nowhere else.
 '
 ' PUBLIC SURFACE
 '   None outside this VBA project. The constants are Public for in-project use
@@ -28,7 +28,7 @@ Attribute VB_Name = "M_Config"
 '   Excel VBA; no references beyond the defaults.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-07
 '
 ' AUTHOR
 '   Daniele Penza
@@ -158,6 +158,29 @@ Attribute VB_Name = "M_Config"
         Public Const TR_DETACH     As Long = 23    'CDO detachment point D
         Public Const TR_COMMENT    As Long = 24    'Free-text comment, not read
         Public Const TR_NCOLS      As Long = 24    'Number of input columns
+
+'------------------------------------------------------------------------------
+' EXPECTED HEADERS
+'------------------------------------------------------------------------------
+    'Header text of every column the engine reads, in column order and
+    'separated by "|"; an empty entry is a column the engine does not read.
+    'The engine reads by column number, so a header that differs (ignoring
+    'case and surrounding spaces) means a column was inserted, deleted or
+    'moved, and the run stops (#35).
+        Public Const NS_HEADERS As String = "NettingSetID|Counterparty|Margined (Y/N)|" & _
+            "Centrally cleared (Y/N)|Remargin frequency N (BD)|" & _
+            ">5,000 trades or illiquid collateral (Y/N)|Margin disputes (Y/N)|" & _
+            "MPOR override (BD)|Net VM held (+) / posted (-)|NICA|Threshold TH|MTA|" & _
+            "Alpha override|Regime override (blank = Params)"
+        Public Const TR_HEADERS As String = "TradeID|NettingSetID|Asset class|Sub-class|" & _
+            "Risk factor / reference|Instrument|Direction|Option type|Nature|" & _
+            "Basis / vol hedging-set label|Notional|Notional ccy|MtM|MtM ccy|" & _
+            "Start date (S)|End date (E)|Maturity date (M)|Option expiry (T)|" & _
+            "Underlying price P|Strike K|Lambda shift|Attachment A|Detachment D|"
+        Public Const PRM_HEADERS As String = "Code||Value"
+        Public Const SF_HEADERS As String = "SF_Key|Asset class|Category|Supervisory factor|" & _
+            "Correlation|Supervisory option vol|Commodity hedging set|Regimes"
+        Public Const FX_HEADERS As String = "FX_Ccy||Units of reporting ccy per 1 unit"
 
 '------------------------------------------------------------------------------
 ' OUTPUT TABLE WIDTHS
