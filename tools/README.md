@@ -55,6 +55,10 @@ Excel events, macro execution, external-link updates and automatic calculation
 while synchronizing, checks that the sheet names/CodeNames are unchanged, and
 creates a timestamped backup unless `-NoBackup` is supplied.
 
+The synchronizer rejects known retired repository modules before changing any
+VBA component. Rebuild such a workbook from the current template and source;
+it does not migrate old module names or delete unrelated user components.
+
 It requires Windows desktop Excel and Excel's **Trust access to the VBA project
 object model** setting. The workbook VBA project must not be password-locked.
 

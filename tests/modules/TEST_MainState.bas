@@ -59,7 +59,7 @@ Attribute VB_Name = "TEST_MainState"
 '------------------------------------------------------------------------------
 ' MODULE CONSTANTS
 '------------------------------------------------------------------------------
-        Private Const EXPECTED_CASES   As Long = 10   'Cases in a complete run
+        Private Const EXPECTED_CASES   As Long = 14   'Cases in a complete run
 
 '------------------------------------------------------------------------------
 ' MODULE STATE
@@ -132,6 +132,10 @@ Public Sub RunMainStateTests()
         CaseCleanupFailure
         CaseChecksUnwritable
         CaseOutputWriteFailure
+        CaseProtectedOutput SH_TRADECALC
+        CaseProtectedOutput SH_BUCKETS
+        CaseProtectedOutput SH_HEDGING
+        CaseProtectedOutput SH_RESULTS
         CaseStaleResults
         CaseSilentFlagPreserved
 
@@ -421,6 +425,10 @@ Private Sub CaseOutputWriteFailure()
 '
 '==============================================================================
 '                            CaseOutputWriteFailure
+        CaseProtectedOutput SH_TRADECALC
+        CaseProtectedOutput SH_BUCKETS
+        CaseProtectedOutput SH_HEDGING
+        CaseProtectedOutput SH_RESULTS
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   An error after TradeCalc, Results and Buckets have been written, and
@@ -477,6 +485,70 @@ Unexpected:
         CORE_Engine.gEngineFault = ""
         Fail "run.output-write-failure", "unexpected error " & Err.Number & ": " & Err.Description
 
+End Sub
+
+
+Private Sub CaseProtectedOutput(ByVal protectedSheet As String)
+'
+'==============================================================================
+' PURPOSE
+'   One protected output must not prevent the other three from clearing.
+'   Retained cells must be reported as incomplete cleanup, never as success.
+' ERROR POLICY
+'   Unprotect the sheet owned by this case even after an unexpected failure.
+'==============================================================================
+    Dim result As String       'Run result
+    Dim errNumber As Long      'Original run error
+    Dim sheetName As Variant   'Each output sheet
+    Dim ownsProtection As Boolean    'Only undo protection set by this case
+        On Error GoTo Unexpected
+        BeginCase "run.protected-output." & protectedSheet
+        If GetSheet(protectedSheet).ProtectContents Then
+            Fail "protected-output", "test requires initially unprotected " & protectedSheet
+            Exit Sub
+        End If
+        result = M_Main.RunSACCR_Silent()
+        Check Left$(result, 9) = "RESULT=OK", "setup run: " & result
+        For Each sheetName In Array(SH_TRADECALC, SH_BUCKETS, SH_HEDGING, SH_RESULTS)
+            GetSheet(CStr(sheetName)).Cells(FIRST_DATA_ROW, 1).Value = "OLD-OUTPUT"
+        Next sheetName
+        GetSheet(protectedSheet).Protect
+        ownsProtection = True
+        On Error Resume Next
+        result = M_Main.RunSACCR_Silent()
+        errNumber = Err.Number
+        On Error GoTo Unexpected
+        Check errNumber <> 0, "protected output did not fail the run"
+        For Each sheetName In Array(SH_TRADECALC, SH_BUCKETS, SH_HEDGING, SH_RESULTS)
+            If CStr(sheetName) <> protectedSheet Then
+                Check IsBlankCell(GetSheet(CStr(sheetName)).Cells(FIRST_DATA_ROW, 1).Value), _
+                      CStr(sheetName) & " retained old output"
+            End If
+        Next sheetName
+        Check ChecksMention("output cleanup incomplete"), "Checks did not report incomplete cleanup"
+        Check M_Main.ResultsStatus() = "NONE", "failed run retained a current fingerprint"
+        GetSheet(protectedSheet).Unprotect
+        ownsProtection = False
+        result = M_Main.RunSACCR_Silent()
+        Check Left$(result, 9) = "RESULT=OK", "recovery run: " & result
+        Exit Sub
+Unexpected:
+        Fail "protected-output", "unexpected error " & Err.Number & ": " & Err.Description
+        If ownsProtection Then UnprotectOutput protectedSheet
+End Sub
+
+
+Private Sub UnprotectOutput(ByVal sheetName As String)
+'
+'==============================================================================
+' PURPOSE
+'   Release protection owned by CaseProtectedOutput after an unexpected error.
+'==============================================================================
+        On Error GoTo Failed
+        GetSheet(sheetName).Unprotect
+        Exit Sub
+Failed:
+        Fail "protected-output", "could not unprotect " & sheetName & ": " & Err.Description
 End Sub
 
 

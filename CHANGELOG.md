@@ -254,6 +254,15 @@ Use only the categories needed by a release.
 
 ### Fixed
 
+- Runtime review safeguards: reject zero/negative global alpha (#71), recognize
+  parameter rows below the FX table (#80), and attempt each output cleanup even
+  when another sheet is protected (#85). New input regressions are included;
+  Excel verification is still required before merge.
+- VBA synchronization refuses known retired repository components before
+  changing the project (#71, #84, #87). Rebuild legacy workbooks from the current
+  template; unrelated user components are left alone. Windows/Excel validation
+  remains required.
+
 - Malformed inputs are rejected instead of silently changing the portfolio
   (#35). A trade row with data but no Trade ID, including rows after the last
   ID, and a repeated Trade ID are rejected, making the netting set

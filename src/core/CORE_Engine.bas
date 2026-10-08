@@ -302,6 +302,7 @@ Public Function Calculate( _
     Dim checksFailure    As String     'Why the Checks sheet could not be written; "" if written
     Dim errNumber        As Long       'Unexpected error: number
     Dim errSource        As String     'Unexpected error: source
+    Dim withdrawalStatus As String     'Whether every output could be withdrawn
     Dim errDescription   As String     'Unexpected error: description
 
 '------------------------------------------------------------------------------
@@ -344,15 +345,17 @@ Public Function Calculate( _
 Finish:
         If Not WriteChecks(checksFailure) Then
             Calculate = False
+            withdrawalStatus = "results withdrawn"
             If Not WithdrawOutputs() Then
-                checksFailure = checksFailure & "; the other output sheets could not be cleared either"
+                withdrawalStatus = "output cleanup incomplete; old results may remain - unprotect or repair outputs and rerun"
+                checksFailure = checksFailure & "; " & withdrawalStatus
             End If
             ForgetRunInputs
             WriteRunInfo Timer - t0, False, writeOutputs, "the Checks sheet could not be written (" & _
-                         checksFailure & "); results withdrawn, and Checks may show an earlier run"
+                         checksFailure & "); " & withdrawalStatus & ", and Checks may show an earlier run"
             On Error GoTo 0
             Err.Raise ERR_CHECKS_WRITE, "CORE_Engine.Calculate", "The Checks sheet could not be written (" & _
-                      checksFailure & "), so the run's results were withdrawn. Unprotect or repair the Checks " & _
+                      checksFailure & "); " & withdrawalStatus & ". Unprotect or repair the Checks " & _
                       "sheet and run again."
         End If
 
@@ -380,14 +383,16 @@ Failed:
         Calculate = False
         mRunInputs = ""
         ForgetRunInputs
+        withdrawalStatus = "results withdrawn"
         If Not WithdrawOutputs() Then
-            errDescription = errDescription & " The output sheets could not be cleared either."
+            withdrawalStatus = "output cleanup incomplete; old results may remain - unprotect or repair outputs and rerun"
+            errDescription = errDescription & " " & withdrawalStatus & "."
         End If
         LogMsg SEV_ERROR, "", "", "Run stopped by error " & errNumber & ": " & errDescription & _
-               " - results withdrawn."
+               " - " & withdrawalStatus & "."
         WriteChecks checksFailure
         WriteRunInfo Timer - t0, False, writeOutputs, "error " & errNumber & ": " & errDescription & _
-                     "; results withdrawn"
+                     "; " & withdrawalStatus
         Err.Raise errNumber, errSource, errDescription
 
 End Function
@@ -712,10 +717,7 @@ Private Function ValidateSchema() As Boolean
     'about; with different values it is ambiguous. A workbook name equal to
     'the code takes precedence over the Params row (CORE_Util.GetParam); a
     'broken one would silently fall back to the row.
-        codes = Array(PRM_ASOF, PRM_REPCCY, PRM_ALPHA, PRM_FLOOR, PRM_DAYSYEAR, PRM_BDYEAR, _
-                      PRM_MINMAT, PRM_SDFLOOR, PRM_MPOR_BIL, PRM_MPOR_CLR, PRM_MPOR_LARGE, _
-                      PRM_BASIS, PRM_VOLF, PRM_RHO12, PRM_RHO23, PRM_RHO13, PRM_IRFULL, _
-                      PRM_REGIME, PRM_LAMIR, PRM_LAMCO)
+        codes = ParameterCodes()
         lastR = UsedLastRow(ws)
         If lastR >= 1 Then
             grid = ws.Range(ws.Cells(1, 1), ws.Cells(lastR, PRM_VALUE_COL)).Value
@@ -744,6 +746,37 @@ Private Function ValidateSchema() As Boolean
         Next i
         ValidateSchema = ok
 
+End Function
+
+
+Private Function ParameterCodes() As Variant
+'
+'==============================================================================
+' PURPOSE
+'   The parameter vocabulary shared by schema and table validation.
+' RETURNS
+'   An array of the supported parameter codes.
+'==============================================================================
+        ParameterCodes = Array(PRM_ASOF, PRM_REPCCY, PRM_ALPHA, PRM_FLOOR, PRM_DAYSYEAR, PRM_BDYEAR, _
+                      PRM_MINMAT, PRM_SDFLOOR, PRM_MPOR_BIL, PRM_MPOR_CLR, PRM_MPOR_LARGE, _
+                      PRM_BASIS, PRM_VOLF, PRM_RHO12, PRM_RHO23, PRM_RHO13, PRM_IRFULL, _
+                      PRM_REGIME, PRM_LAMIR, PRM_LAMCO)
+End Function
+
+
+Private Function IsParameterCode(ByVal key As String) As Boolean
+'
+'==============================================================================
+' PURPOSE
+'   Distinguish parameter rows from FX rows, including below table gaps.
+'==============================================================================
+    Dim code As Variant    'A supported parameter code
+        For Each code In ParameterCodes()
+            If StrComp(key, CStr(code), vbTextCompare) = 0 Then
+                IsParameterCode = True
+                Exit Function
+            End If
+        Next code
 End Function
 
 
@@ -965,6 +998,10 @@ Private Function LoadParams() As Boolean
 '------------------------------------------------------------------------------
     'Defaults are the regulatory values: CRE52 and CRR Art. 274 to 280f.
         pAlpha = NumParam(PRM_ALPHA, 1.4)
+        If pAlpha <= 0# Then
+            LogMsg SEV_ERROR, SH_PARAMS, PRM_ALPHA, "Alpha must be greater than zero."
+            Exit Function
+        End If
         pFloor = NumParam(PRM_FLOOR, 0.05)
         pDaysYear = NumParam(PRM_DAYSYEAR, 365#)
         pBDYear = NumParam(PRM_BDYEAR, 250#)
@@ -1328,9 +1365,9 @@ Private Function ValuesAfterEnd( _
 ' SEARCH
 '------------------------------------------------------------------------------
         For r = endRow To lastR
-            If IsNum(ws.Cells(r, valueCol).Value) Then
+            k = UTxt(ws.Cells(r, 1).Value)
+            If IsNum(ws.Cells(r, valueCol).Value) And Not (valueCol = PRM_VALUE_COL And IsParameterCode(k)) Then
                 ValuesAfterEnd = True
-                k = UTxt(ws.Cells(r, 1).Value)
                 If Len(k) = 0 Then
                     LogMsg SEV_ERROR, SH_PARAMS, "", tableName & " row has a value but no key - not read.", r
                 Else
@@ -3226,13 +3263,30 @@ Private Function WithdrawOutputs() As Boolean
 '   2026-10-07
 '==============================================================================
 '
-        On Error GoTo Failed
-        ClearOutputSheets
         WithdrawOutputs = True
+        If Not TryClearOutput(SH_TRADECALC, TC_NCOLS) Then WithdrawOutputs = False
+        If Not TryClearOutput(SH_BUCKETS, BK_NCOLS) Then WithdrawOutputs = False
+        If Not TryClearOutput(SH_HEDGING, HS_NCOLS) Then WithdrawOutputs = False
+        If Not TryClearOutput(SH_RESULTS, RS_NCOLS) Then WithdrawOutputs = False
+End Function
+
+
+Private Function TryClearOutput(ByVal sheetName As String, ByVal nCols As Long) As Boolean
+'
+'==============================================================================
+' PURPOSE
+'   Attempt one output independently so a protected sheet cannot prevent
+'   cleanup of the remaining outputs. The caller reports incomplete cleanup.
+' RETURNS
+'   True only when this output was cleared.
+' ERROR POLICY
+'   Contains this cleanup failure; the original run error remains primary.
+'==============================================================================
+        On Error GoTo Failed
+        ClearOutputBlock GetSheet(sheetName), FIRST_DATA_ROW, nCols
+        TryClearOutput = True
         Exit Function
-
 Failed:
-
 End Function
 
 
