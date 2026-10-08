@@ -176,6 +176,16 @@ class TestCaseValidatorTests(unittest.TestCase):
                 self.expected["outputs"][0]["tolerance"]["absolute"] = number
                 self.assertFinding("not valid UTF-8 JSON", self.findings())
 
+    def test_overflow_in_optional_reference_is_rejected_at_decode(self) -> None:
+        self.expected["outputs"][0]["reference"]["derived_by"] = "OVERFLOW"
+        for token in ("1e999", "-1e999"):
+            with self.subTest(token=token):
+                self.findings()
+                target = self.root / cases.EXPECTED / "sample-case.bcbs.json"
+                target.write_text(target.read_text().replace('"OVERFLOW"', token))
+                self.assertFinding("non-finite JSON number", cases.run_check(self.root)["findings"])
+        self.assertEqual(cases.finite_json_float("1.7976931348623157e308"), float("1.7976931348623157e308"))
+
     def test_numeric_overflow_is_rejected(self) -> None:
         self.assertTrue(cases.check_value("value", "number", json.loads("1e999")))
         self.assertTrue(cases.is_number(10 ** 1000))

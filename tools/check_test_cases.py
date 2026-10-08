@@ -99,6 +99,13 @@ def reject_json_constant(value: str) -> None:
     raise ValueError(f"non-finite JSON constant {value}")
 
 
+def finite_json_float(value: str) -> float:
+    number = float(value)
+    if not math.isfinite(number):
+        raise ValueError(f"non-finite JSON number {value}")
+    return number
+
+
 def valid_date(value: object) -> bool:
     if not isinstance(value, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", value):
         return False
@@ -141,7 +148,8 @@ def check_fields(where: str, record: object, spec: dict[str, tuple[str, bool]]) 
 
 def load(path: Path, findings: list[str], name: str) -> dict[str, Any] | None:
     try:
-        data = json.loads(path.read_text(encoding="utf-8"), parse_constant=reject_json_constant)
+        data = json.loads(path.read_text(encoding="utf-8"), parse_constant=reject_json_constant,
+                          parse_float=finite_json_float)
     except (UnicodeDecodeError, ValueError) as error:
         findings.append(f"{name}: not valid UTF-8 JSON ({error})")
         return None
