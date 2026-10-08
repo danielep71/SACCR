@@ -102,7 +102,7 @@ def check_workbook(root: Path, path: str) -> list[str]:
         with zipfile.ZipFile(root / path) as package:
             parts = package.namelist()
             text = "".join(package.read(name).decode("utf-8", errors="replace")
-                           for name in ("[Content_Types].xml", "_rels/.rels") if name in parts)
+                           for name in parts if name == "[Content_Types].xml" or name.endswith(".rels"))
     except (OSError, zipfile.BadZipFile) as error:
         return [f"{path}: not a readable workbook package ({error})"]
     findings = [f"{path}: must not contain {part}" for part in parts if FORBIDDEN_PART.search(part)]

@@ -254,6 +254,12 @@ Use only the categories needed by a release.
 
 ### Fixed
 
+- Fixture validation enforces quantity-specific units and rejects non-finite
+  JSON numbers, including exponent overflow (#65; carries forward the unmerged
+  fix from #76). The workbook gate now inspects every relationship part for
+  dangling VBA references (#78). Sync documentation records the owner-selected
+  temporary-backup lifecycle (#87).
+
 - Malformed inputs are rejected instead of silently changing the portfolio
   (#35). A trade row with data but no Trade ID, including rows after the last
   ID, and a repeated Trade ID are rejected, making the netting set

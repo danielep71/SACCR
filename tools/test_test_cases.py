@@ -32,7 +32,7 @@ FIXTURE = {
 PUBLISHED = {"class": "published", "source": "BCBS-279", "locator": "Annex 4, example 1",
              "derivation": "Printed figure", "derived_by": "Author", "reviewed_by": None,
              "date": "2026-10-06"}
-EXPECTED = {
+EXPECTED: dict[str, Any] = {
     "schema_version": 1, "kind": "saccr-expected", "fixture": "sample-case", "regime": "BCBS",
     "outputs": [
         {"quantity": "exposure_value", "rule": "CRE52.1", "value": 569, "unit": "EUR",
@@ -115,7 +115,7 @@ class TestCaseValidatorTests(unittest.TestCase):
         self.expected["outputs"][0]["tolerance"] = {"absolute": -1, "relative": 0}
         self.expected["outputs"][1]["value"] = 1
         findings = self.findings()
-        self.assertFinding("unit must be the calculation currency", findings)
+        self.assertFinding("unit must be EUR", findings)
         self.assertFinding("tolerance needs non-negative", findings)
         self.assertFinding("exactly one of value, text or error", findings)
 
@@ -136,6 +136,60 @@ class TestCaseValidatorTests(unittest.TestCase):
         findings = self.findings()
         self.assertFinding("rule must look like", findings)
         self.assertFinding("unknown quantity 'ead'", findings)
+
+    def test_quantity_specific_units(self) -> None:
+        units = {
+            "exposure_value": "EUR", "replacement_cost": "EUR",
+            "potential_future_exposure": "EUR", "aggregate_add_on": "EUR",
+            "adjusted_notional": "EUR", "multiplier": "1",
+            "supervisory_delta": "1", "supervisory_factor": "1",
+            "margin_period_of_risk": "business_days",
+            **{f"add_on.{asset}": "EUR" for asset in cases.ASSET_CLASSES},
+        }
+        for quantity, unit in units.items():
+            for candidate in ("EUR", "USD", "1", "price", "business_days"):
+                with self.subTest(quantity=quantity, unit=candidate):
+                    output = dict(EXPECTED["outputs"][0], quantity=quantity, unit=candidate)
+                    findings = cases.check_measure("output", output, self.fixture)
+                    self.assertEqual(bool(findings), candidate != unit, findings)
+
+    def test_lambda_unit_follows_referenced_trade(self) -> None:
+        self.fixture["trades"].append(dict(TRADE, id="T2", asset_class="commodity"))
+        for trade, unit in (("T1", "1"), ("T2", "price")):
+            output = dict(EXPECTED["outputs"][0], quantity="lambda_shift", trade=trade, unit=unit)
+            self.assertEqual(cases.check_measure("output", output, self.fixture), [])
+            output["unit"] = "price" if unit == "1" else "1"
+            self.assertFinding("unit must be", cases.check_measure("output", output, self.fixture))
+
+    def test_non_finite_numbers_are_rejected(self) -> None:
+        for number in (float("nan"), float("inf"), float("-inf")):
+            with self.subTest(number=number):
+                self.assertFalse(cases.is_number(number))
+                self.fixture = copy.deepcopy(FIXTURE)
+                self.expected = copy.deepcopy(EXPECTED)
+                self.fixture["trades"][0]["market_value_amount"] = number
+                self.assertFinding("not valid UTF-8 JSON", self.findings())
+                self.fixture = copy.deepcopy(FIXTURE)
+                self.expected["outputs"][0]["value"] = number
+                self.assertFinding("not valid UTF-8 JSON", self.findings())
+                self.expected["outputs"][0]["value"] = 1
+                self.expected["outputs"][0]["tolerance"]["absolute"] = number
+                self.assertFinding("not valid UTF-8 JSON", self.findings())
+
+    def test_overflow_in_optional_reference_is_rejected_at_decode(self) -> None:
+        self.expected["outputs"][0]["reference"]["derived_by"] = "OVERFLOW"
+        for token in ("1e999", "-1e999"):
+            with self.subTest(token=token):
+                self.findings()
+                target = self.root / cases.EXPECTED / "sample-case.bcbs.json"
+                target.write_text(target.read_text().replace('"OVERFLOW"', token))
+                self.assertFinding("non-finite JSON number", cases.run_check(self.root)["findings"])
+        self.assertEqual(cases.finite_json_float("1.7976931348623157e308"), float("1.7976931348623157e308"))
+
+    def test_numeric_overflow_is_rejected(self) -> None:
+        self.assertTrue(cases.check_value("value", "number", json.loads("1e999")))
+        self.assertTrue(cases.is_number(10 ** 1000))
+        self.assertFalse(cases.is_number(True))
 
     def test_reference_classes(self) -> None:
         self.expected["outputs"][0]["reference"] = dict(PUBLISHED, locator="", source="WIKI")
