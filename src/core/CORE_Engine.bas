@@ -220,7 +220,8 @@ Attribute VB_Name = "CORE_Engine"
 '------------------------------------------------------------------------------
     'Set only by TEST_MainState: "outputs" raises ERR_INJECTED_FAULT after
     'the first output sheets are written, to prove that a failed run
-    'withdraws them (#36). Empty in normal use.
+    'withdraws them (#36). "outputs+cleanup" also fails the TradeCalc and
+    'Results clears with a different error. Empty in normal use.
         Public gEngineFault   As String
 
 '------------------------------------------------------------------------------
@@ -285,7 +286,8 @@ Public Function Calculate( _
 '   hold the previous run's messages (#36). Any other error during the run
 '   clears the output sheets too, so that a run stopped halfway cannot
 '   leave tables from two runs, is logged on Checks and in the run summary,
-'   and is raised unchanged.
+'   and is raised with its original number, source and description, with
+'   any output-cleanup or Checks-write diagnostics appended.
 '
 ' STATE OWNERSHIP
 '   Resets all module state, then fills it for this run.
@@ -302,6 +304,7 @@ Public Function Calculate( _
     Dim checksFailure    As String     'Why the Checks sheet could not be written; "" if written
     Dim errNumber        As Long       'Unexpected error: number
     Dim errSource        As String     'Unexpected error: source
+    Dim withdrawalDetails As String    'Failures by sheet, distinct from the primary error
     Dim withdrawalStatus As String     'Whether every output could be withdrawn
     Dim errDescription   As String     'Unexpected error: description
 
@@ -330,7 +333,7 @@ Public Function Calculate( _
         ComputeNettingSets writeOutputs
         If writeOutputs Then
             WriteBuckets
-            If gEngineFault = "outputs" Then
+            If gEngineFault = "outputs" Or gEngineFault = "outputs+cleanup" Then
                 Err.Raise ERR_INJECTED_FAULT, "CORE_Engine.Calculate", "Injected output failure."
             End If
             WriteHedgingSets
@@ -346,9 +349,9 @@ Finish:
         If Not WriteChecks(checksFailure) Then
             Calculate = False
             withdrawalStatus = "results withdrawn"
-            If Not WithdrawOutputs() Then
-                withdrawalStatus = "output cleanup incomplete; old results may remain - unprotect or repair outputs and rerun"
-                checksFailure = checksFailure & "; " & withdrawalStatus
+            If Not WithdrawOutputs(withdrawalDetails) Then
+                withdrawalStatus = "output cleanup incomplete; old results may remain - unprotect or repair outputs and rerun. " & _
+                                   withdrawalDetails
             End If
             ForgetRunInputs
             WriteRunInfo Timer - t0, False, writeOutputs, "the Checks sheet could not be written (" & _
@@ -373,26 +376,33 @@ Finish:
 '------------------------------------------------------------------------------
 ' HANDLE UNEXPECTED ERROR
 '------------------------------------------------------------------------------
-    'Whatever was written so far is withdrawn, the error is logged on Checks
-    'and in the run summary, both best effort, and it is raised unchanged
-    'for M_Main to report.
+    'Attempt withdrawal of everything written so far, and log the original
+    'error on Checks and in the run summary, both best effort. Preserve its
+    'number/source/text and append any secondary failure for M_Main to report.
 Failed:
         errNumber = Err.Number
         errSource = Err.Source
         errDescription = Err.Description
         Calculate = False
         mRunInputs = ""
+        'NONE means no valid run; protected output cells may still remain.
         ForgetRunInputs
         withdrawalStatus = "results withdrawn"
-        If Not WithdrawOutputs() Then
-            withdrawalStatus = "output cleanup incomplete; old results may remain - unprotect or repair outputs and rerun"
-            errDescription = errDescription & " " & withdrawalStatus & "."
+        If Not WithdrawOutputs(withdrawalDetails) Then
+            withdrawalStatus = "output cleanup incomplete; old results may remain - unprotect or repair outputs and rerun. " & _
+                               withdrawalDetails
         End If
         LogMsg SEV_ERROR, "", "", "Run stopped by error " & errNumber & ": " & errDescription & _
                " - " & withdrawalStatus & "."
-        WriteChecks checksFailure
+        If Not WriteChecks(checksFailure) Then
+            withdrawalStatus = withdrawalStatus & "; Checks could not be updated (" & checksFailure & _
+                               "); Checks may show an earlier run."
+        End If
         WriteRunInfo Timer - t0, False, writeOutputs, "error " & errNumber & ": " & errDescription & _
                      "; " & withdrawalStatus
+        If Len(withdrawalDetails) > 0 Or Len(checksFailure) > 0 Then
+            errDescription = errDescription & " " & withdrawalStatus & "."
+        End If
         Err.Raise errNumber, errSource, errDescription
 
 End Function
@@ -3243,50 +3253,71 @@ Failed:
 End Sub
 
 
-Private Function WithdrawOutputs() As Boolean
+Private Function WithdrawOutputs(ByRef failureDetails As String) As Boolean
 '
 '==============================================================================
 '                               WithdrawOutputs
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Clear the output sheets after the Checks sheet could not be written,
-'   so that no result of this run is left looking valid (#36).
-'
+'   Attempt every output independently after a run fails (#36, review #85).
 ' RETURNS
-'   True when the sheets were cleared.
-'
+'   True only if all four clears succeeded. failureDetails is reset on entry
+'   and contains every failed sheet, error number, source and description.
 ' ERROR POLICY
-'   Contains any error and reports it through the result: the caller is
-'   already reporting a failure.
-'
+'   Each helper contains its own error; a failed clear never skips another.
+'   The caller keeps the original run error and appends cleanup diagnostics.
 ' UPDATED
-'   2026-10-07
+'   2026-10-08
 '==============================================================================
 '
+        failureDetails = ""
         WithdrawOutputs = True
-        If Not TryClearOutput(SH_TRADECALC, TC_NCOLS) Then WithdrawOutputs = False
-        If Not TryClearOutput(SH_BUCKETS, BK_NCOLS) Then WithdrawOutputs = False
-        If Not TryClearOutput(SH_HEDGING, HS_NCOLS) Then WithdrawOutputs = False
-        If Not TryClearOutput(SH_RESULTS, RS_NCOLS) Then WithdrawOutputs = False
+        If Not TryClearOutput(SH_TRADECALC, TC_NCOLS, failureDetails) Then WithdrawOutputs = False
+        If Not TryClearOutput(SH_BUCKETS, BK_NCOLS, failureDetails) Then WithdrawOutputs = False
+        If Not TryClearOutput(SH_HEDGING, HS_NCOLS, failureDetails) Then WithdrawOutputs = False
+        If Not TryClearOutput(SH_RESULTS, RS_NCOLS, failureDetails) Then WithdrawOutputs = False
 End Function
 
 
-Private Function TryClearOutput(ByVal sheetName As String, ByVal nCols As Long) As Boolean
+Private Function TryClearOutput( _
+    ByVal sheetName As String, _
+    ByVal nCols As Long, _
+    ByRef failureDetails As String) As Boolean
 '
 '==============================================================================
+'                                TryClearOutput
+'------------------------------------------------------------------------------
 ' PURPOSE
-'   Attempt one output independently so a protected sheet cannot prevent
-'   cleanup of the remaining outputs. The caller reports incomplete cleanup.
+'   Clear one output and capture its failure before any other operation.
+' INPUTS
+'   sheetName, nCols: output sheet and table width, starting at column A.
 ' RETURNS
-'   True only when this output was cleared.
+'   True only when this output was cleared. Appends any failure to
+'   failureDetails, preserving details from earlier sheets.
 ' ERROR POLICY
 '   Contains this cleanup failure; the original run error remains primary.
+' UPDATED
+'   2026-10-08
 '==============================================================================
+    Dim errNumber As Long         'Cleanup error, captured before formatting
+    Dim errSource As String       'Cleanup error source
+    Dim errDescription As String  'Cleanup error description
         On Error GoTo Failed
+        If gEngineFault = "outputs+cleanup" Then
+            If sheetName = SH_TRADECALC Or sheetName = SH_RESULTS Then
+                Err.Raise ERR_CLEANUP_FAILED, "CORE_Engine.TryClearOutput", "Injected output cleanup failure."
+            End If
+        End If
         ClearOutputBlock GetSheet(sheetName), FIRST_DATA_ROW, nCols
         TryClearOutput = True
         Exit Function
 Failed:
+        errNumber = Err.Number
+        errSource = Err.Source
+        errDescription = Err.Description
+        If Len(failureDetails) > 0 Then failureDetails = failureDetails & "; "
+        failureDetails = failureDetails & sheetName & " [error " & CStr(errNumber) & _
+                         "; source=" & errSource & "]: " & errDescription
 End Function
 
 

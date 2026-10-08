@@ -59,7 +59,7 @@ Attribute VB_Name = "TEST_MainState"
 '------------------------------------------------------------------------------
 ' MODULE CONSTANTS
 '------------------------------------------------------------------------------
-        Private Const EXPECTED_CASES   As Long = 14   'Cases in a complete run
+        Private Const EXPECTED_CASES   As Long = 18   'Cases in a complete run
 
 '------------------------------------------------------------------------------
 ' MODULE STATE
@@ -132,10 +132,14 @@ Public Sub RunMainStateTests()
         CaseCleanupFailure
         CaseChecksUnwritable
         CaseOutputWriteFailure
+        CaseOutputCleanupFailure
         CaseProtectedOutput SH_TRADECALC
         CaseProtectedOutput SH_BUCKETS
         CaseProtectedOutput SH_HEDGING
         CaseProtectedOutput SH_RESULTS
+        CaseProtectedOutput SH_TRADECALC, SH_HEDGING
+        CaseProtectedOutput SH_BUCKETS, SH_RESULTS
+        CaseProtectedOutput SH_TRADECALC, SH_RESULTS, True
         CaseStaleResults
         CaseSilentFlagPreserved
 
@@ -442,6 +446,7 @@ Private Sub CaseOutputWriteFailure()
 '------------------------------------------------------------------------------
     Dim result      As String    'Result line of the follow-up run
     Dim errNumber   As Long      'Error raised by the failed run
+    Dim errSource   As String    'Original error source
     Dim errText     As String    'Its description
     Dim summary     As String    'Results A2 after the failed run
 
@@ -456,9 +461,12 @@ Private Sub CaseOutputWriteFailure()
         result = M_Main.RunSACCR_Silent()
         errNumber = Err.Number
         errText = Err.Description
+        errSource = Err.Source
         On Error GoTo Unexpected
         CORE_Engine.gEngineFault = ""
         Check errNumber = ERR_INJECTED_FAULT, "expected the injected error, got " & errNumber & ": " & errText
+        Check errSource = "CORE_Engine.Calculate", "injected error source was replaced: " & errSource
+        Check errText = "Injected output failure.", "injected error description was replaced: " & errText
         Check IsBlankCell(GetSheet(SH_TRADECALC).Cells(FIRST_DATA_ROW, 1).Value), "TradeCalc rows were not withdrawn"
         Check IsBlankCell(GetSheet(SH_RESULTS).Cells(FIRST_DATA_ROW, 1).Value), "Results rows were not withdrawn"
         Check IsBlankCell(GetSheet(SH_BUCKETS).Cells(FIRST_DATA_ROW, 1).Value), "Buckets rows were not withdrawn"
@@ -484,53 +492,217 @@ Unexpected:
 End Sub
 
 
-Private Sub CaseProtectedOutput(ByVal protectedSheet As String)
+Private Sub CaseOutputCleanupFailure()
 '
 '==============================================================================
+'                           CaseOutputCleanupFailure
+'------------------------------------------------------------------------------
 ' PURPOSE
-'   One protected output must not prevent the other three from clearing.
-'   Retained cells must be reported as incomplete cleanup, never as success.
+'   A known primary write error survives two different cleanup errors. This
+'   complements the real protection cases, whose Excel errors can be alike.
 ' ERROR POLICY
-'   Unprotect the sheet owned by this case even after an unexpected failure.
+'   Always reset the fault seam; the normal recovery run clears retained data.
+' UPDATED
+'   2026-10-08
 '==============================================================================
-    Dim result As String       'Run result
-    Dim errNumber As Long      'Original run error
-    Dim sheetName As Variant   'Each output sheet
-    Dim ownsProtection As Boolean    'Only undo protection set by this case
+    Dim result As String       'Silent result
+    Dim errNumber As Long      'Raised primary error
+    Dim errSource As String    'Raised source
+    Dim errText As String      'Primary text with appended cleanup diagnostics
         On Error GoTo Unexpected
-        BeginCase "run.protected-output." & protectedSheet
-        If GetSheet(protectedSheet).ProtectContents Then
-            Fail "protected-output", "test requires initially unprotected " & protectedSheet
+        BeginCase "run.output-and-cleanup-failure"
+        SetState xlCalculationAutomatic, False, False
+        CORE_Engine.gEngineFault = "outputs+cleanup"
+        On Error Resume Next
+        result = M_Main.RunSACCR_Silent()
+        errNumber = Err.Number
+        errSource = Err.Source
+        errText = Err.Description
+        On Error GoTo Unexpected
+        CORE_Engine.gEngineFault = ""
+        Check errNumber = ERR_INJECTED_FAULT, "cleanup replaced the primary error number"
+        Check errSource = "CORE_Engine.Calculate", "cleanup replaced the primary source"
+        Check Left$(errText, Len("Injected output failure.")) = "Injected output failure.", "primary text lost"
+        Check InStr(errText, SH_TRADECALC & " [error " & CStr(ERR_CLEANUP_FAILED)) > 0, "first cleanup error lost"
+        Check InStr(errText, SH_RESULTS & " [error " & CStr(ERR_CLEANUP_FAILED)) > 0, "second cleanup error lost"
+        Check InStr(errText, "source=CORE_Engine.TryClearOutput]: Injected output cleanup failure.") > 0, _
+              "cleanup source/description lost"
+        Check InStr(1, errText, "results withdrawn", vbTextCompare) = 0, "incomplete cleanup reported as withdrawn"
+        Check Not IsBlankCell(GetSheet(SH_RESULTS).Cells(FIRST_DATA_ROW, 1).Value), "expected retained partial Results"
+        Check IsBlankCell(GetSheet(SH_BUCKETS).Cells(FIRST_DATA_ROW, 1).Value), "Buckets skipped after first cleanup failure"
+        Check IsBlankCell(GetSheet(SH_HEDGING).Cells(FIRST_DATA_ROW, 1).Value), "HedgingSets not cleared"
+        Check ChecksMention("Injected output failure."), "Checks lost primary failure"
+        Check ChecksMention("Injected output cleanup failure."), "Checks lost cleanup failure"
+        Check M_Main.ResultsStatus() = "NONE", "failed run left valid results"
+        CheckState xlCalculationAutomatic, False, False
+        result = M_Main.RunSACCR_Silent()
+        Check Left$(result, 9) = "RESULT=OK", "recovery run: " & result
+        Check M_Main.ResultsStatus() = "CURRENT", "recovery fingerprint missing"
+        Check Not ChecksMention("Injected output cleanup failure."), "recovery retained cleanup diagnostic"
+        CheckState xlCalculationAutomatic, False, False
+        Exit Sub
+Unexpected:
+        CORE_Engine.gEngineFault = ""
+        Fail "run.output-and-cleanup-failure", "unexpected error " & Err.Number & ": " & Err.Description
+End Sub
+
+
+Private Sub CaseProtectedOutput( _
+    ByVal protectedSheet As String, _
+    Optional ByVal secondSheet As String = "", _
+    Optional ByVal protectChecks As Boolean = False)
+'
+'==============================================================================
+'                             CaseProtectedOutput
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Protect early/late outputs, singly and together, with Checks writable or
+'   protected. Every writable output must clear, all cleanup failures must
+'   be named, the primary error must survive, and an unprotected rerun works.
+' INPUTS
+'   protectedSheet, secondSheet: outputs to protect (second may be empty).
+'   protectChecks: also make the diagnostic sheet unwritable.
+' ERROR POLICY
+'   Undo only protection owned by this case, including on unexpected errors.
+' UPDATED
+'   2026-10-08
+'==============================================================================
+    Dim result As String              'Run result
+    Dim errNumber As Long             'Reported run error
+    Dim errSource As String           'Reported error source
+    Dim errText As String             'Reported error description
+    Dim primaryNumber As Long         'First failing clear, before running engine
+    Dim primarySource As String       'Expected primary source
+    Dim primaryText As String         'Expected primary description
+    Dim probeNumber As Long           'One protected clear's error
+    Dim probeSource As String         'One protected clear's source
+    Dim probeText As String           'One protected clear's description
+    Dim detail(0 To 3) As String       'Expected exact cleanup detail per sheet
+    Dim lastRows(0 To 3) As Long       'Bounds before clearing (UsedRange may shrink)
+    Dim ownsProtection(0 To 3) As Boolean
+    Dim ownsChecks As Boolean         'Only undo protection set by this case
+    Dim sheetNames As Variant         'Output names in engine clear order
+    Dim widths As Variant             'Corresponding output table widths
+    Dim i As Long                     'Output index
+    Dim oldSummary As String          'Successful summary before protection
+    Dim statusFormula As Variant      'A3 formula/text must not be overwritten
+    Dim caseName As String            'Distinct regression identifier
+        On Error GoTo Unexpected
+        caseName = "run.protected-output." & protectedSheet
+        If Len(secondSheet) > 0 Then caseName = caseName & "+" & secondSheet
+        If protectChecks Then caseName = caseName & "+Checks"
+        BeginCase caseName
+        SetState xlCalculationAutomatic, False, False
+        sheetNames = Array(SH_TRADECALC, SH_BUCKETS, SH_HEDGING, SH_RESULTS)
+        widths = Array(TC_NCOLS, BK_NCOLS, HS_NCOLS, RS_NCOLS)
+        For i = 0 To 3
+            If GetSheet(CStr(sheetNames(i))).ProtectContents Then
+                Fail caseName, "test requires initially unprotected " & CStr(sheetNames(i))
+                Exit Sub
+            End If
+        Next i
+        If GetSheet(SH_CHECKS).ProtectContents Then
+            Fail caseName, "test requires initially unprotected Checks"
             Exit Sub
         End If
         result = M_Main.RunSACCR_Silent()
         Check Left$(result, 9) = "RESULT=OK", "setup run: " & result
-        For Each sheetName In Array(SH_TRADECALC, SH_BUCKETS, SH_HEDGING, SH_RESULTS)
-            GetSheet(CStr(sheetName)).Cells(FIRST_DATA_ROW, 1).Value = "OLD-OUTPUT"
-        Next sheetName
-        GetSheet(protectedSheet).Protect
-        ownsProtection = True
+        oldSummary = SafeStr(GetSheet(SH_RESULTS).Range(RUNINFO_CELL).Value)
+        statusFormula = GetSheet(SH_RESULTS).Range("A3").Formula
+        For i = 0 To 3
+            GetSheet(CStr(sheetNames(i))).Cells(FIRST_DATA_ROW, 1).Value = "OLD-OUTPUT"
+            lastRows(i) = UsedLastRow(GetSheet(CStr(sheetNames(i))))
+            If CStr(sheetNames(i)) = protectedSheet Or CStr(sheetNames(i)) = secondSheet Then
+                GetSheet(CStr(sheetNames(i))).Protect
+                ownsProtection(i) = True
+                'Capture Excel's localized error independently, before the run.
+                On Error Resume Next
+                ClearOutputBlock GetSheet(CStr(sheetNames(i))), FIRST_DATA_ROW, CLng(widths(i))
+                probeNumber = Err.Number
+                probeSource = Err.Source
+                probeText = Err.Description
+                On Error GoTo Unexpected
+                Check probeNumber <> 0, "protected clear probe did not fail"
+                If primaryNumber = 0 Then
+                    primaryNumber = probeNumber
+                    primarySource = probeSource
+                    primaryText = probeText
+                End If
+                detail(i) = CStr(sheetNames(i)) & " [error " & CStr(probeNumber) & _
+                            "; source=" & probeSource & "]: " & probeText
+            End If
+        Next i
+        If protectChecks Then
+            GetSheet(SH_CHECKS).Protect
+            ownsChecks = True
+        End If
         On Error Resume Next
         result = M_Main.RunSACCR_Silent()
         errNumber = Err.Number
+        errSource = Err.Source
+        errText = Err.Description
         On Error GoTo Unexpected
-        Check errNumber <> 0, "protected output did not fail the run"
-        For Each sheetName In Array(SH_TRADECALC, SH_BUCKETS, SH_HEDGING, SH_RESULTS)
-            If CStr(sheetName) <> protectedSheet Then
-                Check IsBlankCell(GetSheet(CStr(sheetName)).Cells(FIRST_DATA_ROW, 1).Value), _
-                      CStr(sheetName) & " retained old output"
+        Check errNumber = primaryNumber And errNumber <> 0, "primary error number was replaced"
+        Check errSource = primarySource, "primary error source was replaced: " & errSource
+        Check Left$(errText, Len(primaryText)) = primaryText, "original error description was lost: " & errText
+        Check InStr(1, errText, "output cleanup incomplete", vbTextCompare) > 0, "missing incomplete cleanup warning"
+        Check InStr(1, errText, "results withdrawn", vbTextCompare) = 0, "reported withdrawal despite retained outputs"
+        For i = 0 To 3
+            If ownsProtection(i) Then
+                Check SafeStr(GetSheet(CStr(sheetNames(i))).Cells(FIRST_DATA_ROW, 1).Value) = "OLD-OUTPUT", _
+                      CStr(sheetNames(i)) & " protected sentinel unexpectedly changed"
+                Check InStr(1, errText, detail(i), vbBinaryCompare) > 0, "missing cleanup detail: " & detail(i)
+                If Not protectChecks Then Check ChecksMention(detail(i)), "Checks lacks detail: " & detail(i)
+            Else
+                Check Application.CountA(GetSheet(CStr(sheetNames(i))).Range( _
+                      GetSheet(CStr(sheetNames(i))).Cells(FIRST_DATA_ROW, 1), _
+                      GetSheet(CStr(sheetNames(i))).Cells(lastRows(i), CLng(widths(i))))) = 0, _
+                      CStr(sheetNames(i)) & " retained output cells"
             End If
-        Next sheetName
-        Check ChecksMention("output cleanup incomplete"), "Checks did not report incomplete cleanup"
+        Next i
+        If ownsProtection(3) Then
+            Check SafeStr(GetSheet(SH_RESULTS).Range(RUNINFO_CELL).Value) = oldSummary, _
+                  "protected Results summary unexpectedly changed"
+            Check InStr(1, errText, "old results may remain", vbTextCompare) > 0, "retained Results not disclosed"
+        Else
+            Check InStr(1, SafeStr(GetSheet(SH_RESULTS).Range(RUNINFO_CELL).Value), _
+                  "output cleanup incomplete", vbTextCompare) > 0, "Results summary hides cleanup failure"
+        End If
+        If protectChecks Then
+            Check InStr(1, errText, "Checks could not be updated", vbTextCompare) > 0, "Checks failure was not reported"
+        Else
+            Check ChecksMention("output cleanup incomplete"), "Checks did not report incomplete cleanup"
+        End If
+        Check GetSheet(SH_RESULTS).Range("A3").Formula = statusFormula, "cleanup overwrote the status formula"
         Check M_Main.ResultsStatus() = "NONE", "failed run retained a current fingerprint"
-        GetSheet(protectedSheet).Unprotect
-        ownsProtection = False
+        Check Len(CORE_Engine.RunInputs) = 0, "failed run retained in-memory run inputs"
+        CheckState xlCalculationAutomatic, False, False
+        For i = 0 To 3
+            If ownsProtection(i) Then
+                GetSheet(CStr(sheetNames(i))).Unprotect
+                ownsProtection(i) = False
+            End If
+        Next i
+        If ownsChecks Then
+            GetSheet(SH_CHECKS).Unprotect
+            ownsChecks = False
+        End If
         result = M_Main.RunSACCR_Silent()
         Check Left$(result, 9) = "RESULT=OK", "recovery run: " & result
+        Check M_Main.ResultsStatus() = "CURRENT", "recovery did not publish a valid fingerprint"
+        Check Not ChecksMention("output cleanup incomplete"), "recovery retained obsolete failure diagnostics"
+        For i = 0 To 3
+            Check SafeStr(GetSheet(CStr(sheetNames(i))).Cells(FIRST_DATA_ROW, 1).Value) <> "OLD-OUTPUT", _
+                  CStr(sheetNames(i)) & " retained the old sentinel after recovery"
+        Next i
+        CheckState xlCalculationAutomatic, False, False
         Exit Sub
 Unexpected:
-        Fail "protected-output", "unexpected error " & Err.Number & ": " & Err.Description
-        If ownsProtection Then UnprotectOutput protectedSheet
+        Fail caseName, "unexpected error " & Err.Number & ": " & Err.Description
+        For i = 0 To 3
+            If ownsProtection(i) Then UnprotectOutput CStr(sheetNames(i))
+        Next i
+        If ownsChecks Then UnprotectOutput SH_CHECKS
 End Sub
 
 

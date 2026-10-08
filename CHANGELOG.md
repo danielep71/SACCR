@@ -256,8 +256,14 @@ Use only the categories needed by a release.
 
 - Runtime review safeguards: reject zero/negative global alpha (#71), recognize
   parameter rows below the FX table (#80), and attempt each output cleanup even
-  when another sheet is protected (#85). New input regressions are included;
-  Excel verification is still required before merge.
+  when another sheet is protected (#85). Cleanup reports every failed sheet
+  with its error number, source and description, appended to the original run
+  error. A secondary Checks-write failure is also reported. MainState now has
+  18 cases, including multiple protected outputs, protected Results + Checks,
+  preservation of the primary error and successful recovery. An empty run
+  fingerprint means no valid results, even if protected cells remain visible.
+  New input regressions are included; Excel verification is still required
+  before merge.
 - VBA synchronization refuses known retired repository components before
   changing the project (#71, #84, #87). Rebuild legacy workbooks from the current
   template; unrelated user components are left alone. Windows/Excel validation
