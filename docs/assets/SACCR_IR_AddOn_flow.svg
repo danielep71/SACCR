@@ -134,5 +134,5 @@
 <text x="450.0" y="1875" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#C7D2E0" text-anchor="middle" xml:space="preserve" >→  PFE = multiplier × AddOn_agg</text>
 <polyline points="700,1647.0 850,1647.0 850,1858.0 754,1858.0" fill="none" stroke="#B45309" stroke-width="2" stroke-linejoin="round" marker-end="url(#aa)"/>
 <text x="722" y="1639" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#B45309" text-anchor="start" xml:space="preserve" >No</text>
-<text x="90" y="1922" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" font-weight="400" fill="#475569" text-anchor="start" xml:space="preserve" >Dashed amber = decision point.  Grey chips = Basel CRE52 / CRR. Includes the 25 Feb 2021 CRR corrigendum.</text>
+<text x="90" y="1922" font-family="Inter, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12.5" font-weight="400" fill="#475569" text-anchor="start" xml:space="preserve" >Dashed amber = decision point.  Grey chips = Basel CRE52 / CRR. Includes the 11 Nov 2021 CRR corrigendum.</text>
 </svg>
