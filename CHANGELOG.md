@@ -254,6 +254,14 @@ Use only the categories needed by a release.
 
 ### Fixed
 
+- The IR add-on diagram includes both ten-business-day floors, separate
+  inflation hedging sets, and the distinct CRR/Basel one-year bucket boundary
+  (#77). The SD floor also applies under corrected CRR Article 279b.
+
+- The template README now lists CORE_Engine, SACCR_Formulas, CORE_Config and
+  CORE_Util, matching the renamed modules (#84). Only the C70 text changes;
+  formulas, styles, names, sheet CodeNames and all other package parts are preserved.
+
 - Fixture validation enforces quantity-specific units and rejects non-finite
   JSON numbers, including exponent overflow (#65; carries forward the unmerged
   fix from #76). The workbook gate now inspects every relationship part for
