@@ -425,10 +425,6 @@ Private Sub CaseOutputWriteFailure()
 '
 '==============================================================================
 '                            CaseOutputWriteFailure
-        CaseProtectedOutput SH_TRADECALC
-        CaseProtectedOutput SH_BUCKETS
-        CaseProtectedOutput SH_HEDGING
-        CaseProtectedOutput SH_RESULTS
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   An error after TradeCalc, Results and Buckets have been written, and
