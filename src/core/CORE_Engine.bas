@@ -3124,7 +3124,7 @@ Public Function LastRunInputs() As String
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Return the input fingerprint stored by the last completed run, or ""
-'   when no run's results are on the sheets.
+'   when no run's results are on the sheets (the name is empty or absent).
 '
 ' ERROR POLICY
 '   Contains the expected error of a missing name.
@@ -3188,18 +3188,20 @@ Public Sub ForgetRunInputs()
 '                               ForgetRunInputs
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Remove the stored fingerprint, because no run's results are on the
+'   Empty the stored fingerprint, because no run's results are on the
 '   sheets: after a failed or validation-only run, and after Clear outputs.
+'   The name is kept, empty, because the status formula on Results refers
+'   to it.
 '
 ' ERROR POLICY
-'   Contains any error, including the expected missing name.
+'   Contains any error.
 '
 ' UPDATED
 '   2026-10-07
 '==============================================================================
 '
         On Error GoTo Failed
-        ThisWorkbook.Names(RUN_INPUTS_NAME).Delete
+        ThisWorkbook.Names.Add Name:=RUN_INPUTS_NAME, RefersTo:="=""""", Visible:=False
 
 Failed:
 

@@ -487,8 +487,9 @@ Private Sub CaseStaleResults()
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   After a run the results are CURRENT; an edited input makes them STALE
-'   and Results A2 is marked when the sheet is activated; undoing the edit
-'   makes them CURRENT again; Clear outputs makes them NONE (#36).
+'   and the status formula in Results A3 says OUT OF DATE; undoing the edit
+'   makes them CURRENT again; Clear outputs makes them NONE (#36). Each
+'   status is checked both through ResultsStatus and in the cell.
 '
 ' UPDATED
 '   2026-10-07
@@ -501,7 +502,6 @@ Private Sub CaseStaleResults()
     Dim result    As String     'Result line of a run
     Dim mtmCell   As Range      'MtM of the first trade, edited and restored
     Dim saved     As Variant    'Its formula
-    Dim summary   As String     'Results A2
 
 '------------------------------------------------------------------------------
 ' RUN CASE
@@ -512,25 +512,27 @@ Private Sub CaseStaleResults()
         result = M_Main.RunSACCR_Silent()
         Check InStr(result, "; inputs=") > 0 And InStr(result, "; inputs=;") = 0, "result line names no inputs: " & result
         Check M_Main.ResultsStatus() = "CURRENT", "after a run: " & M_Main.ResultsStatus()
+        CheckStatusCell "Results current", "after a run"
 
-    'Edit one input, as a user would, then switch to Results.
+    'Edit one input, as a user would: the formula recalculates by itself.
         Set mtmCell = GetSheet(SH_TRADES).Cells(FIRST_DATA_ROW, TR_MTM)
         saved = mtmCell.Formula
         mtmCell.Value = ToDbl(mtmCell.Value, 0#) + 1#
         Check M_Main.ResultsStatus() = "STALE", "after an edit: " & M_Main.ResultsStatus()
-        M_Main.FlagStaleResults
-        summary = SafeStr(GetSheet(SH_RESULTS).Range(RUNINFO_CELL).Value)
-        Check Left$(summary, 11) = "OUT OF DATE", "Results A2 not marked: " & summary
+        CheckStatusCell "OUT OF DATE", "after an edit"
 
     'Undoing the edit brings the results back in line.
         mtmCell.Formula = saved
         Check M_Main.ResultsStatus() = "CURRENT", "after undoing the edit: " & M_Main.ResultsStatus()
+        CheckStatusCell "Results current", "after undoing the edit"
 
     'Clear outputs leaves no results; a new run makes them current again.
         M_Main.ClearOutputs
         Check M_Main.ResultsStatus() = "NONE", "after Clear outputs: " & M_Main.ResultsStatus()
+        CheckStatusCell "No results", "after Clear outputs"
         result = M_Main.RunSACCR_Silent()
         Check M_Main.ResultsStatus() = "CURRENT", "after a new run: " & M_Main.ResultsStatus()
+        CheckStatusCell "Results current", "after a new run"
         CheckState xlCalculationAutomatic, False, False
         Exit Sub
 
@@ -540,6 +542,38 @@ Private Sub CaseStaleResults()
 Unexpected:
         Fail "results.stale-after-input-change", "unexpected error " & Err.Number & ": " & Err.Description
         RestoreCell mtmCell, saved
+
+End Sub
+
+
+Private Sub CheckStatusCell( _
+    ByVal expectedStart As String, _
+    ByVal moment As String)
+'
+'==============================================================================
+'                               CheckStatusCell
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Check that the status formula in Results A3 starts with expectedStart,
+'   after Excel has recalculated what changed.
+'
+' UPDATED
+'   2026-10-07
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim shown   As String    'Text in Results A3
+
+'------------------------------------------------------------------------------
+' CHECK
+'------------------------------------------------------------------------------
+        Application.Calculate
+        shown = SafeStr(GetSheet(SH_RESULTS).Range(RESULTS_STATUS_CELL).Value)
+        Check Left$(shown, Len(expectedStart)) = expectedStart, _
+              "Results A3 " & moment & ": expected """ & expectedStart & "..."", found """ & shown & """"
 
 End Sub
 

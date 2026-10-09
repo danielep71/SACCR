@@ -99,7 +99,11 @@ Attribute VB_Name = "CORE_Config"
 '------------------------------------------------------------------------------
     'Hidden workbook name holding the input fingerprint of the last
     'completed run, so that results can be recognised as out of date (#36).
-        Public Const RUN_INPUTS_NAME   As String = "SACCR_RunInputs"    'Absent when no results exist
+    'It always exists and is empty when no results exist, so that the
+    'status formula on Results, which refers to it, recalculates when a run
+    'changes it.
+        Public Const RUN_INPUTS_NAME       As String = "SACCR_RunInputs"    'Empty when no results exist
+        Public Const RESULTS_STATUS_CELL   As String = "A3"                 'Results: status formula
 
 '------------------------------------------------------------------------------
 ' REGIMES

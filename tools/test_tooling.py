@@ -102,6 +102,16 @@ class SourceGateTests(unittest.TestCase):
         self.assertIn("src/workbook/T.xlsx: must not contain xl/vbaProject.bin", found)
         self.assertIn("src/workbook/T.xlsx: package still references document properties or a VBA project", found)
 
+    def test_dangling_vba_relationship_is_rejected(self) -> None:
+        for relationship_part in ("xl/_rels/workbook.xml.rels", "xl/worksheets/_rels/sheet1.xml.rels"):
+            with self.subTest(part=relationship_part):
+                self.write_workbook("src/workbook/T.xlsx", {
+                    "[Content_Types].xml": "<Types/>",
+                    "_rels/.rels": '<Relationships Target="xl/workbook.xml"/>',
+                    relationship_part: '<Relationship Type="http://schemas.microsoft.com/office/2006/relationships/vbaProject" Target="vbaProject.bin"/>',
+                })
+                self.assertTrue(any("still references" in f for f in self.findings()))
+
     def test_unreadable_workbook_is_rejected(self) -> None:
         self.write("src/workbook/T.xlsx", "not a zip")
         self.assertTrue(any("not a readable workbook package" in f for f in self.findings()))
