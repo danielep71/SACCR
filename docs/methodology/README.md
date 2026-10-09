@@ -97,9 +97,15 @@ have been compared for that rule.
 | Single-name credit factor | By credit quality step 1–6 (Art. 280c(5), Table 3) | By rating AAA to CCC (CRE52.72) | Same values: 0.38%, 0.38%/0.42%, 0.54%, 1.06%, 1.6%, 6.0% | T28 (illustrative) |
 | Supervisory delta of interest-rate and commodity options | Shifted by the regulatory lambda (`CRR-RTS` Art. 5) | CRE52.40 | Delta differs when a price or strike is near or below zero | T20–T23 (illustrative) |
 
-The cap of a margined netting set (CRR Art. 274(3) and 275(1) with EBA Q&A
-2023_6962; CRE52.2) is recorded as a difference once the wording of CRE52.2 has
-been compared.
+The cap of a margined netting set is not recorded as a difference. Both texts
+cap the EAD at that of the same netting set without margin (CRR Art. 274(3);
+CRE52.2), and both define the unmargined collateral without variation margin:
+CRR Art. 275(1) uses NICA (EBA Q&A 2023_6962), and CRE52.10 uses the net
+collateral of the NICA methodology in CRE52.17, adding posted variation margin
+with a negative sign only for a one-way margin agreement where the bank alone
+posts (CRE52.10, footnote 2), which CRE52.2 treats as unmargined. The engine's
+`BCBS` cap still includes variation margin (C = VM + NICA); this is examined in
+#39 before any change.
 
 <a id="parameters"></a>
 
