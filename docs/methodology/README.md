@@ -227,9 +227,11 @@ numbers were checked against the CRE52 contents for EAD and alpha (.1), the cap
 (.25), supervisory duration (.34), adjusted notional (.35, .36), delta (.39,
 .40, .41), basis and volatility (.46, .47, .73), maturity factor (.48–.49,
 .52–.53), MPOR (.50, .51), interest rate (.56, .57), FX (.58, .59), credit
-(.60, .61, .64), equity (.66, .68), commodity (.70) and the parameters (.72).
+(.60, .61, .64), equity (.65, .66, .68), commodity (.69, .70) and the
+parameters (.72).
 CRE52.64 is about credit and CRE52.68 about equity factors; the code cited them
-for equity and commodity until #33 corrected it.
+for equity and commodity until #33 corrected it. CRE52.65 and CRE52.69
+introduce the equity and commodity offsets.
 Test IDs `T01`–`T28` are listed in
 [`tests/README.md`](../../tests/README.md#ported-prototype-catalogue). Status
 uses four terms:
@@ -264,8 +266,8 @@ uses four terms:
 | `CRE52.57`, `CRR.280a` | Interest rate: hedging set per currency (CRE52.57(2)), maturity buckets (.57(3)), bucket formula or, under `BCBS` only, sum of absolutes (.57(5)) | `CORE_Engine.ProcessTrades`, `SACCR_IREffectiveNotional`, `CORE_Engine.ComputeHedgingSets` | Published: T03. Relations: `TEST_Invariants`, `TEST_Aggregation` | BCBS validated; CRR not validated |
 | `CRE52.58`, `CRE52.59`, `CRR.280b` | Foreign exchange: hedging set per currency pair, add-on = factor x abs(effective notional) | `CORE_Engine.ProcessTrades`, `CORE_Engine.ComputeHedgingSets` | None | Not validated |
 | `CRE52.60`, `CRE52.61`, `CRE52.64`, `CRR.280c` | Credit: entity buckets, single-factor aggregation, factor by rating (BCBS) or credit quality step (CRR) | `CORE_Engine.ProcessTrades`, `SACCR_FactorAggregation`, `CORE_Engine.ComputeHedgingSets` | Published EAD T06. Illustrative: T28. Relations: `TEST_Aggregation` | BCBS exercised; CRR not validated |
-| `CRE52.66`, `CRE52.68`, `CRR.280d` | Equity: entity buckets, single-factor aggregation | `CORE_Engine.ProcessTrades`, `SACCR_FactorAggregation`, `CORE_Engine.ComputeHedgingSets` | None | Not validated |
-| `CRE52.70`, `CRR.280e` | Commodity: hedging sets energy, metals, agricultural and other, commodity-type buckets, single-factor aggregation | `CORE_Engine.ProcessTrades`, `SACCR_FactorAggregation`, `CORE_Engine.ComputeHedgingSets` | Published EADs T07, T12 | BCBS exercised; CRR not validated |
+| `CRE52.65`, `CRE52.66`, `CRE52.68`, `CRR.280d` | Equity: entity buckets, single-factor aggregation | `CORE_Engine.ProcessTrades`, `SACCR_FactorAggregation`, `CORE_Engine.ComputeHedgingSets` | None | Not validated |
+| `CRE52.69`, `CRE52.70`, `CRR.280e` | Commodity: hedging sets energy, metals, agricultural and other, commodity-type buckets, single-factor aggregation | `CORE_Engine.ProcessTrades`, `SACCR_FactorAggregation`, `CORE_Engine.ComputeHedgingSets` | Published EADs T07, T12 | BCBS exercised; CRR not validated |
 | `CRR.277a`, `CRR.280e` | CRR climatic-conditions commodity hedging set, factor 18% | `CORE_Engine.ProcessTrades` | Illustrative: T27 | Not validated. The 18% factor was checked against Art. 280e(5) on 2026-10-09; that is a source check, not a numerical validation |
 | `CRR.277.1`, `CRR.280f` | CRR other-risks asset class, factor 8%; rejected under BCBS | `CORE_Engine.ProcessTrades`, `CORE_Engine.ComputeHedgingSets` | Illustrative: T24, T25, T26 | Not validated |
 | `CRE52.72` | Supervisory factors, correlations and option volatilities on Params | `CORE_Engine.LoadSFTable` | Published values T01–T14, for the factors their trades use | BCBS exercised for those factors; CRR not validated |
