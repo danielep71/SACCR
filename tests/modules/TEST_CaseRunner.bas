@@ -13,8 +13,9 @@ Attribute VB_Name = "TEST_CaseRunner"
 '   BeginSuite, BeginCase, LoadSavedInputs, SetParameter, AddNettingSet,
 '   AddTrade, SetInputCell, PatchCell, PatchName, RunCase, RunCaseExpectingStop,
 '   OutputNumber, ExpectNumber, ExpectText, ExpectTrue and EndSuite, for
-'   TEST_Cases, TEST_InputValidation and TEST_Aggregation. Option Private
-'   Module keeps them out of the external workbook automation API.
+'   TEST_Cases, TEST_InputValidation, TEST_Aggregation and TEST_Invariants.
+'   Option Private Module keeps them out of the external workbook automation
+'   API.
 '
 ' DEPENDENCIES
 '   CORE_Engine.Calculate; CORE_Util for sheet access; CORE_Config for the layout.
@@ -309,7 +310,8 @@ Public Sub LoadSavedInputs()
 '   Put the workbook's own inputs, saved by BeginSuite, back on the input
 '   sheets for the current case: its NettingSets and Trades rows and its
 '   AsOfDate and ReportingCcy. Used by TEST_Aggregation to run the demo
-'   portfolio in different row orders.
+'   portfolio in different row orders and by TEST_Invariants to check its
+'   results.
 '
 ' UPDATED
 '   2026-10-07

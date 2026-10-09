@@ -325,6 +325,27 @@ sets, credit entities or between a standard and a basis hedging set. Import it
 with `TEST_CaseRunner` and run `TEST_Aggregation.RunAggregationTests`; it ends
 with `RESULT=PASS; cases=10; checks=10; failures=0; restore=PASS`.
 
+### Invariant tests
+
+`tests/modules/TEST_Invariants.bas` checks relations that every result must
+satisfy, recomputed from the Results columns and the NettingSets inputs. On
+the workbook's own portfolio it checks, for each `VALID` netting set, that the
+aggregate add-on is the sum of the asset-class add-ons; RC follows its
+margined or unmargined formula and is never negative; the multiplier follows
+its formula, lies between the floor and 1 and is 1 when V - C is not
+negative; PFE is the multiplier times the aggregate add-on;
+EAD = alpha * (RC + PFE); and a margined netting set's EAD is the lower of the
+margined EAD and the unmargined cap, with the cap flag set exactly when the
+cap is lower. Withheld netting sets must show no figures and the TOTAL row
+must add up. It first checks that the portfolio has unmargined and margined,
+CRR and BCBS netting sets, a cap that applies and one that does not, and a
+multiplier below 1. A second run must write identical Results, TradeCalc,
+HedgingSets and Buckets. With `IRBucketOffset` set to FALSE no IR add-on may
+fall, and at least one must rise. Two opposite swaps, which give a zero
+add-on, must give EAD = 1.4 * RC. Import it with `TEST_CaseRunner` and run
+`TEST_Invariants.RunInvariantTests`; it ends with
+`RESULT=PASS; cases=4; checks=21; failures=0; restore=PASS`.
+
 For automation, `RunSACCR_Silent` returns a result line such as
 `RESULT=OK; operation=run; errors=0; warnings=0; trades_used=62; trades_read=65; incomplete=2; total_ead=...; inputs=...; cleanup=PASS`
 and raises any failure instead of showing a message box. `inputs` is the
