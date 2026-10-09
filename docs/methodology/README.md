@@ -6,10 +6,12 @@ decisions, and the trace from each rule to code and tests. The numerical
 test-case format is in [`TEST_CASES.md`](TEST_CASES.md).
 
 > [!IMPORTANT]
-> The prototype engine imported from `SACCR_Calculator.xlsm` implements CRR and
-> Basel CRE52, but no rule is yet validated under [`TEST_CASES.md`](TEST_CASES.md)
-> and the traceability table below is still empty. Every source is still to be
-> verified against its official text.
+> The engine implements CRR and Basel CRE52. Under
+> [`TEST_CASES.md`](TEST_CASES.md), only Basel rules are validated, by the
+> published CRE99 examples (T01–T14); no CRR rule is validated in v1.0.0
+> ([decision 8](#assumptions-and-scope)). The [traceability](#traceability)
+> table gives the status of each rule. The CRR and CRE52 rows of the source
+> register are still to be verified against their official texts.
 
 <a id="regulatory-basis"></a>
 
@@ -104,9 +106,57 @@ article or paragraph, for example `CRR.275.1` or `CRE52.<paragraph>`; `CRE52` al
 marks a paragraph not yet located. A rule shared by
 both regimes lists both IDs.
 
+Paragraph and article numbers are those cited by the code and the test cases.
+They are checked against the official texts when the `CRR` and `BCBS` rows of
+the source register are verified ([open decisions](#open-decisions) 1 and 2).
+Test IDs `T01`–`T28` are listed in
+[`tests/README.md`](../../tests/README.md#ported-prototype-catalogue). Status
+uses four terms:
+
+- **Validated**: a `published` output whose rule is this one passes in Excel
+  for that regime. Only these count for the
+  [completeness policy](TEST_CASES.md#completeness-policy).
+- **Exercised**: no published output names the rule, but a published value
+  that passes depends on it, so an error in it would very probably fail that
+  value. Not counted as validated.
+- **Not validated**: implemented; any cases are illustrative.
+- **Not implemented**: listed below the table.
+
 | Rule ID | Requirement | VBA procedure | Test cases | Status |
 | --- | --- | --- | --- | --- |
-| *none implemented yet* | | | | |
+| `CRE52.1`, `CRR.274.2` | EAD = alpha x (RC + PFE), alpha 1.4 | `CORE_Engine.ComputeNettingSets` | Published: T04, T06, T07, T10, T14. Illustrative: T15, T19, T25. Relations: `TEST_Invariants` | BCBS validated; CRR not validated |
+| `CRE52.2`, `CRR.274.3` | EAD of a margined netting set capped at its unmargined EAD; under CRR the cap uses C = NICA (EBA Q&A 2023_6962) | `CORE_Engine.ComputeNettingSets` | Illustrative: T15, T16, T17, T18. Relations: `TEST_Invariants` | Not validated: no published example makes the cap bind |
+| `CRE52.10`, `CRR.275.1` | RC of an unmargined netting set = max(V - C, 0) | `SACCR_ReplacementCost`, `CORE_Engine.ComputeNettingSets` | Published: T08. Illustrative: `illustrative-ir-swap-unmargined` | BCBS validated; CRR not validated |
+| `CRE52.18`, `CRR.275.2` | RC of a margined netting set = max(V - C, TH + MTA - NICA, 0) | `SACCR_ReplacementCost`, `CORE_Engine.ComputeNettingSets` | Published EAD T14 (Example 5) | BCBS exercised; CRR not validated |
+| `CRE52.20` | PFE = multiplier x aggregate add-on | `CORE_Engine.ComputeNettingSets` | Published EADs T04, T06, T07, T10, T14. Relations: `TEST_Invariants` | BCBS exercised; CRR not validated |
+| `CRE52.23`, `CRR.278.3` | Multiplier, floor 5% | `SACCR_Multiplier`, `CORE_Engine.ComputeNettingSets` | Published: T05, T13. Relations: `TEST_Invariants` | BCBS validated; CRR not validated |
+| `CRE52.25` | Aggregate add-on = sum of the asset-class add-ons | `CORE_Engine.ComputeNettingSets` | Published: T09, T12. Relations: `TEST_Invariants` | BCBS validated; CRR not validated |
+| `CRE52.34`, `CRR.279b` | Supervisory duration, floored at 10 business days, and adjusted notional of interest-rate and credit trades | `SACCR_SupervisoryDuration`, `CORE_Engine.ProcessTrades` | Published: T01 | BCBS validated; CRR not validated |
+| `CRE52.40`, `CRR.279a` | Supervisory delta of options | `SACCR_OptionDelta`, `CORE_Engine.ProcessTrades` | Published: T02. Illustrative: T21 | BCBS validated; CRR not validated |
+| `CRR-RTS.5` | CRR lambda shift for interest-rate and commodity options with negative or low prices | `SACCR_LambdaCRR`, `CORE_Engine.ProcessTrades` | Illustrative: T20, T23; T22 (rejected under BCBS) | Not validated |
+| `CRE52.41` | Supervisory delta of CDO tranches | `SACCR_CDODelta`, `CORE_Engine.ProcessTrades` | `TEST_Harness` (input domain only) | Not validated |
+| `CRE52.46`, `CRE52.47` | Basis and volatility transactions: own hedging sets, factor x 0.5 and x 5 | `CORE_Engine.ProcessTrades` | `TEST_Aggregation` (relations) | Not validated |
+| `CRE52.48`, `CRR.279c` | Maturity factor of an unmargined trade, sqrt(min(M, 1)), M floored at 10 business days | `SACCR_MaturityFactor`, `CORE_Engine.ProcessTrades` | Published EAD T07 (9-month trade) | BCBS exercised; CRR not validated |
+| `CRE52.50`, `CRE52.52`, `CRR.279c` | MPOR floors and maturity factor of a margined netting set, 1.5 x sqrt(MPOR / 250) | `CORE_Engine.LoadNettingSets`, `SACCR_MaturityFactor` | Published: T11; EAD T14 | BCBS validated (MPOR), exercised (maturity factor); CRR not validated |
+| `CRE52.56`, `CRE52.57`, `CRR.280a` | Interest rate: hedging set per currency, maturity buckets, bucket formula or sum of absolutes | `CORE_Engine.ProcessTrades`, `SACCR_IREffectiveNotional`, `CORE_Engine.ComputeHedgingSets` | Published: T03. Relations: `TEST_Invariants`, `TEST_Aggregation` | BCBS validated; CRR not validated |
+| `CRE52.58`, `CRE52.59`, `CRR.280b` | Foreign exchange: hedging set per currency pair, add-on = factor x abs(effective notional) | `CORE_Engine.ProcessTrades`, `CORE_Engine.ComputeHedgingSets` | None | Not validated |
+| `CRE52.60`, `CRE52.61`, `CRR.280c` | Credit: entity buckets, single-factor aggregation, factor by rating (BCBS) or credit quality step (CRR) | `CORE_Engine.ProcessTrades`, `SACCR_FactorAggregation`, `CORE_Engine.ComputeHedgingSets` | Published EAD T06. Illustrative: T28. Relations: `TEST_Aggregation` | BCBS exercised; CRR not validated |
+| `CRE52.64`, `CRE52.66`, `CRR.280d` | Equity: entity buckets, single-factor aggregation | `CORE_Engine.ProcessTrades`, `SACCR_FactorAggregation`, `CORE_Engine.ComputeHedgingSets` | None | Not validated |
+| `CRE52.68`, `CRE52.70`, `CRR.280e` | Commodity: hedging sets energy, metals, agricultural and other, commodity-type buckets, single-factor aggregation | `CORE_Engine.ProcessTrades`, `SACCR_FactorAggregation`, `CORE_Engine.ComputeHedgingSets` | Published EADs T07, T12 | BCBS exercised; CRR not validated |
+| `CRR.277a` | CRR climatic-conditions commodity hedging set | `CORE_Engine.ProcessTrades` | Illustrative: T27. Its supervisory factor is a placeholder to confirm in Art. 280e | Not validated |
+| `CRR.277.1`, `CRR.280f` | CRR other-risks asset class, factor 8%; rejected under BCBS | `CORE_Engine.ProcessTrades`, `CORE_Engine.ComputeHedgingSets` | Illustrative: T24, T25, T26 | Not validated |
+| `CRE52.72` | Supervisory factors, correlations and option volatilities on Params | `CORE_Engine.LoadSFTable` | Published values T01–T14, for the factors their trades use | BCBS exercised for those factors; CRR not validated |
+
+Not implemented, as recorded on the template's Basel_vs_CRR sheet; where the
+sheet says so, the user enters such trades in a form the engine supports: several margin agreements in one netting set
+(CRE52, `CRR.274.4`); one margin agreement covering several netting sets
+(`CRR.275.3`); the special treatment of sold options and sold credit
+protection (`CRR.274.5`, `CRR.274.7`); decomposition of option combinations
+(`CRR.274.6`); automated mapping of risk drivers (`CRR.277.2`, `CRR.277.3`);
+simplified SA-CCR (`CRR.281`) and the original exposure method (`CRR.282`).
+Collateral is an input after haircuts, and trade amounts are converted with
+the FX table on Params ([open decision](#open-decisions) 6); neither is
+validated.
 
 A rule is **validated** only when at least one case with a `published` or
 `independent` reference passes for it in each regime it claims; see the
