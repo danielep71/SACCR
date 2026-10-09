@@ -340,6 +340,18 @@ try {
         )
     }
 
+    # Refuse retired repository components before the first project mutation.
+    # Do not delete arbitrary user modules or try to migrate workbook structure.
+    $retiredNames = @(
+        "CoreScaffold", "SaccrScaffold", "M_Config", "M_Engine", "M_Util", "M_Formulas",
+        "TestHarness", "TestMainState", "CaseRunner", "TestCases", "TestInputValidation"
+    )
+    foreach ($retiredName in $retiredNames) {
+        if ($null -ne (Find-VbaComponent -VBProject $vbProject -Name $retiredName)) {
+            throw "Retired repository component '$retiredName' found. Rebuild from the current template and source; no VBA changes have been made."
+        }
+    }
+
     foreach ($file in $sourceFiles) {
         Sync-VbaSource -VBProject $vbProject -SourcePath $file.FullName
     }

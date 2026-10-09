@@ -220,7 +220,8 @@ Attribute VB_Name = "CORE_Engine"
 '------------------------------------------------------------------------------
     'Set only by TEST_MainState: "outputs" raises ERR_INJECTED_FAULT after
     'the first output sheets are written, to prove that a failed run
-    'withdraws them (#36). Empty in normal use.
+    'withdraws them (#36). "outputs+cleanup" also fails the TradeCalc and
+    'Results clears with a different error. Empty in normal use.
         Public gEngineFault   As String
 
 '------------------------------------------------------------------------------
@@ -285,7 +286,8 @@ Public Function Calculate( _
 '   hold the previous run's messages (#36). Any other error during the run
 '   clears the output sheets too, so that a run stopped halfway cannot
 '   leave tables from two runs, is logged on Checks and in the run summary,
-'   and is raised unchanged.
+'   and is raised with its original number, source and description, with
+'   any output-cleanup or Checks-write diagnostics appended.
 '
 ' STATE OWNERSHIP
 '   Resets all module state, then fills it for this run.
@@ -302,6 +304,8 @@ Public Function Calculate( _
     Dim checksFailure    As String     'Why the Checks sheet could not be written; "" if written
     Dim errNumber        As Long       'Unexpected error: number
     Dim errSource        As String     'Unexpected error: source
+    Dim withdrawalDetails As String    'Failures by sheet, distinct from the primary error
+    Dim withdrawalStatus As String     'Whether every output could be withdrawn
     Dim errDescription   As String     'Unexpected error: description
 
 '------------------------------------------------------------------------------
@@ -329,7 +333,7 @@ Public Function Calculate( _
         ComputeNettingSets writeOutputs
         If writeOutputs Then
             WriteBuckets
-            If gEngineFault = "outputs" Then
+            If gEngineFault = "outputs" Or gEngineFault = "outputs+cleanup" Then
                 Err.Raise ERR_INJECTED_FAULT, "CORE_Engine.Calculate", "Injected output failure."
             End If
             WriteHedgingSets
@@ -344,15 +348,17 @@ Public Function Calculate( _
 Finish:
         If Not WriteChecks(checksFailure) Then
             Calculate = False
-            If Not WithdrawOutputs() Then
-                checksFailure = checksFailure & "; the other output sheets could not be cleared either"
+            withdrawalStatus = "results withdrawn"
+            If Not WithdrawOutputs(withdrawalDetails) Then
+                withdrawalStatus = "output cleanup incomplete; old results may remain - unprotect or repair outputs and rerun. " & _
+                                   withdrawalDetails
             End If
             ForgetRunInputs
             WriteRunInfo Timer - t0, False, writeOutputs, "the Checks sheet could not be written (" & _
-                         checksFailure & "); results withdrawn, and Checks may show an earlier run"
+                         checksFailure & "); " & withdrawalStatus & ", and Checks may show an earlier run"
             On Error GoTo 0
             Err.Raise ERR_CHECKS_WRITE, "CORE_Engine.Calculate", "The Checks sheet could not be written (" & _
-                      checksFailure & "), so the run's results were withdrawn. Unprotect or repair the Checks " & _
+                      checksFailure & "); " & withdrawalStatus & ". Unprotect or repair the Checks " & _
                       "sheet and run again."
         End If
 
@@ -370,24 +376,33 @@ Finish:
 '------------------------------------------------------------------------------
 ' HANDLE UNEXPECTED ERROR
 '------------------------------------------------------------------------------
-    'Whatever was written so far is withdrawn, the error is logged on Checks
-    'and in the run summary, both best effort, and it is raised unchanged
-    'for M_Main to report.
+    'Attempt withdrawal of everything written so far, and log the original
+    'error on Checks and in the run summary, both best effort. Preserve its
+    'number/source/text and append any secondary failure for M_Main to report.
 Failed:
         errNumber = Err.Number
         errSource = Err.Source
         errDescription = Err.Description
         Calculate = False
         mRunInputs = ""
+        'NONE means no valid run; protected output cells may still remain.
         ForgetRunInputs
-        If Not WithdrawOutputs() Then
-            errDescription = errDescription & " The output sheets could not be cleared either."
+        withdrawalStatus = "results withdrawn"
+        If Not WithdrawOutputs(withdrawalDetails) Then
+            withdrawalStatus = "output cleanup incomplete; old results may remain - unprotect or repair outputs and rerun. " & _
+                               withdrawalDetails
         End If
         LogMsg SEV_ERROR, "", "", "Run stopped by error " & errNumber & ": " & errDescription & _
-               " - results withdrawn."
-        WriteChecks checksFailure
+               " - " & withdrawalStatus & "."
+        If Not WriteChecks(checksFailure) Then
+            withdrawalStatus = withdrawalStatus & "; Checks could not be updated (" & checksFailure & _
+                               "); Checks may show an earlier run."
+        End If
         WriteRunInfo Timer - t0, False, writeOutputs, "error " & errNumber & ": " & errDescription & _
-                     "; results withdrawn"
+                     "; " & withdrawalStatus
+        If Len(withdrawalDetails) > 0 Or Len(checksFailure) > 0 Then
+            errDescription = errDescription & " " & withdrawalStatus & "."
+        End If
         Err.Raise errNumber, errSource, errDescription
 
 End Function
@@ -712,10 +727,7 @@ Private Function ValidateSchema() As Boolean
     'about; with different values it is ambiguous. A workbook name equal to
     'the code takes precedence over the Params row (CORE_Util.GetParam); a
     'broken one would silently fall back to the row.
-        codes = Array(PRM_ASOF, PRM_REPCCY, PRM_ALPHA, PRM_FLOOR, PRM_DAYSYEAR, PRM_BDYEAR, _
-                      PRM_MINMAT, PRM_SDFLOOR, PRM_MPOR_BIL, PRM_MPOR_CLR, PRM_MPOR_LARGE, _
-                      PRM_BASIS, PRM_VOLF, PRM_RHO12, PRM_RHO23, PRM_RHO13, PRM_IRFULL, _
-                      PRM_REGIME, PRM_LAMIR, PRM_LAMCO)
+        codes = ParameterCodes()
         lastR = UsedLastRow(ws)
         If lastR >= 1 Then
             grid = ws.Range(ws.Cells(1, 1), ws.Cells(lastR, PRM_VALUE_COL)).Value
@@ -744,6 +756,37 @@ Private Function ValidateSchema() As Boolean
         Next i
         ValidateSchema = ok
 
+End Function
+
+
+Private Function ParameterCodes() As Variant
+'
+'==============================================================================
+' PURPOSE
+'   The parameter vocabulary shared by schema and table validation.
+' RETURNS
+'   An array of the supported parameter codes.
+'==============================================================================
+        ParameterCodes = Array(PRM_ASOF, PRM_REPCCY, PRM_ALPHA, PRM_FLOOR, PRM_DAYSYEAR, PRM_BDYEAR, _
+                      PRM_MINMAT, PRM_SDFLOOR, PRM_MPOR_BIL, PRM_MPOR_CLR, PRM_MPOR_LARGE, _
+                      PRM_BASIS, PRM_VOLF, PRM_RHO12, PRM_RHO23, PRM_RHO13, PRM_IRFULL, _
+                      PRM_REGIME, PRM_LAMIR, PRM_LAMCO)
+End Function
+
+
+Private Function IsParameterCode(ByVal key As String) As Boolean
+'
+'==============================================================================
+' PURPOSE
+'   Distinguish parameter rows from FX rows, including below table gaps.
+'==============================================================================
+    Dim code As Variant    'A supported parameter code
+        For Each code In ParameterCodes()
+            If StrComp(key, CStr(code), vbTextCompare) = 0 Then
+                IsParameterCode = True
+                Exit Function
+            End If
+        Next code
 End Function
 
 
@@ -965,6 +1008,10 @@ Private Function LoadParams() As Boolean
 '------------------------------------------------------------------------------
     'Defaults are the regulatory values: CRE52 and CRR Art. 274 to 280f.
         pAlpha = NumParam(PRM_ALPHA, 1.4)
+        If pAlpha <= 0# Then
+            LogMsg SEV_ERROR, SH_PARAMS, PRM_ALPHA, "Alpha must be greater than zero."
+            Exit Function
+        End If
         pFloor = NumParam(PRM_FLOOR, 0.05)
         pDaysYear = NumParam(PRM_DAYSYEAR, 365#)
         pBDYear = NumParam(PRM_BDYEAR, 250#)
@@ -1328,9 +1375,9 @@ Private Function ValuesAfterEnd( _
 ' SEARCH
 '------------------------------------------------------------------------------
         For r = endRow To lastR
-            If IsNum(ws.Cells(r, valueCol).Value) Then
+            k = UTxt(ws.Cells(r, 1).Value)
+            If IsNum(ws.Cells(r, valueCol).Value) And Not (valueCol = PRM_VALUE_COL And IsParameterCode(k)) Then
                 ValuesAfterEnd = True
-                k = UTxt(ws.Cells(r, 1).Value)
                 If Len(k) = 0 Then
                     LogMsg SEV_ERROR, SH_PARAMS, "", tableName & " row has a value but no key - not read.", r
                 Else
@@ -3208,33 +3255,71 @@ Failed:
 End Sub
 
 
-Private Function WithdrawOutputs() As Boolean
+Private Function WithdrawOutputs(ByRef failureDetails As String) As Boolean
 '
 '==============================================================================
 '                               WithdrawOutputs
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Clear the output sheets after the Checks sheet could not be written,
-'   so that no result of this run is left looking valid (#36).
-'
+'   Attempt every output independently after a run fails (#36, review #85).
 ' RETURNS
-'   True when the sheets were cleared.
-'
+'   True only if all four clears succeeded. failureDetails is reset on entry
+'   and contains every failed sheet, error number, source and description.
 ' ERROR POLICY
-'   Contains any error and reports it through the result: the caller is
-'   already reporting a failure.
-'
+'   Each helper contains its own error; a failed clear never skips another.
+'   The caller keeps the original run error and appends cleanup diagnostics.
 ' UPDATED
-'   2026-10-07
+'   2026-10-08
 '==============================================================================
 '
-        On Error GoTo Failed
-        ClearOutputSheets
+        failureDetails = ""
         WithdrawOutputs = True
+        If Not TryClearOutput(SH_TRADECALC, TC_NCOLS, failureDetails) Then WithdrawOutputs = False
+        If Not TryClearOutput(SH_BUCKETS, BK_NCOLS, failureDetails) Then WithdrawOutputs = False
+        If Not TryClearOutput(SH_HEDGING, HS_NCOLS, failureDetails) Then WithdrawOutputs = False
+        If Not TryClearOutput(SH_RESULTS, RS_NCOLS, failureDetails) Then WithdrawOutputs = False
+End Function
+
+
+Private Function TryClearOutput( _
+    ByVal sheetName As String, _
+    ByVal nCols As Long, _
+    ByRef failureDetails As String) As Boolean
+'
+'==============================================================================
+'                                TryClearOutput
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Clear one output and capture its failure before any other operation.
+' INPUTS
+'   sheetName, nCols: output sheet and table width, starting at column A.
+' RETURNS
+'   True only when this output was cleared. Appends any failure to
+'   failureDetails, preserving details from earlier sheets.
+' ERROR POLICY
+'   Contains this cleanup failure; the original run error remains primary.
+' UPDATED
+'   2026-10-08
+'==============================================================================
+    Dim errNumber As Long         'Cleanup error, captured before formatting
+    Dim errSource As String       'Cleanup error source
+    Dim errDescription As String  'Cleanup error description
+        On Error GoTo Failed
+        If gEngineFault = "outputs+cleanup" Then
+            If sheetName = SH_TRADECALC Or sheetName = SH_RESULTS Then
+                Err.Raise ERR_CLEANUP_FAILED, "CORE_Engine.TryClearOutput", "Injected output cleanup failure."
+            End If
+        End If
+        ClearOutputBlock GetSheet(sheetName), FIRST_DATA_ROW, nCols
+        TryClearOutput = True
         Exit Function
-
 Failed:
-
+        errNumber = Err.Number
+        errSource = Err.Source
+        errDescription = Err.Description
+        If Len(failureDetails) > 0 Then failureDetails = failureDetails & "; "
+        failureDetails = failureDetails & sheetName & " [error " & CStr(errNumber) & _
+                         "; source=" & errSource & "]: " & errDescription
 End Function
 
 

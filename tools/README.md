@@ -57,6 +57,10 @@ creates a timestamped safety backup unless `-NoBackup` is supplied. As requested
 by the owner, it deletes this temporary backup after a successful save and
 retains it on failure. It is not a persistent rollback archive.
 
+The synchronizer rejects known retired repository modules before changing any
+VBA component. Rebuild such a workbook from the current template and source;
+it does not migrate old module names or delete unrelated user components.
+
 It requires Windows desktop Excel and Excel's **Trust access to the VBA project
 object model** setting. The workbook VBA project must not be password-locked.
 
