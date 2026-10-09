@@ -259,6 +259,10 @@ Use only the categories needed by a release.
 
 ### Fixed
 
+- Installation instructions now show 35 input-validation cases and checks,
+  matching the merged suite and recorded Excel result (#91), and describe
+  the formula-based status from #89 as integrated rather than pending.
+
 - Runtime review safeguards: reject zero/negative global alpha (#71), recognize
   parameter rows below the FX table (#80), and attempt each output cleanup even
   when another sheet is protected (#85). Cleanup reports every failed sheet

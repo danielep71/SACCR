@@ -261,8 +261,8 @@ proving secondary errors do not replace the original. A protected Results sheet 
 its old table and A2 summary: the raised error (and Checks, when writable) must
 say cleanup is incomplete. `ResultsStatus() = "NONE"` means no valid completed
 run fingerprint, not proof that all output cells are empty. The tests preserve
-A3 so the formula-based status change in pending PR #89 can be integrated
-without a cleanup write to that cell.
+A3, retaining the formula-based status implemented in PR #89 without a cleanup
+write to that cell.
 
 Run:
 
@@ -312,7 +312,7 @@ reference with a reserved character and an interest-rate risk factor that is
 not a currency. Every patched cell and name is restored. It needs a workbook
 built from the template. Import it with `TEST_CaseRunner` and run
 `TEST_InputValidation.RunInputValidationTests`; it ends with
-`RESULT=PASS; cases=32; checks=32; failures=0; restore=PASS`.
+`RESULT=PASS; cases=35; checks=35; failures=0; restore=PASS`.
 
 ### Aggregation tests
 
