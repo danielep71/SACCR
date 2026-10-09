@@ -56,6 +56,7 @@ before citing a new one.
 | Inputs | Trade-level data supplied by the caller; SACCR does not price trades or source market data |
 | Supervisory parameters | Taken from the cited regime text and recorded in the parameter table below, never typed in code without a reference |
 | Running test cases | Decided 2026-10-06 (decision 7, #44): VBA generated from the JSON by a checked tool; cases feed the engine through its input sheets. See [`TEST_CASES.md`](TEST_CASES.md#consumption) |
+| Evidence for v1.0.0 | Decided 2026-10-09 (decision 8, #44): v1.0.0 validates rules only with the `published` values of BCBS 279 Annex 4 (CRE99), checked against the registered text. It has no `independent` values: the project has one maintainer, who also wrote the code under test. Every other case stays `illustrative`. Because the published examples are Basel examples, rules under `CRR` are implemented but not validated in v1.0.0, and the release says so. A later release cross-checks the results against a second source |
 
 <a id="open-decisions"></a>
 
