@@ -40,8 +40,8 @@ a later version is a new row, not an edit.
 
 | ID | Source | Scope relied on | Version / date | Status |
 | --- | --- | --- | --- | --- |
-| `CRR` | Regulation (EU) No 575/2013, Part Three, Title II, Chapter 6, Section 3 (Articles 274–280f), as amended by Regulation (EU) 2019/876 and Regulation (EU) 2024/1623 | SA-CCR exposure value, replacement cost, PFE, add-ons | Consolidated text: *to record* | To verify |
-| `CRR-RTS` | Commission Delegated Regulation (EU) 2021/931 | Primary risk driver and risk-category mapping; supervisory delta of interest-rate options | *to record* | To verify |
+| `CRR` | Regulation (EU) No 575/2013, Part Three, Title II, Chapter 6, Section 3 (Articles 274–280f), as amended by Regulation (EU) 2019/876 and Regulation (EU) 2024/1623 | SA-CCR exposure value, replacement cost, PFE, add-ons | Consolidated text of 26.06.2026 (version 021.001), EUR-Lex | Articles 274(2)–(7), 275, 277, 277a, 278(3), 279a–279c, 280–280f and 285(2)–(5) checked 2026-10-09 |
+| `CRR-RTS` | Commission Delegated Regulation (EU) 2021/931, as amended by Delegated Regulation (EU) 2025/855 | Primary risk driver and risk-category mapping; supervisory delta and lambda shift of interest-rate and commodity options | Consolidated text of 25.05.2025 (version 001.001), EUR-Lex | Article 5 checked 2026-10-09; the mapping articles not yet |
 | `BCBS` | Basel Framework, chapter CRE52 | Basel SA-CCR | Effective version: *to record* | To verify |
 | `BCBS-279` | BCBS, *The standardised approach for measuring counterparty credit risk exposures* (2014) | Background; Annex 4a worked examples (printed pages 22–30) | March 2014, revised April 2014 | Example 4 checked 2026-10-09 |
 | `CRE99` | Basel Framework, chapter CRE99, *Application guidance*: the SA-CCR worked examples | Published values of the `cre99-example-*` cases. Amounts in USD thousands; intermediate results unrounded, displayed results and final EAD rounded (CRE99.20); 250 business days a year (CRE99.28) | Effective 1 January 2023, last updated 27 March 2020 | Examples 1–5: the values used by the cases checked 2026-10-09 |
@@ -60,7 +60,7 @@ before citing a new one.
 | Supervisory parameters | Taken from the cited regime text and recorded in the parameter table below, never typed in code without a reference |
 | Running test cases | Decided 2026-10-06 (decision 7, #44): VBA generated from the JSON by a checked tool; cases feed the engine through its input sheets. See [`TEST_CASES.md`](TEST_CASES.md#consumption) |
 | Evidence for v1.0.0 | Decided 2026-10-09 (decision 8, #44): v1.0.0 validates rules only with the `published` values of BCBS 279 Annex 4 (CRE99), checked against the registered text. It has no `independent` values: the project has one maintainer, who also wrote the code under test. Every other case stays `illustrative`. Because the published examples are Basel examples, rules under `CRR` are implemented but not validated in v1.0.0, and the release says so. A later release cross-checks the results against a second source |
-| Sources | Decided 2026-10-09 (decisions 1 and 2, #33): `CRR` is the consolidated CRR as at a date recorded when its text is checked, with Delegated Regulation (EU) 2021/931 as amended by (EU) 2025/855 and EBA Q&A 2023_6962; `BCBS` is the Basel Framework CRE52 in force, with its effective date recorded the same way. Until then those source-register rows stay "To verify" |
+| Sources | Decided 2026-10-09 (decisions 1 and 2, #33): `CRR` is the consolidated CRR of 26.06.2026 (version 021.001), checked on 2026-10-09, with Delegated Regulation (EU) 2021/931 as amended by (EU) 2025/855 and EBA Q&A 2023_6962; `BCBS` is the Basel Framework CRE52 in force, with its effective date recorded the same way. Until then those source-register rows stay "To verify" |
 | Scope | Decided 2026-10-09 (decision 3, #33): the full SA-CCR only. Simplified SA-CCR (CRR Article 281), the original exposure method (Article 282), exposures to central counterparties, securities financing transactions, CVA and RWA are outside v1.0.0 and planned in #107 (v1.2.0). Inputs that ask for them are rejected; a limitation stated only in prose is not enough |
 | Margined netting sets | Decided 2026-10-09 (decision 4, #33): in scope for v1.0.0, with VM, NICA, threshold, MTA and MPOR as inputs |
 | Day count | Decided 2026-10-09 (decision 5, #33): S, E, M and T in years of 365 calendar days (`DaysPerYear`); floors and MPOR in business days of 250 a year (`BusinessDaysPerYear`). A test case may set `DaysPerYear` to reproduce a published maturity |
@@ -77,10 +77,9 @@ moved into the tables above; none may be assumed by code or tests meanwhile.
 
 | # | Decision | Notes |
 | ---: | --- | --- |
-| 1 | Consolidation date of the CRR text implemented | Principle decided (Sources, above); the date is recorded when the text is checked (#33) |
 | 2 | Effective date of the CRE52 text implemented | Principle decided (Sources, above); the date is recorded when the text is checked (#33) |
 
-Decisions 3 to 6, 9 and 10 were settled on 2026-10-09 in #33 and are recorded
+Decisions 1, 3 to 6, 9 and 10 were settled on 2026-10-09 in #33 and are recorded
 in [Assumptions and scope](#assumptions-and-scope).
 
 <a id="regime-differences"></a>
@@ -99,9 +98,58 @@ have been compared for that rule.
 
 ## 🔢 Supervisory parameters
 
+Values checked against the consolidated CRR of 26.06.2026 and `CRR-RTS` Article
+5 on 2026-10-09; each matches the template's Params sheet. The `BCBS` values are
+added when CRE52 is checked.
+
 | Parameter | Value | Regime | Source locator | Used by |
 | --- | --- | --- | --- | --- |
-| *none recorded yet* | | | | |
+| Alpha | 1.4 | CRR | Art. 274(2) | `Alpha` |
+| Multiplier floor | 5% | CRR | Art. 278(3) | `MultiplierFloor` |
+| Supervisory discount rate R | 5% | CRR | Art. 279b(1)(a) | `SACCR_SupervisoryDuration` |
+| Supervisory duration floor | 10 / OneBusinessYear | CRR | Art. 279b(1)(a) | `SDFloorBD` |
+| Maturity floor, unmargined | 10 / OneBusinessYear | CRR | Art. 279c(1)(a) | `MinMaturityBD` |
+| Maturity factor, margined | 3/2 x sqrt(MPOR / OneBusinessYear) | CRR | Art. 279c(1)(b) | `SACCR_MaturityFactor` |
+| MPOR floor | 10 business days; 5 for transactions between a client and a clearing member | CRR | Art. 285(2)(b); Art. 279c(1)(b) | `MPORFloorBilateral`, `MPORFloorCleared` |
+| MPOR floor, over 5 000 trades or illiquid collateral or a hard-to-replace OTC derivative | 20 business days | CRR | Art. 285(3) | `MPORFloorLarge` |
+| MPOR with margin disputes | at least double | CRR | Art. 285(4) | `CORE_Engine.LoadNettingSets` |
+| MPOR with remargining every N days | F + N - 1 | CRR | Art. 285(5) | `CORE_Engine.LoadNettingSets` |
+| Hedging-set coefficient | 1; 5 for volatility; 0.5 for basis | CRR | Art. 280 | `VolatilityFactor`, `BasisFactor` |
+| Interest rate: factor; option volatility | 0.5%; 50% | CRR | Art. 280a(2); `CRR-RTS` Art. 5(3) | Params row `IR` |
+| Interest rate: buckets; cross terms | <= 1, 1 to 5, > 5 years; 1.4, 1.4, 0.6 | CRR | Art. 280a(3), Table 2 | `IRCorrBucket12`, `IRCorrBucket23`, `IRCorrBucket13` |
+| Foreign exchange: factor; option volatility | 4%; 15% | CRR | Art. 280b(2); Art. 279a Table 1 | Params row `FX` |
+| Credit, single name: factor by credit quality step 1 to 6 | 0.38%, 0.42%, 0.54%, 1.06%, 1.6%, 6.0% | CRR | Art. 280c(5), Table 3 | Params rows `CR_CQS1` to `CR_CQS6` |
+| Credit, unrated single name | 0.54% under the standardised approach, 1.6% where Art. 128 applies; IRB banks map the internal rating | CRR | Art. 280c(5)(a) | Entered as `CQS3`, `CQS5` or the mapped step |
+| Credit, quoted index: factor | 0.38% investment grade; 1.06% non-investment grade | CRR | Art. 280c(5), Table 4 | Params rows `CR_IG_INDEX`, `CR_SG_INDEX` |
+| Credit: correlation; option volatility | 50% single name, 80% index; 100% single name, 80% index | CRR | Art. 280c(3); Art. 279a Table 1 | Params credit rows |
+| Equity: factor; correlation; option volatility | 32%, 50%, 120% single name; 20%, 80%, 75% index | CRR | Art. 280d(3)–(4); Art. 279a Table 1 | Params rows `EQ_SINGLE`, `EQ_INDEX` |
+| Commodity: factor | 18%; 40% for electricity | CRR | Art. 280e(5) | Params `CO_` rows |
+| Commodity, climatic conditions: factor | 18% (a commodity hedging set other than electricity) | CRR | Art. 277a(1)(e)(v); Art. 280e(5) | Params row `CO_CLIMATIC` |
+| Commodity: correlation; option volatility | 40%; 70%, 150% for electricity | CRR | Art. 280e(4); `CRR-RTS` Art. 5(3) | Params `CO_` rows |
+| Other risks: factor; option volatility | 8%; 150% | CRR | Art. 280f(2); Art. 279a Table 1 | Params row `OT` |
+| Lambda thresholds | 0.10% for interest rate; 0.1 for commodity | CRR | `CRR-RTS` Art. 5(2) | `LambdaThresholdIR`, `LambdaThresholdCO` |
+
+Points found in the CRR text that need a change or a decision (#33):
+
+- Article 280a prints only the formula with offsets across maturity buckets.
+  `IRBucketOffset` = FALSE must therefore not apply to `CRR` netting sets
+  ([decision 9](#assumptions-and-scope)).
+- Article 277(4)(a) maps inflation to interest rate, and Article 277a(1) puts
+  inflation trades in their own hedging set per currency. The engine accepts
+  only a three-letter currency as an interest-rate risk factor, so inflation
+  trades cannot be entered yet.
+- Article 274(5) (a netting set of sold options set to zero) and 274(7) (a
+  credit derivative long the underlying, that is protection sold, capped at the
+  unpaid premium) are options: an institution *may* apply them. Not applying
+  them gives a higher exposure value and is permitted.
+- Article 274(4) (several margin agreements, or margined and unmargined trades,
+  in one netting set) and 275(3) (one margin agreement for several netting
+  sets) cannot be expressed in the input sheets.
+- Article 280c(5)(b)(ii) (an unlisted multi-name credit position takes the
+  notional-weighted factor of its constituents) is not automated.
+- Articles 279b and 279c express S, E, M and T in years "using the relevant
+  business day convention"; [decision 5](#assumptions-and-scope) uses 365
+  calendar days.
 
 <a id="traceability"></a>
 
