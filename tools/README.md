@@ -53,7 +53,9 @@ modules are replaced from source; `ThisWorkbook` and worksheet document modules
 keep their workbook objects and only their code text is replaced. It disables
 Excel events, macro execution, external-link updates and automatic calculation
 while synchronizing, checks that the sheet names/CodeNames are unchanged, and
-creates a timestamped backup unless `-NoBackup` is supplied.
+creates a timestamped safety backup unless `-NoBackup` is supplied. As requested
+by the owner, it deletes this temporary backup after a successful save and
+retains it on failure. It is not a persistent rollback archive.
 
 It requires Windows desktop Excel and Excel's **Trust access to the VBA project
 object model** setting. The workbook VBA project must not be password-locked.
