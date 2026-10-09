@@ -251,6 +251,11 @@ Use only the categories needed by a release.
   the prefixes. A workbook built before the rename must be rebuilt from the
   template: importing the renamed modules next to the old ones gives
   duplicate declarations.
+- The project is licensed under the Mozilla Public License 2.0 instead of the
+  MIT License. MPL 2.0 is file-level copyleft: modified versions of the
+  project's files must stay under MPL 2.0 and their source must be available
+  when distributed; the files can still be combined with code under other
+  licenses.
 
 ### Fixed
 
