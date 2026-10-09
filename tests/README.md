@@ -33,8 +33,11 @@ Rules:
 ## Ported prototype catalogue
 
 The 28 checks of the prototype workbook's TestCatalogue sheet (#59), with the
-catalogue's expected value and tolerance. Inputs come from the template's
-NettingSets and Trades sheets, all in EUR, valued on 2026-09-30. Netting sets
+catalogue's expected value. Inputs come from the template's NettingSets and
+Trades sheets, valued on 2026-09-30. The `cre99-example-*` cases are in USD,
+unscaled: CRE99 prints USD thousands, so their amounts and expected values are
+the printed figures times 1,000, with a tolerance of half a printed unit
+(500 USD). The other cases keep the template's figures, labelled EUR. Netting sets
 that the workbook duplicates per regime with identical inputs (`BCBS-EX5` and
 `CRR-EX5`, `BCBS-VMCAP` and `CRR-VMCAP`, `BCBS-NEGIR` and `CRR-NEGIR`) are one
 fixture with an expected file per regime. T22 and T26 read trades `NIR-B` and
@@ -43,21 +46,21 @@ fixture with an expected file per regime. T22 and T26 read trades `NIR-B` and
 
 | Test | Case and regime | Quantity (trade) | Expected | Class |
 | --- | --- | --- | --- | --- |
-| T01 | `cre99-example-1.bcbs` | `adjusted_notional` (EX1-T1) | 78,694 EUR | published |
-| T02 | `cre99-example-1.bcbs` | `supervisory_delta` (EX1-T3) | -0.27 | published |
-| T03 | `cre99-example-1.bcbs` | `add_on.interest_rate` | 347 EUR | published |
-| T04 | `cre99-example-1.bcbs` | `exposure_value` | 569 EUR | published |
+| T01 | `cre99-example-1.bcbs` | `adjusted_notional` (EX1-T1) | 78,694,000 USD | published |
+| T02 | `cre99-example-1.bcbs` | `supervisory_delta` (EX1-T3) | -0.2694 | published |
+| T03 | `cre99-example-1.bcbs` | `add_on.interest_rate` | 347,000 USD | published |
+| T04 | `cre99-example-1.bcbs` | `exposure_value` | 569,000 USD | published |
 | T05 | `cre99-example-2.bcbs` | `multiplier` | 0.965 | published |
-| T06 | `cre99-example-2.bcbs` | `exposure_value` | 381 EUR | published |
-| T07 | `cre99-example-3.bcbs` | `exposure_value` | 5,406 EUR | published |
-| T08 | `cre99-example-4.bcbs` | `replacement_cost` | 40 EUR | published |
-| T09 | `cre99-example-4.bcbs` | `aggregate_add_on` | 629 EUR | published |
-| T10 | `cre99-example-4.bcbs` | `exposure_value` | 936 EUR | published |
+| T06 | `cre99-example-2.bcbs` | `exposure_value` | 381,000 USD | published |
+| T07 | `cre99-example-3.bcbs` | `exposure_value` | 5,406,000 USD | published |
+| T08 | `cre99-example-4.bcbs` | `replacement_cost` | 40,000 USD | published |
+| T09 | `cre99-example-4.bcbs` | `aggregate_add_on` | 629,000 USD | published |
+| T10 | `cre99-example-4.bcbs` | `exposure_value` | 936,000 USD | published |
 | T11 | `cre99-example-5.bcbs` | `margin_period_of_risk` | 14 business days | published |
-| T12 | `cre99-example-5.bcbs` | `aggregate_add_on` | 1,401 EUR | published |
+| T12 | `cre99-example-5.bcbs` | `aggregate_add_on` | 1,401,000 USD | published |
 | T13 | `cre99-example-5.bcbs` | `multiplier` | 0.958 | published |
-| T14 | `cre99-example-5.bcbs` | `exposure_value` | 1,879 EUR | published |
-| T15 | `cre99-example-5.crr` | `exposure_value` | 1,879 EUR | illustrative |
+| T14 | `cre99-example-5.bcbs` | `exposure_value` | 1,879,000 USD | published |
+| T15 | `cre99-example-5.crr` | `exposure_value` | 1,879,000 USD | illustrative |
 | T16 | `illustrative-posted-vm-cap.bcbs` | `exposure_value` | 376592788.3471456 EUR | illustrative |
 | T17 | `illustrative-posted-vm-cap.crr` | `exposure_value` | 40774849.34860364 EUR | illustrative |
 | T18 | `illustrative-posted-vm-cap.crr` | `cap_applied` | `Y` | illustrative |
@@ -72,11 +75,12 @@ fixture with an expected file per regime. T22 and T26 read trades `NIR-B` and
 | T27 | `illustrative-climatic-commodity.crr` | `hedging_set` (CL-1) | `CO\|CLIMATIC\|STD` | illustrative |
 | T28 | `illustrative-credit-quality-step.crr` | `supervisory_factor` (B03) | 0.0042 | illustrative |
 
-`published` values are printed in BCBS 279 Annex 4 (CRE99), as transcribed in
-the catalogue, rounded to the printed digit; they have not yet been re-checked
-against the registered text. `illustrative` values came from a Python
-implementation that is not in the repository or from unreviewed hand
-calculations, and stay illustrative until an independent derivation is
-committed and reviewed. Every expected value and tolerance matches the
-catalogue, and the prototype engine's saved results in the template are within
-each tolerance.
+`published` values are printed in the Basel Framework chapter CRE99 (and BCBS
+279 Annex 4a), rounded to the printed digit, and were checked against the text
+on 2026-10-09. T02 is printed as -0.2694; the catalogue had -0.27. Example 3
+prints a residual maturity of 9 months for trade 1, so its case runs with
+`DaysPerYear` 360 and 270 days to give exactly 0.75 years. `illustrative`
+values came from a Python implementation that is not in the repository or from
+unreviewed hand calculations, and stay illustrative until an independent
+derivation is committed and reviewed (#100). The illustrative values and
+tolerances are the catalogue's.

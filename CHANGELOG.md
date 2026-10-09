@@ -250,6 +250,18 @@ Use only the categories needed by a release.
 
 ### Changed
 
+- The CRE99 test cases (`cre99-example-*`), T01 to T14, are checked against
+  the Basel Framework chapter CRE99 (effective 1 January 2023); T02 now
+  expects the printed -0.2694 instead of -0.27. They are in USD, unscaled: CRE99 prints USD thousands, so amounts and expected values are
+  the printed figures times 1,000 and the tolerance is half a printed unit,
+  500 USD (#44). T10 used 0.6 thousand and T07 2 thousand; both now use the
+  half-unit rule. Example 3 prints a 9-month maturity, which no number of days
+  gives at 365 days a year, so a fixture can now set `DaysPerYear` in a new
+  `parameters` field and Example 3 runs with 360 and 270 days.
+  `TEST_CaseRunner.SetParameter` applies it for one case, and each case now
+  sets the FX-table rate of its calculation currency to 1, because the
+  template's rates are per EUR. The source register records CRE99 and the
+  BCBS 279 version.
 - VBA modules carry an upper-case role prefix: core modules `CORE_Config`,
   `CORE_Engine` and `CORE_Util`; the public worksheet functions in
   `SACCR_Formulas`; and the test modules `TEST_Harness`, `TEST_MainState`,

@@ -288,7 +288,8 @@ TEST_Cases.RunCaseTests
 
 Each case writes its fixture into the NettingSets and Trades rows and the
 AsOfDate and ReportingCcy parameters, runs the engine and checks the outputs;
-the other Params values must be the template's. At the end the inputs and
+the other Params values must be the template's, except those a fixture sets in
+its `parameters`, which are restored after the case. At the end the inputs and
 parameters are written back, the engine is run once more and Excel settings
 are restored. A passing run prints one `CASE=` line per expected file, the
 results per reference class, and

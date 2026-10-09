@@ -10,8 +10,8 @@ Attribute VB_Name = "TEST_CaseRunner"
 '   (methodology decision 7, #44).
 '
 ' PUBLIC SURFACE
-'   BeginSuite, BeginCase, LoadSavedInputs, AddNettingSet, AddTrade,
-'   SetInputCell, PatchCell, PatchName, RunCase, RunCaseExpectingStop,
+'   BeginSuite, BeginCase, LoadSavedInputs, SetParameter, AddNettingSet,
+'   AddTrade, SetInputCell, PatchCell, PatchName, RunCase, RunCaseExpectingStop,
 '   OutputNumber, ExpectNumber, ExpectText, ExpectTrue and EndSuite, for
 '   TEST_Cases, TEST_InputValidation, TEST_Aggregation and TEST_Invariants.
 '   Option Private Module keeps them out of the external workbook automation
@@ -264,7 +264,11 @@ Public Sub BeginCase( _
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Start a case: undo the previous case's patches, empty the input rows
-'   and set the reporting date and currency of the fixture.
+'   and set the reporting date and currency of the fixture. Every amount
+'   of a fixture is in its calculation currency, so that currency's rate
+'   in the FX table is set to 1 for the case when it is not already: the
+'   template's rates are per EUR, and a USD case would otherwise be
+'   converted.
 '
 ' INPUTS
 '   caseId: the fixture ID.
@@ -273,7 +277,7 @@ Public Sub BeginCase( _
 '   calculationCurrency: the fixture's calculation currency.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-09
 '==============================================================================
 '
 
@@ -291,6 +295,7 @@ Public Sub BeginCase( _
         ClearBlock GetSheet(SH_TRADES), TR_NCOLS
         mAsOfCell.Value = IsoDate(valuationDate)
         mCcyCell.Value = calculationCurrency
+        UnitFxRate calculationCurrency
         Debug.Print "CASE=" & mCase
 
 End Sub
@@ -543,6 +548,50 @@ Public Sub PatchName( _
 '
         RecordPatch "", nameText, ThisWorkbook.Names(nameText).RefersTo
         ThisWorkbook.Names(nameText).RefersTo = newRefersTo
+
+End Sub
+
+
+Public Sub SetParameter( _
+    ByVal code As String, _
+    ByVal valueText As String)
+'
+'==============================================================================
+'                                 SetParameter
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Give one Params value for the current case, from a fixture's
+'   "parameters" object, for example DaysPerYear 360 so that a published
+'   maturity of 0.75 years can be entered as a date. Restored like
+'   PatchCell.
+'
+' INPUTS
+'   code: a PRM_ code in column A of Params.
+'   valueText: the number as text with a "." decimal point.
+'
+' ERROR POLICY
+'   Raises ERR_TEST_SETUP when the code is not on Params; the suite then
+'   ends as failed.
+'
+' UPDATED
+'   2026-10-09
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim r   As Long    'Params row of the code; 0 when absent
+
+'------------------------------------------------------------------------------
+' WRITE
+'------------------------------------------------------------------------------
+        r = FindHeaderRow(GetSheet(SH_PARAMS), PRM_CODE_COL, code)
+        If r = 0 Then
+            Err.Raise ERR_TEST_SETUP, "TEST_CaseRunner.SetParameter", _
+                      "'" & code & "' not found in column A of Params."
+        End If
+        PatchCell SH_PARAMS, r, PRM_VALUE_COL, Val(valueText)
 
 End Sub
 
@@ -1081,6 +1130,46 @@ Private Function ChecksHasError( _
         Next r
 
 End Function
+
+
+Private Sub UnitFxRate( _
+    ByVal currencyCode As String)
+'
+'==============================================================================
+'                                  UnitFxRate
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Set the FX-table rate of the case's calculation currency to 1 through
+'   PatchCell, so that it is restored with the other patches. A currency
+'   missing from the table needs nothing: the engine adds the reporting
+'   currency at rate 1.
+'
+' INPUTS
+'   currencyCode: three-letter code, as in column A of the FX table.
+'
+' UPDATED
+'   2026-10-09
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws   As Worksheet    'Params sheet
+    Dim r    As Long         'Row of the currency in column A; 0 when absent
+
+'------------------------------------------------------------------------------
+' PATCH
+'------------------------------------------------------------------------------
+        Set ws = GetSheet(SH_PARAMS)
+        r = FindHeaderRow(ws, PRM_CODE_COL, currencyCode)
+        If r > 0 Then
+            If ToDbl(ws.Cells(r, PRM_VALUE_COL).Value) <> 1# Then
+                PatchCell SH_PARAMS, r, PRM_VALUE_COL, 1#
+            End If
+        End If
+
+End Sub
 
 
 Private Sub RecordPatch( _

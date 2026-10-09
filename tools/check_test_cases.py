@@ -64,6 +64,10 @@ TRADE_FIELDS: dict[str, tuple[str, bool]] = {
     "detachment_rate": ("number", True),
     "description": ("text", True),
 }
+# Params codes a fixture may set for its own run -> kind of the value.
+PARAMETERS: dict[str, str] = {
+    "DaysPerYear": "positive",
+}
 ENUMS = {
     "asset_class": set(ASSET_CLASSES),
     "instrument": {"linear", "option", "cdo"},
@@ -161,7 +165,7 @@ def load(path: Path, findings: list[str], name: str) -> dict[str, Any] | None:
 
 def check_fixture(name: str, stem: str, data: dict[str, Any]) -> list[str]:
     expected_keys = {"schema_version", "kind", "id", "synthetic", "description", "category",
-                     "calculation_currency", "valuation_date", "netting_set", "trades"}
+                     "calculation_currency", "valuation_date", "parameters", "netting_set", "trades"}
     findings = [f"{name}: unknown field '{k}'" for k in sorted(set(data) - expected_keys)]
     findings += [f"{name}: missing field '{k}'" for k in sorted(expected_keys - set(data))]
     if data.get("schema_version") != 1 or data.get("kind") != "saccr-fixture":
@@ -176,6 +180,7 @@ def check_fixture(name: str, stem: str, data: dict[str, Any]) -> list[str]:
     if not CURRENCY.match(str(data.get("calculation_currency"))):
         findings.append(f"{name}: calculation_currency must be a three-letter code")
     findings += check_value(f"{name}.valuation_date", "date", data.get("valuation_date"))
+    findings += check_parameters(f"{name}.parameters", data.get("parameters", {}))
     findings += check_fields(f"{name}.netting_set", data.get("netting_set"), NETTING_SET_FIELDS)
     trades = data.get("trades")
     if not isinstance(trades, list) or not trades:
@@ -184,6 +189,16 @@ def check_fixture(name: str, stem: str, data: dict[str, Any]) -> list[str]:
     findings += [f"{name}: duplicate trade id '{i}'" for i in sorted({i for i in ids if ids.count(i) > 1})]
     for index, trade in enumerate(trades):
         findings += check_fields(f"{name}.trades[{index}]", trade, TRADE_FIELDS)
+    return findings
+
+
+def check_parameters(where: str, parameters: object) -> list[str]:
+    """Params values a case runs with instead of the template's; {} for none."""
+    if not isinstance(parameters, dict):
+        return [f"{where}: must be an object"]
+    findings = [f"{where}: unknown parameter '{k}'" for k in sorted(set(parameters) - set(PARAMETERS))]
+    for key in sorted(set(parameters) & set(PARAMETERS)):
+        findings += check_value(f"{where}.{key}", PARAMETERS[key], parameters[key])
     return findings
 
 
