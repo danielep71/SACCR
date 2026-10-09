@@ -288,12 +288,29 @@ TEST_Cases.RunCaseTests
 
 Each case writes its fixture into the NettingSets and Trades rows and the
 AsOfDate and ReportingCcy parameters, runs the engine and checks the outputs;
-the other Params values must be the template's. At the end the inputs and
+the other Params values must be the template's, except those a fixture sets in
+its `parameters`, which are restored after the case. At the end the inputs and
 parameters are written back, the engine is run once more and Excel settings
 are restored. A passing run prints one `CASE=` line per expected file, the
 results per reference class, and
 `RESULT=PASS; cases=19; checks=36; failures=0; restore=PASS`. Illustrative
 results are counted separately and validate nothing.
+
+To see the failure path of any suite run through `TEST_CaseRunner`, arm the
+injection on the same Immediate-window line as the suite:
+
+```text
+TEST_CaseRunner.InjectFailure: TEST_Cases.RunCaseTests
+```
+
+The suite moves the expected value of its first numeric check by ten times its
+tolerance plus one, so the comparison must reject it. It prints
+`MODE=INJECTED_FAILURE` and an `INJECTED=` line naming the check, then one
+`FAILURE=` line for it; for `TEST_Cases` that is T01, so the summary shows
+`PUBLISHED: passed=13; failed=1` and
+`RESULT=FAIL; cases=19; checks=36; failures=1; restore=PASS`. The injection
+applies to that one suite only. A suite with no numeric check, such as
+`TEST_InputValidation`, fails with a message saying so.
 
 ### Invalid-input tests
 
@@ -309,20 +326,45 @@ the factor and FX tables, and checks that the run stops, or continues when the
 duplicate has the same values. For aggregation it gives one credit reference
 two sub-classes, in both orders, and adds a basis trade without a label, a
 reference with a reserved character and an interest-rate risk factor that is
-not a currency. Every patched cell and name is restored. It needs a workbook
+not a currency. For the CRR scope it checks that the sum of absolute IR
+bucket values makes a CRR netting set `INVALID` but is accepted under BCBS, and
+that an inflation risk factor such as `EUR-INFL` is accepted while another
+suffix is rejected. Every patched cell and name is restored. It needs a workbook
 built from the template. Import it with `TEST_CaseRunner` and run
 `TEST_InputValidation.RunInputValidationTests`; it ends with
-`RESULT=PASS; cases=35; checks=35; failures=0; restore=PASS`.
+`RESULT=PASS; cases=39; checks=39; failures=0; restore=PASS`.
 
 ### Aggregation tests
 
 `tests/modules/TEST_Aggregation.bas` runs the workbook's own portfolio in its
 row order, reversed and rotated, and checks that Results is the same each time;
 and it checks offsets by comparing outputs with each other: two opposite swaps
-in one bucket offset exactly, and nothing offsets across currencies, netting
-sets, credit entities or between a standard and a basis hedging set. Import it
+in one bucket offset exactly, and nothing offsets across currencies, between
+interest rate and inflation in one currency, across netting sets or credit
+entities, or between a standard and a basis hedging set. Import it
 with `TEST_CaseRunner` and run `TEST_Aggregation.RunAggregationTests`; it ends
-with `RESULT=PASS; cases=10; checks=10; failures=0; restore=PASS`.
+with `RESULT=PASS; cases=11; checks=11; failures=0; restore=PASS`.
+
+### Invariant tests
+
+`tests/modules/TEST_Invariants.bas` checks relations that every result must
+satisfy, recomputed from the Results columns and the NettingSets inputs. On
+the workbook's own portfolio it checks, for each `VALID` netting set, that the
+aggregate add-on is the sum of the asset-class add-ons; RC follows its
+margined or unmargined formula and is never negative; the multiplier follows
+its formula, lies between the floor and 1 and is 1 when V - C is not
+negative; PFE is the multiplier times the aggregate add-on;
+EAD = alpha * (RC + PFE); and a margined netting set's EAD is the lower of the
+margined EAD and the unmargined cap, with the cap flag set exactly when the
+cap is lower. Withheld netting sets must show no figures and the TOTAL row
+must add up. It first checks that the portfolio has unmargined and margined,
+CRR and BCBS netting sets, a cap that applies and one that does not, and a
+multiplier below 1. A second run must write identical Results, TradeCalc,
+HedgingSets and Buckets. With `IRBucketOffset` set to FALSE no IR add-on may
+fall, and at least one must rise. Two opposite swaps, which give a zero
+add-on, must give EAD = 1.4 * RC. Import it with `TEST_CaseRunner` and run
+`TEST_Invariants.RunInvariantTests`; it ends with
+`RESULT=PASS; cases=4; checks=21; failures=0; restore=PASS`.
 
 For automation, `RunSACCR_Silent` returns a result line such as
 `RESULT=OK; operation=run; errors=0; warnings=0; trades_used=62; trades_read=65; incomplete=2; total_ead=...; inputs=...; cleanup=PASS`

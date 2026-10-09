@@ -7,8 +7,9 @@ Attribute VB_Name = "TEST_Aggregation"
 '   and offsets exactly where the regulation allows and nowhere else
 '   (#37): the demo portfolio gives the same Results in reversed and
 '   rotated row order; two opposite trades in one bucket offset exactly;
-'   there is no offset across currencies, credit entities, netting sets,
-'   or between a standard and a basis hedging set.
+'   there is no offset across currencies, between interest rate and
+'   inflation in one currency (#33), across credit entities or netting
+'   sets, or between a standard and a basis hedging set.
 '
 ' PUBLIC SURFACE
 '   RunAggregationTests is the entry point. Option Private Module keeps it
@@ -29,7 +30,7 @@ Attribute VB_Name = "TEST_Aggregation"
 '   Run TEST_Aggregation.RunAggregationTests from the Immediate window.
 '
 ' UPDATED
-'   2026-10-07
+'   2026-10-09
 '
 ' AUTHOR
 '   Daniele Penza
@@ -45,8 +46,8 @@ Attribute VB_Name = "TEST_Aggregation"
 ' MODULE CONSTANTS
 '------------------------------------------------------------------------------
         Private Const VALUATION   As String = "2026-09-30"    'Valuation date of the built cases
-        Private Const CASES       As Long = 10                'Cases in a complete run
-        Private Const CHECKS      As Long = 10                'Checks in a complete run
+        Private Const CASES       As Long = 11                'Cases in a complete run
+        Private Const CHECKS      As Long = 11                'Checks in a complete run
         Private Const REL_TOL     As Double = 0.000000001     'Relative tolerance for equal outputs
         Private Const IR_ADDON    As String = "add_on.interest_rate"
         Private Const CR_ADDON    As String = "add_on.credit"
@@ -124,6 +125,12 @@ Public Sub RunAggregationTests()
         StartCase "aggregation-ir-no-offset-across-currencies"
         AddSwap "S1", "EUR", "Long", "Standard"
         AddSwap "S2", "USD", "Short", "Standard"
+        TEST_CaseRunner.RunCase
+        ExpectNear "add-on", TEST_CaseRunner.OutputNumber("NS1", IR_ADDON), 2# * irSingle, irSingle
+
+        StartCase "aggregation-ir-no-offset-with-inflation"
+        AddSwap "S1", "EUR", "Long", "Standard"
+        AddSwap "S2", "EUR-INFL", "Short", "Standard"
         TEST_CaseRunner.RunCase
         ExpectNear "add-on", TEST_CaseRunner.OutputNumber("NS1", IR_ADDON), 2# * irSingle, irSingle
 

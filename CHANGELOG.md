@@ -97,6 +97,32 @@ Use only the categories needed by a release.
 
 ### Added
 
+- A support matrix in `docs/methodology/README.md` lists, for v1.0.0, which
+  methods, asset classes, instruments, netting-set and collateral structures,
+  parameters and conventions are supported, which the user enters in a
+  supported form, and which cannot be entered (#33).
+- The traceability table in `docs/methodology/README.md` lists each
+  implemented rule with its CRE52 and CRR references, its VBA procedures, its
+  test cases and its status per regime (#44): Basel rules covered by a
+  published CRE99 output are validated, others are exercised by a published
+  EAD or not validated, and no CRR rule is validated in v1.0.0. Features that
+  are not implemented are listed below the table.
+- `TEST_CaseRunner.InjectFailure` proves that the case suites catch a wrong
+  value (#44): the next suite moves the expected value of its first numeric
+  check beyond its tolerance and must end with `RESULT=FAIL`, one failure and
+  the workbook restored. Every runner suite now prints `MODE=NORMAL` or
+  `MODE=INJECTED_FAILURE`, and a numeric failure line shows the expected value
+  that was compared.
+- `TEST_Invariants` checks relations every result must satisfy (#44), on
+  the demo portfolio: the aggregate add-on is the sum of the asset-class
+  add-ons, RC and the multiplier follow their formulas, PFE is the
+  multiplier times the add-on, EAD = alpha * (RC + PFE), a margined netting
+  set's EAD is the lower of the margined EAD and the unmargined cap, withheld
+  netting sets show no figures and the TOTAL row adds up. It also checks that
+  a second run gives identical outputs, that the IR sum of absolute bucket
+  values is never below the bucket formula, and that a zero add-on is
+  calculated without failing. The checks compare outputs with each other and
+  are reported as illustrative.
 - An interest-rate add-on flowchart in `docs/assets/`
   (`SACCR_IR_AddOn_flow.svg` and a 2080 px PNG). It traces the steps from trade
   selection to the aggregate add-on, including the maturity factor, basis and
@@ -240,6 +266,29 @@ Use only the categories needed by a release.
 
 ### Changed
 
+- CRR scope checked against the CRR text (#33). With `IRBucketOffset` set to
+  FALSE, a CRR netting set with interest-rate trades is now `INVALID` and its
+  EAD withheld, because Article 280a(3) has only the formula with offsets
+  across maturity buckets; Basel netting sets keep both formulas. Inflation
+  trades can be entered as interest rate with a risk factor such as
+  `EUR-INFL`, each in its own hedging set (Articles 277(4)(a), 277a(1));
+  before, any IR risk factor other than a currency was rejected. The template
+  notes confirm the 18% climatic-conditions factor (Article 280e(5)), explain
+  the unrated credit mapping (Article 280c(5)(a)) and state that the optional
+  sold-option and sold-protection reductions are not applied.
+  `TEST_InputValidation` has 39 cases and `TEST_Aggregation` 11.
+- The CRE99 test cases (`cre99-example-*`), T01 to T14, are checked against
+  the Basel Framework chapter CRE99 (effective 1 January 2023); T02 now
+  expects the printed -0.2694 instead of -0.27. They are in USD, unscaled: CRE99 prints USD thousands, so amounts and expected values are
+  the printed figures times 1,000 and the tolerance is half a printed unit,
+  500 USD (#44). T10 used 0.6 thousand and T07 2 thousand; both now use the
+  half-unit rule. Example 3 prints a 9-month maturity, which no number of days
+  gives at 365 days a year, so a fixture can now set `DaysPerYear` in a new
+  `parameters` field and Example 3 runs with 360 and 270 days.
+  `TEST_CaseRunner.SetParameter` applies it for one case, and each case now
+  sets the FX-table rate of its calculation currency to 1, because the
+  template's rates are per EUR. The source register records CRE99 and the
+  BCBS 279 version.
 - VBA modules carry an upper-case role prefix: core modules `CORE_Config`,
   `CORE_Engine` and `CORE_Util`; the public worksheet functions in
   `SACCR_Formulas`; and the test modules `TEST_Harness`, `TEST_MainState`,

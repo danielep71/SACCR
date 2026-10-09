@@ -84,6 +84,8 @@ def case_lines(name: str, fixture: dict[str, Any], expected: dict[str, Any]) -> 
              "        TEST_CaseRunner.BeginCase " + args(fixture["id"], expected["regime"],
                                                    fixture["valuation_date"],
                                                    fixture["calculation_currency"]),
+             *("        TEST_CaseRunner.SetParameter " + args(code, value)
+               for code, value in sorted(fixture["parameters"].items())),
              "        TEST_CaseRunner.AddNettingSet " + args(
                  ns["id"], ns["margined"], ns["cleared"], ns["remargin_period_business_days"],
                  ns["large_or_illiquid"], ns["margin_disputes"], ns["mpor_override_business_days"],

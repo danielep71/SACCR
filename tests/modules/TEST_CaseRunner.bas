@@ -10,11 +10,14 @@ Attribute VB_Name = "TEST_CaseRunner"
 '   (methodology decision 7, #44).
 '
 ' PUBLIC SURFACE
-'   BeginSuite, BeginCase, LoadSavedInputs, AddNettingSet, AddTrade,
-'   SetInputCell, PatchCell, PatchName, RunCase, RunCaseExpectingStop,
+'   InjectFailure, BeginSuite, BeginCase, LoadSavedInputs, SetParameter,
+'   AddNettingSet,
+'   AddTrade, SetInputCell, PatchCell, PatchName, RunCase,
+'   RunCaseExpectingStop,
 '   OutputNumber, ExpectNumber, ExpectText, ExpectTrue and EndSuite, for
-'   TEST_Cases, TEST_InputValidation and TEST_Aggregation. Option Private
-'   Module keeps them out of the external workbook automation API.
+'   TEST_Cases, TEST_InputValidation, TEST_Aggregation and TEST_Invariants.
+'   Option Private Module keeps them out of the external workbook automation
+'   API.
 '
 ' DEPENDENCIES
 '   CORE_Engine.Calculate; CORE_Util for sheet access; CORE_Config for the layout.
@@ -41,10 +44,12 @@ Attribute VB_Name = "TEST_CaseRunner"
 ' REPORTING
 '   Each case prints a CASE line and each failed check a FAILURE line. The
 '   summary counts results per reference class: illustrative results are
-'   reported separately and are never evidence of correctness.
+'   reported separately and are never evidence of correctness. A suite
+'   started after InjectFailure prints MODE=INJECTED_FAILURE and must end
+'   with RESULT=FAIL and exactly one failure.
 '
 ' UPDATED
-'   2026-10-07
+'   2026-10-09
 '
 ' AUTHOR
 '   Daniele Penza
@@ -104,6 +109,11 @@ Attribute VB_Name = "TEST_CaseRunner"
         Private mPatchTarget()      As String           'Cell address, or the workbook name
         Private mPatchSaved()       As Variant          'Its formula, or what the name referred to
 
+    'Failure injection, to prove that a wrong value is caught.
+        Private mInjectArmed        As Boolean          'Set by InjectFailure for the next suite
+        Private mInjectFailure      As Boolean          'This suite shifts its first numeric expectation
+        Private mInjectedAt         As String           'Case and check it was applied to; "" before
+
 
 '
 '------------------------------------------------------------------------------
@@ -112,6 +122,35 @@ Attribute VB_Name = "TEST_CaseRunner"
 '
 '------------------------------------------------------------------------------
 '
+
+Public Sub InjectFailure()
+'
+'==============================================================================
+'                                InjectFailure
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Demonstrate the failure path of any suite run through this module: the
+'   next suite moves the expected value of its first numeric check by ten
+'   times its tolerance plus one, so the real comparison must reject it.
+'   The suite must then print MODE=INJECTED_FAILURE and an INJECTED line,
+'   end with RESULT=FAIL and failures=1, and still restore the workbook.
+'
+' USAGE
+'   On one line of the Immediate window, for example:
+'   TEST_CaseRunner.InjectFailure: TEST_Cases.RunCaseTests
+'
+' STATE OWNERSHIP
+'   Arms a flag that the next BeginSuite consumes and EndSuite clears, so
+'   it never outlives one suite.
+'
+' UPDATED
+'   2026-10-09
+'==============================================================================
+'
+        mInjectArmed = True
+
+End Sub
+
 
 Public Sub BeginSuite( _
     ByVal expectedCases As Long, _
@@ -133,7 +172,7 @@ Public Sub BeginSuite( _
 '   nothing has been changed at that point.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-09
 '==============================================================================
 '
 
@@ -145,6 +184,9 @@ Public Sub BeginSuite( _
         End If
         mExpectedCases = expectedCases
         mExpectedChecks = expectedChecks
+        mInjectFailure = mInjectArmed
+        mInjectArmed = False
+        mInjectedAt = ""
         mCaseCount = 0
         mCheckCount = 0
         mFailureCount = 0
@@ -174,6 +216,7 @@ Public Sub BeginSuite( _
         Application.EnableEvents = False
         Application.Calculation = xlCalculationManual
         Debug.Print "SACCR CASE TESTS"
+        Debug.Print "MODE=" & IIf(mInjectFailure, "INJECTED_FAILURE", "NORMAL")
 
 End Sub
 
@@ -196,7 +239,7 @@ Public Sub EndSuite( _
 '   and makes the result FAIL.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-09
 '==============================================================================
 '
 
@@ -227,6 +270,11 @@ Public Sub EndSuite( _
 '------------------------------------------------------------------------------
 ' REPORT
 '------------------------------------------------------------------------------
+        If mInjectFailure And Len(mInjectedAt) = 0 Then
+            mFailureCount = mFailureCount + 1
+            Debug.Print "FAILURE=suite: injected failure requested, but the suite ran no numeric check"
+        End If
+        mInjectFailure = False
         complete = (mCaseCount = mExpectedCases) And (mCheckCount = mExpectedChecks)
         If Not complete Then
             mFailureCount = mFailureCount + 1
@@ -263,7 +311,11 @@ Public Sub BeginCase( _
 '------------------------------------------------------------------------------
 ' PURPOSE
 '   Start a case: undo the previous case's patches, empty the input rows
-'   and set the reporting date and currency of the fixture.
+'   and set the reporting date and currency of the fixture. Every amount
+'   of a fixture is in its calculation currency, so that currency's rate
+'   in the FX table is set to 1 for the case when it is not already: the
+'   template's rates are per EUR, and a USD case would otherwise be
+'   converted.
 '
 ' INPUTS
 '   caseId: the fixture ID.
@@ -272,7 +324,7 @@ Public Sub BeginCase( _
 '   calculationCurrency: the fixture's calculation currency.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-09
 '==============================================================================
 '
 
@@ -290,6 +342,7 @@ Public Sub BeginCase( _
         ClearBlock GetSheet(SH_TRADES), TR_NCOLS
         mAsOfCell.Value = IsoDate(valuationDate)
         mCcyCell.Value = calculationCurrency
+        UnitFxRate calculationCurrency
         Debug.Print "CASE=" & mCase
 
 End Sub
@@ -304,7 +357,8 @@ Public Sub LoadSavedInputs()
 '   Put the workbook's own inputs, saved by BeginSuite, back on the input
 '   sheets for the current case: its NettingSets and Trades rows and its
 '   AsOfDate and ReportingCcy. Used by TEST_Aggregation to run the demo
-'   portfolio in different row orders.
+'   portfolio in different row orders and by TEST_Invariants to check its
+'   results.
 '
 ' UPDATED
 '   2026-10-07
@@ -545,6 +599,50 @@ Public Sub PatchName( _
 End Sub
 
 
+Public Sub SetParameter( _
+    ByVal code As String, _
+    ByVal valueText As String)
+'
+'==============================================================================
+'                                 SetParameter
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Give one Params value for the current case, from a fixture's
+'   "parameters" object, for example DaysPerYear 360 so that a published
+'   maturity of 0.75 years can be entered as a date. Restored like
+'   PatchCell.
+'
+' INPUTS
+'   code: a PRM_ code in column A of Params.
+'   valueText: the number as text with a "." decimal point.
+'
+' ERROR POLICY
+'   Raises ERR_TEST_SETUP when the code is not on Params; the suite then
+'   ends as failed.
+'
+' UPDATED
+'   2026-10-09
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim r   As Long    'Params row of the code; 0 when absent
+
+'------------------------------------------------------------------------------
+' WRITE
+'------------------------------------------------------------------------------
+        r = FindHeaderRow(GetSheet(SH_PARAMS), PRM_CODE_COL, code)
+        If r = 0 Then
+            Err.Raise ERR_TEST_SETUP, "TEST_CaseRunner.SetParameter", _
+                      "'" & code & "' not found in column A of Params."
+        End If
+        PatchCell SH_PARAMS, r, PRM_VALUE_COL, Val(valueText)
+
+End Sub
+
+
 Public Sub RunCase()
 '
 '==============================================================================
@@ -669,7 +767,7 @@ Public Sub ExpectNumber( _
 '   referenceClass: published, independent or illustrative.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-09
 '==============================================================================
 '
 
@@ -689,6 +787,11 @@ Public Sub ExpectNumber( _
         If Val(relativeTolerance) * Abs(expect) > bound Then
             bound = Val(relativeTolerance) * Abs(expect)
         End If
+        If mInjectFailure And Len(mInjectedAt) = 0 Then
+            expect = expect + 10# * bound + 1#
+            mInjectedAt = mCase & " " & label
+            Debug.Print "INJECTED=" & mInjectedAt & ": expected value moved to " & Trim$(Str$(expect))
+        End If
         If Not ReadOutput(tradeId, quantity, actual, detail) Then
             Record label, referenceClass, False, detail
         ElseIf IsError(actual) Or IsEmpty(actual) Or Not IsNumeric(actual) Or VarType(actual) = vbString Then
@@ -698,8 +801,8 @@ Public Sub ExpectNumber( _
                    quantity & " must not be negative, actual " & Trim$(Str$(CDbl(actual)))
         Else
             Record label, referenceClass, Abs(CDbl(actual) - expect) <= bound, _
-                   quantity & " expected " & expected & ", actual " & Trim$(Str$(CDbl(actual))) & _
-                   ", tolerance " & Trim$(Str$(bound))
+                   quantity & " expected " & Trim$(Str$(expect)) & ", actual " & _
+                   Trim$(Str$(CDbl(actual))) & ", tolerance " & Trim$(Str$(bound))
         End If
 
 End Sub
@@ -1079,6 +1182,46 @@ Private Function ChecksHasError( _
         Next r
 
 End Function
+
+
+Private Sub UnitFxRate( _
+    ByVal currencyCode As String)
+'
+'==============================================================================
+'                                  UnitFxRate
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Set the FX-table rate of the case's calculation currency to 1 through
+'   PatchCell, so that it is restored with the other patches. A currency
+'   missing from the table needs nothing: the engine adds the reporting
+'   currency at rate 1.
+'
+' INPUTS
+'   currencyCode: three-letter code, as in column A of the FX table.
+'
+' UPDATED
+'   2026-10-09
+'==============================================================================
+'
+
+'------------------------------------------------------------------------------
+' DECLARE
+'------------------------------------------------------------------------------
+    Dim ws   As Worksheet    'Params sheet
+    Dim r    As Long         'Row of the currency in column A; 0 when absent
+
+'------------------------------------------------------------------------------
+' PATCH
+'------------------------------------------------------------------------------
+        Set ws = GetSheet(SH_PARAMS)
+        r = FindHeaderRow(ws, PRM_CODE_COL, currencyCode)
+        If r > 0 Then
+            If ToDbl(ws.Cells(r, PRM_VALUE_COL).Value) <> 1# Then
+                PatchCell SH_PARAMS, r, PRM_VALUE_COL, 1#
+            End If
+        End If
+
+End Sub
 
 
 Private Sub RecordPatch( _

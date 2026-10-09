@@ -24,6 +24,8 @@ Attribute VB_Name = "CORE_Engine"
 '   CRR:  the other-risks class OT, supervisory factor 8%.       [Art. 280f]
 '   CRR:  lambda for interest-rate and commodity options per Delegated
 '         Regulation (EU) 2021/931 Art. 5.
+'   CRR:  interest rate only with the bucket formula [Art. 280a(3)]; the
+'         sum of absolute bucket values is a Basel alternative.
 '   A row of the supervisory-factor table can be limited to one regime in
 '   its Regimes column.
 '
@@ -73,7 +75,7 @@ Attribute VB_Name = "CORE_Engine"
 '   Excel VBA; no references beyond the defaults.
 '
 ' UPDATED
-'   2026-10-07
+'   2026-10-09
 '
 ' AUTHOR
 '   Daniele Penza
@@ -1847,7 +1849,7 @@ Private Sub ProcessTrades( _
 '   280f for OT and the regime rules.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-09
 '==============================================================================
 '
 
@@ -2030,8 +2032,10 @@ Private Sub ProcessTrades( _
             If InStr(rf, "|") > 0 Or InStr(rf, "#") > 0 Then
                 AddErr ok, msg, "risk factor / reference must not contain '|' or '#'"
             End If
-            If ac = AC_IR And Len(rf) > 0 And Not (rf Like "[A-Z][A-Z][A-Z]") Then
-                AddErr ok, msg, "interest-rate risk factor must be a 3-letter currency code such as EUR"
+            If ac = AC_IR And Len(rf) > 0 And _
+               Not (rf Like "[A-Z][A-Z][A-Z]" Or rf Like "[A-Z][A-Z][A-Z]-INFL") Then
+                AddErr ok, msg, "interest-rate risk factor must be a 3-letter currency code such as EUR, " & _
+                       "or EUR-INFL for inflation"
             End If
 
             instType = UTxt(data(i, TR_INSTR))
@@ -2171,7 +2175,7 @@ Private Sub ProcessTrades( _
             End If
 
     '--- Supervisory delta -------------------------------------------------------
-    'Linear trades: +1 long, -1 short [CRE52.38]. Options: the option delta
+    'Linear trades: +1 long, -1 short [CRE52.39]. Options: the option delta
     'with the lambda shift; under CRR the regulatory lambda replaces any
     'entered value for IR and commodity options [CRE52.40]. CDO tranches:
     'the tranche delta [CRE52.41].
@@ -2245,12 +2249,14 @@ Private Sub ProcessTrades( _
     '--- Hedging set, adjusted notional and bucket -------------------------------
     'IR: d = notional * SD, hedging set per currency (risk factor), bucket
     'by end date: under 1 year, 1 to 5 years, over 5 years [CRE52.34,
-    'CRE52.56]. FX: d = notional, hedging set per currency pair written in
-    'alphabetical order; an inverted pair flips the delta [CRE52.58]. CR: d
-    '= notional * SD, one hedging set, bucket per entity [CRE52.60]. EQ: one
-    'hedging set, bucket per entity [CRE52.64]. CO: hedging set per
-    'commodity group, bucket per commodity [CRE52.68]. OT: hedging set per
-    'primary risk driver [CRR Art. 277a].
+    'CRE52.57(2)-(3)]; an inflation risk factor such as EUR-INFL is its own
+    'hedging set [CRR Art. 277(4)(a), 277a(1)]. FX: d = notional, hedging
+    'set per currency pair written in alphabetical order; an inverted pair
+    'flips the delta [CRE52.58]. CR: d = notional * SD, one hedging set,
+    'bucket per entity [CRE52.60, CRE52.64]. EQ: one hedging set, bucket per
+    'entity [CRE52.66]. CO: hedging set per commodity group, bucket per
+    'commodity [CRE52.70]. OT: hedging set per primary risk driver [CRR Art.
+    '277a].
             If ok Then
                 Select Case ac
                     Case AC_IR
@@ -2609,22 +2615,26 @@ Private Sub ComputeHedgingSets()
 '
 ' REFERENCE
 '   IR CRE52.57; FX CRE52.59; credit CRE52.61; equity CRE52.66; commodity
-'   CRE52.70; other risks CRR Art. 280f.
+'   CRE52.70; other risks CRR Art. 280f. The sum of absolute IR bucket
+'   values is a Basel alternative (CRE52.57(5)); the CRR has only the
+'   formula with offsets (Art. 280a(3)), so with IRBucketOffset FALSE a
+'   CRR netting set with interest-rate trades is INVALID.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-09
 '==============================================================================
 '
 
 '------------------------------------------------------------------------------
 ' DECLARE
 '------------------------------------------------------------------------------
-    Dim b     As Long      'Bucket, position in mBk
-    Dim h     As Long      'Hedging set, position in mHS
-    Dim key   As String    'Hedging-set key: netting set # hedging set
-    Dim aU    As Double    'Entity or type add-on, unmargined
-    Dim aM    As Double    'Entity or type add-on, margined
-    Dim sfH   As Double    'Supervisory factor of an IR, FX or OT hedging set
+    Dim b           As Long       'Bucket, position in mBk
+    Dim h           As Long       'Hedging set, position in mHS
+    Dim key         As String     'Hedging-set key: netting set # hedging set
+    Dim aU          As Double     'Entity or type add-on, unmargined
+    Dim aM          As Double     'Entity or type add-on, margined
+    Dim sfH         As Double     'Supervisory factor of an IR, FX or OT hedging set
+    Dim refused()   As Boolean    'Per netting set: CRR set refused the IR alternative
 
 '------------------------------------------------------------------------------
 ' COLLECT BUCKETS INTO HEDGING SETS
@@ -2683,10 +2693,22 @@ Private Sub ComputeHedgingSets()
     'values. FX and OT: SF * |effective notional|. Credit, equity and
     'commodity: sqrt(systematic^2 + idiosyncratic). Each add-on is then
     'added to its netting set's asset-class total.
+        If mNSCount > 0 Then
+            ReDim refused(1 To mNSCount)
+        End If
         For h = 1 To mHSCount
             Select Case mHS(h).AC
                 Case AC_IR
                     sfH = BucketSF(h)
+                    If Not pIRFull And mNS(mHS(h).NSIdx).IsCRR Then
+                        If Not refused(mHS(h).NSIdx) Then
+                            refused(mHS(h).NSIdx) = True
+                            mNS(mHS(h).NSIdx).InputErrors = mNS(mHS(h).NSIdx).InputErrors + 1
+                            LogMsg SEV_ERROR, SH_NS, mNS(mHS(h).NSIdx).ID, "IRBucketOffset is FALSE, but the " & _
+                                   "CRR allows only the formula with offsets across maturity buckets " & _
+                                   "(Art. 280a(3)) - netting set INVALID, EAD withheld."
+                        End If
+                    End If
                     If pIRFull Then
                         mHS(h).ENU = SACCR_IREffectiveNotional(mHS(h).D1U, mHS(h).D2U, mHS(h).D3U, pRho12, pRho23, pRho13)
                         mHS(h).ENM = SACCR_IREffectiveNotional(mHS(h).D1M, mHS(h).D2M, mHS(h).D3M, pRho12, pRho23, pRho13)
