@@ -36,6 +36,11 @@ class GenerateCaseTestsTests(unittest.TestCase):
         self.assertEqual(module.count("TEST_CaseRunner.Expect"), outputs)
         self.assertNotIn("\n", module.replace("\r\n", ""))
 
+    def test_fixture_parameters_are_set_after_begin_case(self) -> None:
+        module = generator.generate(ROOT).split("\r\n")
+        begin = module.index('        TEST_CaseRunner.BeginCase "cre99-example-3", "BCBS", "2026-09-30", "USD"')
+        self.assertEqual(module[begin + 1], '        TEST_CaseRunner.SetParameter "DaysPerYear", "360"')
+
     def test_check_mode_detects_a_stale_module(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

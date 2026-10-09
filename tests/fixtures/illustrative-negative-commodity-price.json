@@ -7,6 +7,7 @@
   "category": "nominal",
   "calculation_currency": "EUR",
   "valuation_date": "2026-09-30",
+  "parameters": {},
   "netting_set": {
     "id": "NEGCO",
     "margined": false,

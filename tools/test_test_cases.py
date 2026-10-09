@@ -27,7 +27,7 @@ TRADE = {
 FIXTURE = {
     "schema_version": 1, "kind": "saccr-fixture", "id": "sample-case", "synthetic": True,
     "description": "Synthetic sample", "category": "nominal", "calculation_currency": "EUR",
-    "valuation_date": "2026-01-02", "netting_set": NETTING_SET, "trades": [TRADE],
+    "valuation_date": "2026-01-02", "parameters": {}, "netting_set": NETTING_SET, "trades": [TRADE],
 }
 PUBLISHED = {"class": "published", "source": "BCBS-279", "locator": "Annex 4, example 1",
              "derivation": "Printed figure", "derived_by": "Author", "reviewed_by": None,
@@ -92,6 +92,18 @@ class TestCaseValidatorTests(unittest.TestCase):
         self.assertFinding("maturity_date: invalid date", findings)
         self.assertFinding("direction: invalid direction", findings)
         self.assertFinding("missing field 'threshold_amount'", findings)
+
+    def test_parameters(self) -> None:
+        self.fixture["parameters"] = {"DaysPerYear": 360}
+        self.assertEqual(self.findings(), [])
+        self.fixture["parameters"] = {"Alpha": 1, "DaysPerYear": 0}
+        findings = self.findings()
+        self.assertFinding("unknown parameter 'Alpha'", findings)
+        self.assertFinding("parameters.DaysPerYear", findings)
+        self.fixture["parameters"] = []
+        self.assertFinding("parameters: must be an object", self.findings())
+        del self.fixture["parameters"]
+        self.assertFinding("missing field 'parameters'", self.findings())
 
     def test_duplicate_trade_ids(self) -> None:
         self.fixture["trades"].append(copy.deepcopy(TRADE))

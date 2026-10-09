@@ -41,7 +41,8 @@ a later version is a new row, not an edit.
 | `CRR` | Regulation (EU) No 575/2013, Part Three, Title II, Chapter 6, Section 3 (Articles 274–280f), as amended by Regulation (EU) 2019/876 and Regulation (EU) 2024/1623 | SA-CCR exposure value, replacement cost, PFE, add-ons | Consolidated text: *to record* | To verify |
 | `CRR-RTS` | Commission Delegated Regulation (EU) 2021/931 | Primary risk driver and risk-category mapping; supervisory delta of interest-rate options | *to record* | To verify |
 | `BCBS` | Basel Framework, chapter CRE52 | Basel SA-CCR | Effective version: *to record* | To verify |
-| `BCBS-279` | BCBS, *The standardised approach for measuring counterparty credit risk exposures* (2014) | Background and any worked examples used as references | *to record* | To verify |
+| `BCBS-279` | BCBS, *The standardised approach for measuring counterparty credit risk exposures* (2014) | Background; Annex 4a worked examples (printed pages 22–30) | March 2014, revised April 2014 | Example 4 checked 2026-10-09 |
+| `CRE99` | Basel Framework, chapter CRE99, *Application guidance*: the SA-CCR worked examples | Published values of the `cre99-example-*` cases. Amounts in USD thousands; intermediate results unrounded, displayed results and final EAD rounded (CRE99.20); 250 business days a year (CRE99.28) | Effective 1 January 2023, last updated 27 March 2020 | Examples 1–5: the values used by the cases checked 2026-10-09 |
 
 Reference values may only be taken from a source in this register. Add a row
 before citing a new one.
