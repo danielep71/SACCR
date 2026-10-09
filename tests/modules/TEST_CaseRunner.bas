@@ -10,8 +10,10 @@ Attribute VB_Name = "TEST_CaseRunner"
 '   (methodology decision 7, #44).
 '
 ' PUBLIC SURFACE
-'   BeginSuite, BeginCase, LoadSavedInputs, SetParameter, AddNettingSet,
-'   AddTrade, SetInputCell, PatchCell, PatchName, RunCase, RunCaseExpectingStop,
+'   InjectFailure, BeginSuite, BeginCase, LoadSavedInputs, SetParameter,
+'   AddNettingSet,
+'   AddTrade, SetInputCell, PatchCell, PatchName, RunCase,
+'   RunCaseExpectingStop,
 '   OutputNumber, ExpectNumber, ExpectText, ExpectTrue and EndSuite, for
 '   TEST_Cases, TEST_InputValidation, TEST_Aggregation and TEST_Invariants.
 '   Option Private Module keeps them out of the external workbook automation
@@ -42,10 +44,12 @@ Attribute VB_Name = "TEST_CaseRunner"
 ' REPORTING
 '   Each case prints a CASE line and each failed check a FAILURE line. The
 '   summary counts results per reference class: illustrative results are
-'   reported separately and are never evidence of correctness.
+'   reported separately and are never evidence of correctness. A suite
+'   started after InjectFailure prints MODE=INJECTED_FAILURE and must end
+'   with RESULT=FAIL and exactly one failure.
 '
 ' UPDATED
-'   2026-10-07
+'   2026-10-09
 '
 ' AUTHOR
 '   Daniele Penza
@@ -105,6 +109,11 @@ Attribute VB_Name = "TEST_CaseRunner"
         Private mPatchTarget()      As String           'Cell address, or the workbook name
         Private mPatchSaved()       As Variant          'Its formula, or what the name referred to
 
+    'Failure injection, to prove that a wrong value is caught.
+        Private mInjectArmed        As Boolean          'Set by InjectFailure for the next suite
+        Private mInjectFailure      As Boolean          'This suite shifts its first numeric expectation
+        Private mInjectedAt         As String           'Case and check it was applied to; "" before
+
 
 '
 '------------------------------------------------------------------------------
@@ -113,6 +122,35 @@ Attribute VB_Name = "TEST_CaseRunner"
 '
 '------------------------------------------------------------------------------
 '
+
+Public Sub InjectFailure()
+'
+'==============================================================================
+'                                InjectFailure
+'------------------------------------------------------------------------------
+' PURPOSE
+'   Demonstrate the failure path of any suite run through this module: the
+'   next suite moves the expected value of its first numeric check by ten
+'   times its tolerance plus one, so the real comparison must reject it.
+'   The suite must then print MODE=INJECTED_FAILURE and an INJECTED line,
+'   end with RESULT=FAIL and failures=1, and still restore the workbook.
+'
+' USAGE
+'   On one line of the Immediate window, for example:
+'   TEST_CaseRunner.InjectFailure: TEST_Cases.RunCaseTests
+'
+' STATE OWNERSHIP
+'   Arms a flag that the next BeginSuite consumes and EndSuite clears, so
+'   it never outlives one suite.
+'
+' UPDATED
+'   2026-10-09
+'==============================================================================
+'
+        mInjectArmed = True
+
+End Sub
+
 
 Public Sub BeginSuite( _
     ByVal expectedCases As Long, _
@@ -134,7 +172,7 @@ Public Sub BeginSuite( _
 '   nothing has been changed at that point.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-09
 '==============================================================================
 '
 
@@ -146,6 +184,9 @@ Public Sub BeginSuite( _
         End If
         mExpectedCases = expectedCases
         mExpectedChecks = expectedChecks
+        mInjectFailure = mInjectArmed
+        mInjectArmed = False
+        mInjectedAt = ""
         mCaseCount = 0
         mCheckCount = 0
         mFailureCount = 0
@@ -175,6 +216,7 @@ Public Sub BeginSuite( _
         Application.EnableEvents = False
         Application.Calculation = xlCalculationManual
         Debug.Print "SACCR CASE TESTS"
+        Debug.Print "MODE=" & IIf(mInjectFailure, "INJECTED_FAILURE", "NORMAL")
 
 End Sub
 
@@ -197,7 +239,7 @@ Public Sub EndSuite( _
 '   and makes the result FAIL.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-09
 '==============================================================================
 '
 
@@ -228,6 +270,11 @@ Public Sub EndSuite( _
 '------------------------------------------------------------------------------
 ' REPORT
 '------------------------------------------------------------------------------
+        If mInjectFailure And Len(mInjectedAt) = 0 Then
+            mFailureCount = mFailureCount + 1
+            Debug.Print "FAILURE=suite: injected failure requested, but the suite ran no numeric check"
+        End If
+        mInjectFailure = False
         complete = (mCaseCount = mExpectedCases) And (mCheckCount = mExpectedChecks)
         If Not complete Then
             mFailureCount = mFailureCount + 1
@@ -720,7 +767,7 @@ Public Sub ExpectNumber( _
 '   referenceClass: published, independent or illustrative.
 '
 ' UPDATED
-'   2026-10-06
+'   2026-10-09
 '==============================================================================
 '
 
@@ -740,6 +787,11 @@ Public Sub ExpectNumber( _
         If Val(relativeTolerance) * Abs(expect) > bound Then
             bound = Val(relativeTolerance) * Abs(expect)
         End If
+        If mInjectFailure And Len(mInjectedAt) = 0 Then
+            expect = expect + 10# * bound + 1#
+            mInjectedAt = mCase & " " & label
+            Debug.Print "INJECTED=" & mInjectedAt & ": expected value moved to " & Trim$(Str$(expect))
+        End If
         If Not ReadOutput(tradeId, quantity, actual, detail) Then
             Record label, referenceClass, False, detail
         ElseIf IsError(actual) Or IsEmpty(actual) Or Not IsNumeric(actual) Or VarType(actual) = vbString Then
@@ -749,8 +801,8 @@ Public Sub ExpectNumber( _
                    quantity & " must not be negative, actual " & Trim$(Str$(CDbl(actual)))
         Else
             Record label, referenceClass, Abs(CDbl(actual) - expect) <= bound, _
-                   quantity & " expected " & expected & ", actual " & Trim$(Str$(CDbl(actual))) & _
-                   ", tolerance " & Trim$(Str$(bound))
+                   quantity & " expected " & Trim$(Str$(expect)) & ", actual " & _
+                   Trim$(Str$(CDbl(actual))) & ", tolerance " & Trim$(Str$(bound))
         End If
 
 End Sub
