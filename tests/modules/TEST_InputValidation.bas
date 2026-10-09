@@ -55,8 +55,8 @@ Attribute VB_Name = "TEST_InputValidation"
 ' MODULE CONSTANTS
 '------------------------------------------------------------------------------
         Private Const VALUATION   As String = "2026-09-30"    'Valuation date of every case
-        Private Const CASES       As Long = 32                'Cases in a complete run
-        Private Const CHECKS      As Long = 32                'Checks in a complete run
+        Private Const CASES       As Long = 35                'Cases in a complete run
+        Private Const CHECKS      As Long = 35                'Checks in a complete run
 
 
 '
@@ -187,6 +187,23 @@ Public Sub RunInputValidationTests()
         AddSwap "T1"
         AddParamRow PRM_ALPHA, 1.2
         ExpectStop "Parameter listed twice with different values"
+
+        StartCase "params-alpha-zero", "N"
+        AddSwap "T1"
+        TEST_CaseRunner.PatchCell SH_PARAMS, ParamsRow(PRM_ALPHA), PRM_VALUE_COL, 0#
+        ExpectStop "Alpha must be greater than zero"
+
+        StartCase "params-alpha-negative", "N"
+        AddSwap "T1"
+        TEST_CaseRunner.PatchCell SH_PARAMS, ParamsRow(PRM_ALPHA), PRM_VALUE_COL, -1#
+        ExpectStop "Alpha must be greater than zero"
+
+        StartCase "params-duplicate-below-fx", "N"
+        AddSwap "T1"
+        r = UsedLastRow(GetSheet(SH_PARAMS)) + 2
+        TEST_CaseRunner.PatchCell SH_PARAMS, r, PRM_CODE_COL, PRM_ALPHA
+        TEST_CaseRunner.PatchCell SH_PARAMS, r, PRM_VALUE_COL, ParamsValue(PRM_ALPHA, PRM_VALUE_COL)
+        ExpectStatus "VALID"
 
         StartCase "params-duplicate-same-value", "N"
         AddSwap "T1"
@@ -414,8 +431,7 @@ Private Sub AddParamRow( _
 ' PURPOSE
 '   Add a second Params row for a parameter in the blank row directly below
 '   the parameter list (LambdaThresholdCO is the last), where a user would
-'   add one. A row further down would fall below the FX table, where the
-'   engine reads a number in column C as a rate after a blank row.
+'   add one. A separate case covers a parameter row below the FX table.
 '
 ' ERROR POLICY
 '   Raises ERR_TEST_SETUP when that row is not blank, so that a changed

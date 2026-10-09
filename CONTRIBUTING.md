@@ -233,9 +233,10 @@ Discussion stays technical and respectful under the
 
 ## 📄 Licensing and maintainer
 
-This project is distributed under the [MIT License](LICENSE). Contributors must
-have the right to submit every part of a contribution, including code, tests,
-data, images and generated material.
+This project is distributed under the [Mozilla Public License 2.0](LICENSE).
+Contributions are accepted under the same license. Contributors must have the
+right to submit every part of a contribution, including code, tests, data,
+images and generated material.
 
 Maintained by **Daniele Penza**.
 

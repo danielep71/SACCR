@@ -251,14 +251,27 @@ the first output sheets are written, and checks that each fails with its
 results withdrawn; and it edits one trade after a run and checks that the
 results are reported out of date until the edit is undone. Unlike the
 harness, it runs the real macros, which rewrite the output sheets, so use a
-development workbook. Run:
+development workbook. The seven protected-output scenarios cover each output
+alone, TradeCalc + HedgingSets, Buckets + Results, and TradeCalc + Results +
+Checks. They assert every writable table is empty, every failed clear is named
+with its error number/source/description, the original error remains primary,
+and a subsequent unprotected run succeeds. Another case injects a known primary
+write failure and two cleanup failures with a different number and source,
+proving secondary errors do not replace the original. A protected Results sheet may retain
+its old table and A2 summary: the raised error (and Checks, when writable) must
+say cleanup is incomplete. `ResultsStatus() = "NONE"` means no valid completed
+run fingerprint, not proof that all output cells are empty. The tests preserve
+A3, retaining the formula-based status implemented in PR #89 without a cleanup
+write to that cell.
+
+Run:
 
 ```text
 TEST_MainState.RunMainStateTests
 ```
 
-A passing run prints ten `CASE=` lines and ends with
-`RESULT=PASS; cases=10; checks=...; failures=0; caller_state=RESTORED`.
+A passing run prints eighteen `CASE=` lines and ends with
+`RESULT=PASS; cases=18; checks=...; failures=0; caller_state=RESTORED`.
 
 <a id="numerical-test-cases"></a>
 
@@ -299,7 +312,7 @@ reference with a reserved character and an interest-rate risk factor that is
 not a currency. Every patched cell and name is restored. It needs a workbook
 built from the template. Import it with `TEST_CaseRunner` and run
 `TEST_InputValidation.RunInputValidationTests`; it ends with
-`RESULT=PASS; cases=32; checks=32; failures=0; restore=PASS`.
+`RESULT=PASS; cases=35; checks=35; failures=0; restore=PASS`.
 
 ### Aggregation tests
 

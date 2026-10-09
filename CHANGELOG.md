@@ -251,8 +251,32 @@ Use only the categories needed by a release.
   the prefixes. A workbook built before the rename must be rebuilt from the
   template: importing the renamed modules next to the old ones gives
   duplicate declarations.
+- The project is licensed under the Mozilla Public License 2.0 instead of the
+  MIT License. MPL 2.0 is file-level copyleft: modified versions of the
+  project's files must stay under MPL 2.0 and their source must be available
+  when distributed; the files can still be combined with code under other
+  licenses.
 
 ### Fixed
+
+- Installation instructions now show 35 input-validation cases and checks,
+  matching the merged suite and recorded Excel result (#91), and describe
+  the formula-based status from #89 as integrated rather than pending.
+
+- Runtime review safeguards: reject zero/negative global alpha (#71), recognize
+  parameter rows below the FX table (#80), and attempt each output cleanup even
+  when another sheet is protected (#85). Cleanup reports every failed sheet
+  with its error number, source and description, appended to the original run
+  error. A secondary Checks-write failure is also reported. MainState now has
+  18 cases, including multiple protected outputs, protected Results + Checks,
+  preservation of the primary error and successful recovery. An empty run
+  fingerprint means no valid results, even if protected cells remain visible.
+  New input regressions are included; Excel verification is still required
+  before merge.
+- VBA synchronization refuses known retired repository components before
+  changing the project (#71, #84, #87). Rebuild legacy workbooks from the current
+  template; unrelated user components are left alone. Windows/Excel validation
+  remains required.
 
 - The IR add-on diagram includes both ten-business-day floors, separate
   inflation hedging sets, and the distinct CRR/Basel one-year bucket boundary

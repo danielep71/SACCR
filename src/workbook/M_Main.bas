@@ -243,7 +243,8 @@ Public Function ResultsStatus() As String
 ' RETURNS
 '   CURRENT: the inputs match the last completed run.
 '   STALE: the inputs changed after it; the results are out of date.
-'   NONE: no completed run's results are on the sheets.
+'   NONE: no valid completed-run fingerprint. Protected output cells may
+'   remain after failed cleanup; the run error reports that separately.
 '
 ' UPDATED
 '   2026-10-07
