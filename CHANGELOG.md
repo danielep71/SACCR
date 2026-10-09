@@ -97,6 +97,12 @@ Use only the categories needed by a release.
 
 ### Added
 
+- `TEST_CaseRunner.InjectFailure` proves that the case suites catch a wrong
+  value (#44): the next suite moves the expected value of its first numeric
+  check beyond its tolerance and must end with `RESULT=FAIL`, one failure and
+  the workbook restored. Every runner suite now prints `MODE=NORMAL` or
+  `MODE=INJECTED_FAILURE`, and a numeric failure line shows the expected value
+  that was compared.
 - `TEST_Invariants` checks relations every result must satisfy (#44), on
   the demo portfolio: the aggregate add-on is the sum of the asset-class
   add-ons, RC and the multiplier follow their formulas, PFE is the

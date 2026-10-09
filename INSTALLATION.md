@@ -296,6 +296,22 @@ results per reference class, and
 `RESULT=PASS; cases=19; checks=36; failures=0; restore=PASS`. Illustrative
 results are counted separately and validate nothing.
 
+To see the failure path of any suite run through `TEST_CaseRunner`, arm the
+injection on the same Immediate-window line as the suite:
+
+```text
+TEST_CaseRunner.InjectFailure: TEST_Cases.RunCaseTests
+```
+
+The suite moves the expected value of its first numeric check by ten times its
+tolerance plus one, so the comparison must reject it. It prints
+`MODE=INJECTED_FAILURE` and an `INJECTED=` line naming the check, then one
+`FAILURE=` line for it; for `TEST_Cases` that is T01, so the summary shows
+`PUBLISHED: passed=13; failed=1` and
+`RESULT=FAIL; cases=19; checks=36; failures=1; restore=PASS`. The injection
+applies to that one suite only. A suite with no numeric check, such as
+`TEST_InputValidation`, fails with a message saying so.
+
 ### Invalid-input tests
 
 `tests/modules/TEST_InputValidation.bas` writes inputs that a JSON fixture
