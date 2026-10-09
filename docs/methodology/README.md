@@ -60,6 +60,13 @@ before citing a new one.
 | Supervisory parameters | Taken from the cited regime text and recorded in the parameter table below, never typed in code without a reference |
 | Running test cases | Decided 2026-10-06 (decision 7, #44): VBA generated from the JSON by a checked tool; cases feed the engine through its input sheets. See [`TEST_CASES.md`](TEST_CASES.md#consumption) |
 | Evidence for v1.0.0 | Decided 2026-10-09 (decision 8, #44): v1.0.0 validates rules only with the `published` values of BCBS 279 Annex 4 (CRE99), checked against the registered text. It has no `independent` values: the project has one maintainer, who also wrote the code under test. Every other case stays `illustrative`. Because the published examples are Basel examples, rules under `CRR` are implemented but not validated in v1.0.0, and the release says so. A later release cross-checks the results against a second source |
+| Sources | Decided 2026-10-09 (decisions 1 and 2, #33): `CRR` is the consolidated CRR as at a date recorded when its text is checked, with Delegated Regulation (EU) 2021/931 as amended by (EU) 2025/855 and EBA Q&A 2023_6962; `BCBS` is the Basel Framework CRE52 in force, with its effective date recorded the same way. Until then those source-register rows stay "To verify" |
+| Scope | Decided 2026-10-09 (decision 3, #33): the full SA-CCR only. Simplified SA-CCR (CRR Article 281), the original exposure method (Article 282), exposures to central counterparties, securities financing transactions, CVA and RWA are outside v1.0.0 and planned in #107 (v1.2.0). Inputs that ask for them are rejected; a limitation stated only in prose is not enough |
+| Margined netting sets | Decided 2026-10-09 (decision 4, #33): in scope for v1.0.0, with VM, NICA, threshold, MTA and MPOR as inputs |
+| Day count | Decided 2026-10-09 (decision 5, #33): S, E, M and T in years of 365 calendar days (`DaysPerYear`); floors and MPOR in business days of 250 a year (`BusinessDaysPerYear`). A test case may set `DaysPerYear` to reproduce a published maturity |
+| Currency | Decided 2026-10-09 (decision 6, #33): trade amounts are converted into the reporting currency with the FX table on Params, whose rates the user supplies; SACCR sources no market data. A test fixture holds amounts already in its calculation currency, whose rate is set to 1 |
+| Interest-rate aggregation | Decided 2026-10-09 (decision 9, #33): under `BCBS` both CRE52.57 formulas are supported, chosen with `IRBucketOffset`: the bucket formula that recognises offsets across maturity buckets, and the sum of absolute bucket values. Under `CRR` only what Article 280a allows is supported, once its text is checked. Each supported formula needs a value test |
+| Open treatments | Decided 2026-10-09 (decision 10, #33): the climatic-conditions factor is the one printed in CRR Article 280e, and climatic trades are rejected if the text gives none; an unrated credit reference is rejected, because the CRR mapping is not automated; other risks keep one hedging set per primary risk driver if Article 277a confirms it; inflation is treated as interest rate under its own risk-factor label; sold options and sold credit protection (Article 274(5) and (7)) are rejected in an ordinary netting set unless declared, and their special treatment comes after v1.0.0 |
 
 <a id="open-decisions"></a>
 
@@ -70,12 +77,11 @@ moved into the tables above; none may be assumed by code or tests meanwhile.
 
 | # | Decision | Notes |
 | ---: | --- | --- |
-| 1 | Exact consolidated CRR version date to implement | Fixes the `CRR` row of the source register |
-| 2 | Effective Basel CRE52 version | Fixes the `BCBS` row |
-| 3 | In scope beyond the full SA-CCR: simplified SA-CCR (CRR Article 281), original exposure method (Article 282), CCP exposures | Assumed out of scope until decided |
-| 4 | Margined netting sets and collateral (NICA, thresholds, MPOR) in the first engine milestone | Unmargined first is the smallest useful scope |
-| 5 | Date and maturity conventions: business days, day count, floors | Part of each rule's parameter entry |
-| 6 | Calculation currency and FX conversion of trade amounts | Caller-supplied converted amounts is the simplest contract |
+| 1 | Consolidation date of the CRR text implemented | Principle decided (Sources, above); the date is recorded when the text is checked (#33) |
+| 2 | Effective date of the CRE52 text implemented | Principle decided (Sources, above); the date is recorded when the text is checked (#33) |
+
+Decisions 3 to 6, 9 and 10 were settled on 2026-10-09 in #33 and are recorded
+in [Assumptions and scope](#assumptions-and-scope).
 
 <a id="regime-differences"></a>
 
@@ -155,7 +161,7 @@ protection (`CRR.274.5`, `CRR.274.7`); decomposition of option combinations
 (`CRR.274.6`); automated mapping of risk drivers (`CRR.277.2`, `CRR.277.3`);
 simplified SA-CCR (`CRR.281`) and the original exposure method (`CRR.282`).
 Collateral is an input after haircuts, and trade amounts are converted with
-the FX table on Params ([open decision](#open-decisions) 6); neither is
+the FX table on Params ([decision 6](#assumptions-and-scope)); neither is
 validated.
 
 A rule is **validated** only when at least one case with a `published` or
