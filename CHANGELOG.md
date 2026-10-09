@@ -240,9 +240,9 @@ Use only the categories needed by a release.
 
 ### Changed
 
-- The CRE99 test cases (`cre99-example-*`) are checked against the Basel
-  Framework chapter CRE99 (effective 1 January 2023) for Example 4 and are in
-  USD, unscaled: CRE99 prints USD thousands, so amounts and expected values are
+- The CRE99 test cases (`cre99-example-*`), T01 to T14, are checked against
+  the Basel Framework chapter CRE99 (effective 1 January 2023); T02 now
+  expects the printed -0.2694 instead of -0.27. They are in USD, unscaled: CRE99 prints USD thousands, so amounts and expected values are
   the printed figures times 1,000 and the tolerance is half a printed unit,
   500 USD (#44). T10 used 0.6 thousand and T07 2 thousand; both now use the
   half-unit rule. Example 3 prints a 9-month maturity, which no number of days

@@ -76,7 +76,7 @@ Private Sub Case01()
         TEST_CaseRunner.AddTrade "EX1-T3", "IR", "", "EUR", "Option", "Long", "Put", "Standard", "", "5000000", "50000", "2027-09-30", "2037-09-27", "2037-09-27", "2027-09-30", "0.06", "0.05", "", "", ""
         TEST_CaseRunner.RunCase
         TEST_CaseRunner.ExpectNumber "T01", "EX1-T1", "adjusted_notional", "78694000", "500", "0", "published"
-        TEST_CaseRunner.ExpectNumber "T02", "EX1-T3", "supervisory_delta", "-0.27", "0.005", "0", "published"
+        TEST_CaseRunner.ExpectNumber "T02", "EX1-T3", "supervisory_delta", "-0.2694", "0.00005", "0", "published"
         TEST_CaseRunner.ExpectNumber "T03", "", "add_on.interest_rate", "347000", "500", "0", "published"
         TEST_CaseRunner.ExpectNumber "T04", "", "exposure_value", "569000", "500", "0", "published"
 End Sub

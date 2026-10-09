@@ -17,8 +17,8 @@
       "reference": {
         "class": "published",
         "source": "CRE99",
-        "locator": "Example 1, from CRE99.22",
-        "derivation": "Printed in CRE99 Example 1, rounded to the printed digit. The source prints USD thousands; the value here is that figure times 1,000. Ported from prototype TestCatalogue T01. The example was located in CRE99 on 2026-10-09; the printed value is not yet re-checked against the text.",
+        "locator": "Example 1, CRE99.29",
+        "derivation": "Printed in CRE99 Example 1, rounded to the printed digit; checked against the text, tables and equation images on 2026-10-09. CRE99.20 keeps intermediate results unrounded and rounds the displayed results and the final EAD. The source prints USD thousands; the value here is that figure times 1,000. Ported from prototype TestCatalogue T01.",
         "derived_by": "Daniele Penza",
         "reviewed_by": null,
         "date": "2026-10-09"
@@ -29,17 +29,17 @@
       "quantity": "supervisory_delta",
       "rule": "CRE52.40",
       "trade": "EX1-T3",
-      "value": -0.27,
+      "value": -0.2694,
       "unit": "1",
       "tolerance": {
-        "absolute": 0.005,
+        "absolute": 5e-05,
         "relative": 0
       },
       "reference": {
         "class": "published",
         "source": "CRE99",
-        "locator": "Example 1, from CRE99.22",
-        "derivation": "Printed in CRE99 Example 1, rounded to the printed digit. Ported from prototype TestCatalogue T02. The example was located in CRE99 on 2026-10-09; the printed value is not yet re-checked against the text.",
+        "locator": "Example 1, CRE99.31-32",
+        "derivation": "Printed in CRE99 Example 1, rounded to the printed digit; checked against the text, tables and equation images on 2026-10-09. CRE99.20 keeps intermediate results unrounded and rounds the displayed results and the final EAD. Printed to four decimals; the catalogue had rounded it to -0.27. Ported from prototype TestCatalogue T02.",
         "derived_by": "Daniele Penza",
         "reviewed_by": null,
         "date": "2026-10-09"
@@ -58,8 +58,8 @@
       "reference": {
         "class": "published",
         "source": "CRE99",
-        "locator": "Example 1, from CRE99.22",
-        "derivation": "Printed in CRE99 Example 1, rounded to the printed digit. The source prints USD thousands; the value here is that figure times 1,000. Ported from prototype TestCatalogue T03. The example was located in CRE99 on 2026-10-09; the printed value is not yet re-checked against the text.",
+        "locator": "Example 1, CRE99.39",
+        "derivation": "Printed in CRE99 Example 1, rounded to the printed digit; checked against the text, tables and equation images on 2026-10-09. CRE99.20 keeps intermediate results unrounded and rounds the displayed results and the final EAD. The source prints USD thousands; the value here is that figure times 1,000. Ported from prototype TestCatalogue T03.",
         "derived_by": "Daniele Penza",
         "reviewed_by": null,
         "date": "2026-10-09"
@@ -78,8 +78,8 @@
       "reference": {
         "class": "published",
         "source": "CRE99",
-        "locator": "Example 1, from CRE99.22",
-        "derivation": "Printed in CRE99 Example 1, rounded to the printed digit. The source prints USD thousands; the value here is that figure times 1,000. Ported from prototype TestCatalogue T04. The example was located in CRE99 on 2026-10-09; the printed value is not yet re-checked against the text.",
+        "locator": "Example 1, CRE99.40",
+        "derivation": "Printed in CRE99 Example 1, rounded to the printed digit; checked against the text, tables and equation images on 2026-10-09. CRE99.20 keeps intermediate results unrounded and rounds the displayed results and the final EAD. The source prints USD thousands; the value here is that figure times 1,000. Ported from prototype TestCatalogue T04.",
         "derived_by": "Daniele Penza",
         "reviewed_by": null,
         "date": "2026-10-09"

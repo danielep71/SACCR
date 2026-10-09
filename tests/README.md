@@ -47,7 +47,7 @@ fixture with an expected file per regime. T22 and T26 read trades `NIR-B` and
 | Test | Case and regime | Quantity (trade) | Expected | Class |
 | --- | --- | --- | --- | --- |
 | T01 | `cre99-example-1.bcbs` | `adjusted_notional` (EX1-T1) | 78,694,000 USD | published |
-| T02 | `cre99-example-1.bcbs` | `supervisory_delta` (EX1-T3) | -0.27 | published |
+| T02 | `cre99-example-1.bcbs` | `supervisory_delta` (EX1-T3) | -0.2694 | published |
 | T03 | `cre99-example-1.bcbs` | `add_on.interest_rate` | 347,000 USD | published |
 | T04 | `cre99-example-1.bcbs` | `exposure_value` | 569,000 USD | published |
 | T05 | `cre99-example-2.bcbs` | `multiplier` | 0.965 | published |
@@ -76,13 +76,11 @@ fixture with an expected file per regime. T22 and T26 read trades `NIR-B` and
 | T28 | `illustrative-credit-quality-step.crr` | `supervisory_factor` (B03) | 0.0042 | illustrative |
 
 `published` values are printed in the Basel Framework chapter CRE99 (and BCBS
-279 Annex 4a), rounded to the printed digit. Example 4 (T08 to T10) was checked
-against the text on 2026-10-09; the others are the catalogue's transcription,
-still to be checked. Example 3 prints a residual maturity of 9 months for trade
-1, so its case runs with `DaysPerYear` 360 and 270 days to give exactly 0.75
-years. `illustrative` values came from a Python
-implementation that is not in the repository or from unreviewed hand
-calculations, and stay illustrative until an independent derivation is
-committed and reviewed. Every expected value and tolerance matches the
-catalogue, and the prototype engine's saved results in the template are within
-each tolerance.
+279 Annex 4a), rounded to the printed digit, and were checked against the text
+on 2026-10-09. T02 is printed as -0.2694; the catalogue had -0.27. Example 3
+prints a residual maturity of 9 months for trade 1, so its case runs with
+`DaysPerYear` 360 and 270 days to give exactly 0.75 years. `illustrative`
+values came from a Python implementation that is not in the repository or from
+unreviewed hand calculations, and stay illustrative until an independent
+derivation is committed and reviewed (#100). The illustrative values and
+tolerances are the catalogue's.
