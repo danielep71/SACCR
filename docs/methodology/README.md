@@ -173,9 +173,10 @@ numbers were checked against the CRE52 contents for EAD and alpha (.1), the cap
 (.2), RC (.10, .18), PFE (.20), the multiplier (.22–.23), the aggregate add-on
 (.25), supervisory duration (.34), adjusted notional (.35, .36), delta (.39,
 .40, .41), basis and volatility (.46, .47, .73), maturity factor (.48–.49,
-.52–.53), MPOR (.50, .51), interest rate (.57), FX (.59), credit (.61), equity
-(.66), commodity (.70) and the parameters (.72). The hedging-set paragraphs
-cited by the code (.56, .58, .60, .64, .68) are not yet confirmed.
+.52–.53), MPOR (.50, .51), interest rate (.56, .57), FX (.58, .59), credit
+(.60, .61, .64), equity (.66, .68), commodity (.70) and the parameters (.72).
+CRE52.64 is about credit and CRE52.68 about equity factors; the code cited them
+for equity and commodity until #33 corrected it.
 Test IDs `T01`–`T28` are listed in
 [`tests/README.md`](../../tests/README.md#ported-prototype-catalogue). Status
 uses four terms:
@@ -207,9 +208,9 @@ uses four terms:
 | `CRE52.50`, `CRE52.51`, `CRE52.52`, `CRE52.53`, `CRR.279c`, `CRR.285` | MPOR floors and maturity factor of a margined netting set, 1.5 x sqrt(MPOR / 250) | `CORE_Engine.LoadNettingSets`, `SACCR_MaturityFactor` | Published: T11; EAD T14 | BCBS validated (MPOR), exercised (maturity factor); CRR not validated |
 | `CRE52.57`, `CRR.280a` | Interest rate: hedging set per currency (CRE52.57(2)), maturity buckets (.57(3)), bucket formula or, under `BCBS` only, sum of absolutes (.57(5)) | `CORE_Engine.ProcessTrades`, `SACCR_IREffectiveNotional`, `CORE_Engine.ComputeHedgingSets` | Published: T03. Relations: `TEST_Invariants`, `TEST_Aggregation` | BCBS validated; CRR not validated |
 | `CRE52.58`, `CRE52.59`, `CRR.280b` | Foreign exchange: hedging set per currency pair, add-on = factor x abs(effective notional) | `CORE_Engine.ProcessTrades`, `CORE_Engine.ComputeHedgingSets` | None | Not validated |
-| `CRE52.60`, `CRE52.61`, `CRR.280c` | Credit: entity buckets, single-factor aggregation, factor by rating (BCBS) or credit quality step (CRR) | `CORE_Engine.ProcessTrades`, `SACCR_FactorAggregation`, `CORE_Engine.ComputeHedgingSets` | Published EAD T06. Illustrative: T28. Relations: `TEST_Aggregation` | BCBS exercised; CRR not validated |
-| `CRE52.64`, `CRE52.66`, `CRR.280d` | Equity: entity buckets, single-factor aggregation | `CORE_Engine.ProcessTrades`, `SACCR_FactorAggregation`, `CORE_Engine.ComputeHedgingSets` | None | Not validated |
-| `CRE52.68`, `CRE52.70`, `CRR.280e` | Commodity: hedging sets energy, metals, agricultural and other, commodity-type buckets, single-factor aggregation | `CORE_Engine.ProcessTrades`, `SACCR_FactorAggregation`, `CORE_Engine.ComputeHedgingSets` | Published EADs T07, T12 | BCBS exercised; CRR not validated |
+| `CRE52.60`, `CRE52.61`, `CRE52.64`, `CRR.280c` | Credit: entity buckets, single-factor aggregation, factor by rating (BCBS) or credit quality step (CRR) | `CORE_Engine.ProcessTrades`, `SACCR_FactorAggregation`, `CORE_Engine.ComputeHedgingSets` | Published EAD T06. Illustrative: T28. Relations: `TEST_Aggregation` | BCBS exercised; CRR not validated |
+| `CRE52.66`, `CRE52.68`, `CRR.280d` | Equity: entity buckets, single-factor aggregation | `CORE_Engine.ProcessTrades`, `SACCR_FactorAggregation`, `CORE_Engine.ComputeHedgingSets` | None | Not validated |
+| `CRE52.70`, `CRR.280e` | Commodity: hedging sets energy, metals, agricultural and other, commodity-type buckets, single-factor aggregation | `CORE_Engine.ProcessTrades`, `SACCR_FactorAggregation`, `CORE_Engine.ComputeHedgingSets` | Published EADs T07, T12 | BCBS exercised; CRR not validated |
 | `CRR.277a` | CRR climatic-conditions commodity hedging set | `CORE_Engine.ProcessTrades` | Illustrative: T27. Its supervisory factor is a placeholder to confirm in Art. 280e | Not validated |
 | `CRR.277.1`, `CRR.280f` | CRR other-risks asset class, factor 8%; rejected under BCBS | `CORE_Engine.ProcessTrades`, `CORE_Engine.ComputeHedgingSets` | Illustrative: T24, T25, T26 | Not validated |
 | `CRE52.72` | Supervisory factors, correlations and option volatilities on Params | `CORE_Engine.LoadSFTable` | Published values T01–T14, for the factors their trades use | BCBS exercised for those factors; CRR not validated |

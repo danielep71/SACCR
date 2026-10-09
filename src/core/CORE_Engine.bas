@@ -2250,12 +2250,13 @@ Private Sub ProcessTrades( _
     'IR: d = notional * SD, hedging set per currency (risk factor), bucket
     'by end date: under 1 year, 1 to 5 years, over 5 years [CRE52.34,
     'CRE52.57(2)-(3)]; an inflation risk factor such as EUR-INFL is its own
-    'hedging set [CRR Art. 277(4)(a), 277a(1)]. FX: d = notional, hedging set per currency pair written in
-    'alphabetical order; an inverted pair flips the delta [CRE52.58]. CR: d
-    '= notional * SD, one hedging set, bucket per entity [CRE52.60]. EQ: one
-    'hedging set, bucket per entity [CRE52.64]. CO: hedging set per
-    'commodity group, bucket per commodity [CRE52.68]. OT: hedging set per
-    'primary risk driver [CRR Art. 277a].
+    'hedging set [CRR Art. 277(4)(a), 277a(1)]. FX: d = notional, hedging
+    'set per currency pair written in alphabetical order; an inverted pair
+    'flips the delta [CRE52.58]. CR: d = notional * SD, one hedging set,
+    'bucket per entity [CRE52.60, CRE52.64]. EQ: one hedging set, bucket per
+    'entity [CRE52.66]. CO: hedging set per commodity group, bucket per
+    'commodity [CRE52.70]. OT: hedging set per primary risk driver [CRR Art.
+    '277a].
             If ok Then
                 Select Case ac
                     Case AC_IR
