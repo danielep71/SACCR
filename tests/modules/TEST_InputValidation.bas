@@ -14,8 +14,11 @@ Attribute VB_Name = "TEST_InputValidation"
 '   row or key; and, for aggregation (#37), a credit reference given two
 '   sub-classes in either order, a basis trade without a hedging-set label,
 '   a reserved character in a reference, and an interest-rate risk factor
-'   that is not a currency. A blank optional field, and a duplicate with
-'   the same values, must still be accepted.
+'   that is not a currency; and, for the CRR scope (#33), the sum of
+'   absolute IR bucket values in a CRR netting set and an IR risk factor
+'   with a suffix other than -INFL. A blank optional field, a duplicate
+'   with the same values, an inflation risk factor such as EUR-INFL and
+'   the sum of absolutes in a BCBS netting set must still be accepted.
 '
 ' PUBLIC SURFACE
 '   RunInputValidationTests is the entry point. Option Private Module keeps
@@ -39,7 +42,7 @@ Attribute VB_Name = "TEST_InputValidation"
 '   window.
 '
 ' UPDATED
-'   2026-10-07
+'   2026-10-09
 '
 ' AUTHOR
 '   Daniele Penza
@@ -55,8 +58,8 @@ Attribute VB_Name = "TEST_InputValidation"
 ' MODULE CONSTANTS
 '------------------------------------------------------------------------------
         Private Const VALUATION   As String = "2026-09-30"    'Valuation date of every case
-        Private Const CASES       As Long = 35                'Cases in a complete run
-        Private Const CHECKS      As Long = 35                'Checks in a complete run
+        Private Const CASES       As Long = 39                'Cases in a complete run
+        Private Const CHECKS      As Long = 39                'Checks in a complete run
 
 
 '
@@ -284,6 +287,32 @@ Public Sub RunInputValidationTests()
 
         StartCase "aggregation-ir-risk-factor-not-currency", "N"
         TEST_CaseRunner.AddTrade "T1", "IR", "", "EURO", "Linear", "Long", "", "Standard", "", _
+                                 "10000", "0", "", "2031-09-30", "2031-09-30", "", "", "", "", "", ""
+        ExpectStatus "INCOMPLETE: 1 of 1 trade(s) rejected"
+
+    'Interest-rate aggregation (#33): the CRR has only the formula with
+    'offsets across maturity buckets [Art. 280a(3)]; Basel also allows the
+    'sum of absolute bucket values [CRE52.57(5)].
+        StartCase "params-ir-sum-of-absolutes-crr", "N"
+        AddSwap "T1"
+        TEST_CaseRunner.PatchCell SH_PARAMS, ParamsRow(PRM_IRFULL), PRM_VALUE_COL, False
+        ExpectStatus "INVALID: 1 input error(s)"
+
+        StartCase "params-ir-sum-of-absolutes-bcbs", "N"
+        TEST_CaseRunner.SetInputCell SH_NS, 1, NS_REGIME, "BCBS"
+        AddSwap "T1"
+        TEST_CaseRunner.PatchCell SH_PARAMS, ParamsRow(PRM_IRFULL), PRM_VALUE_COL, False
+        ExpectStatus "VALID"
+
+    'Inflation is interest rate, entered as a currency code with -INFL
+    '[CRR Art. 277(4)(a), 277a(1)]; any other suffix is rejected.
+        StartCase "trade-ir-inflation-risk-factor", "N"
+        TEST_CaseRunner.AddTrade "T1", "IR", "", "EUR-INFL", "Linear", "Long", "", "Standard", "", _
+                                 "10000", "0", "", "2031-09-30", "2031-09-30", "", "", "", "", "", ""
+        ExpectStatus "VALID"
+
+        StartCase "trade-ir-risk-factor-unknown-suffix", "N"
+        TEST_CaseRunner.AddTrade "T1", "IR", "", "EUR-CPI", "Linear", "Long", "", "Standard", "", _
                                  "10000", "0", "", "2031-09-30", "2031-09-30", "", "", "", "", "", ""
         ExpectStatus "INCOMPLETE: 1 of 1 trade(s) rejected"
 
