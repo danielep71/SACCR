@@ -97,6 +97,16 @@ Use only the categories needed by a release.
 
 ### Added
 
+- `TEST_Invariants` checks relations every result must satisfy (#44), on
+  the demo portfolio: the aggregate add-on is the sum of the asset-class
+  add-ons, RC and the multiplier follow their formulas, PFE is the
+  multiplier times the add-on, EAD = alpha * (RC + PFE), a margined netting
+  set's EAD is the lower of the margined EAD and the unmargined cap, withheld
+  netting sets show no figures and the TOTAL row adds up. It also checks that
+  a second run gives identical outputs, that the IR sum of absolute bucket
+  values is never below the bucket formula, and that a zero add-on is
+  calculated without failing. The checks compare outputs with each other and
+  are reported as illustrative.
 - An interest-rate add-on flowchart in `docs/assets/`
   (`SACCR_IR_AddOn_flow.svg` and a 2080 px PNG). It traces the steps from trade
   selection to the aggregate add-on, including the maturity factor, basis and
