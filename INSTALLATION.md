@@ -326,20 +326,24 @@ the factor and FX tables, and checks that the run stops, or continues when the
 duplicate has the same values. For aggregation it gives one credit reference
 two sub-classes, in both orders, and adds a basis trade without a label, a
 reference with a reserved character and an interest-rate risk factor that is
-not a currency. Every patched cell and name is restored. It needs a workbook
+not a currency. For the CRR scope it checks that the sum of absolute IR
+bucket values makes a CRR netting set `INVALID` but is accepted under BCBS, and
+that an inflation risk factor such as `EUR-INFL` is accepted while another
+suffix is rejected. Every patched cell and name is restored. It needs a workbook
 built from the template. Import it with `TEST_CaseRunner` and run
 `TEST_InputValidation.RunInputValidationTests`; it ends with
-`RESULT=PASS; cases=35; checks=35; failures=0; restore=PASS`.
+`RESULT=PASS; cases=39; checks=39; failures=0; restore=PASS`.
 
 ### Aggregation tests
 
 `tests/modules/TEST_Aggregation.bas` runs the workbook's own portfolio in its
 row order, reversed and rotated, and checks that Results is the same each time;
 and it checks offsets by comparing outputs with each other: two opposite swaps
-in one bucket offset exactly, and nothing offsets across currencies, netting
-sets, credit entities or between a standard and a basis hedging set. Import it
+in one bucket offset exactly, and nothing offsets across currencies, between
+interest rate and inflation in one currency, across netting sets or credit
+entities, or between a standard and a basis hedging set. Import it
 with `TEST_CaseRunner` and run `TEST_Aggregation.RunAggregationTests`; it ends
-with `RESULT=PASS; cases=10; checks=10; failures=0; restore=PASS`.
+with `RESULT=PASS; cases=11; checks=11; failures=0; restore=PASS`.
 
 ### Invariant tests
 

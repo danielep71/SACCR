@@ -262,6 +262,17 @@ Use only the categories needed by a release.
 
 ### Changed
 
+- CRR scope checked against the CRR text (#33). With `IRBucketOffset` set to
+  FALSE, a CRR netting set with interest-rate trades is now `INVALID` and its
+  EAD withheld, because Article 280a(3) has only the formula with offsets
+  across maturity buckets; Basel netting sets keep both formulas. Inflation
+  trades can be entered as interest rate with a risk factor such as
+  `EUR-INFL`, each in its own hedging set (Articles 277(4)(a), 277a(1));
+  before, any IR risk factor other than a currency was rejected. The template
+  notes confirm the 18% climatic-conditions factor (Article 280e(5)), explain
+  the unrated credit mapping (Article 280c(5)(a)) and state that the optional
+  sold-option and sold-protection reductions are not applied.
+  `TEST_InputValidation` has 39 cases and `TEST_Aggregation` 11.
 - The CRE99 test cases (`cre99-example-*`), T01 to T14, are checked against
   the Basel Framework chapter CRE99 (effective 1 January 2023); T02 now
   expects the printed -0.2694 instead of -0.27. They are in USD, unscaled: CRE99 prints USD thousands, so amounts and expected values are

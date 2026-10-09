@@ -64,10 +64,10 @@ before citing a new one.
 | Sources | Decided 2026-10-09 (decisions 1 and 2, #33): `CRR` is the consolidated CRR of 26.06.2026 (version 021.001), checked on 2026-10-09, with Delegated Regulation (EU) 2021/931 as amended by (EU) 2025/855 and EBA Q&A 2023_6962; `BCBS` is the Basel Framework CRE52 effective 1 January 2023, last updated 5 June 2020, checked on 2026-10-09 |
 | Scope | Decided 2026-10-09 (decision 3, #33): the full SA-CCR only. Simplified SA-CCR (CRR Article 281), the original exposure method (Article 282), exposures to central counterparties, securities financing transactions, CVA and RWA are outside v1.0.0 and planned in #107 (v1.2.0). Inputs that ask for them are rejected; a limitation stated only in prose is not enough |
 | Margined netting sets | Decided 2026-10-09 (decision 4, #33): in scope for v1.0.0, with VM, NICA, threshold, MTA and MPOR as inputs |
-| Day count | Decided 2026-10-09 (decision 5, #33): S, E, M and T in years of 365 calendar days (`DaysPerYear`); floors and MPOR in business days of 250 a year (`BusinessDaysPerYear`). A test case may set `DaysPerYear` to reproduce a published maturity |
+| Day count | Decided 2026-10-09 (decision 5, #33), confirmed after the CRR check: S, E, M and T in years of 365 calendar days (`DaysPerYear`); floors and MPOR in business days of 250 a year (`BusinessDaysPerYear`). Articles 279b and 279c say "the relevant business day convention"; this is the convention SACCR uses, without holiday calendars. A test case may set `DaysPerYear` to reproduce a published maturity |
 | Currency | Decided 2026-10-09 (decision 6, #33): trade amounts are converted into the reporting currency with the FX table on Params, whose rates the user supplies; SACCR sources no market data. A test fixture holds amounts already in its calculation currency, whose rate is set to 1 |
 | Interest-rate aggregation | Decided 2026-10-09 (decision 9, #33): under `BCBS` both CRE52.57 formulas are supported, chosen with `IRBucketOffset`: the bucket formula that recognises offsets across maturity buckets, and the sum of absolute bucket values. Under `CRR` only what Article 280a allows is supported, once its text is checked. Each supported formula needs a value test |
-| Open treatments | Decided 2026-10-09 (decision 10, #33): the climatic-conditions factor is the one printed in CRR Article 280e, and climatic trades are rejected if the text gives none; an unrated credit reference is rejected, because the CRR mapping is not automated; other risks keep one hedging set per primary risk driver if Article 277a confirms it; inflation is treated as interest rate under its own risk-factor label; sold options and sold credit protection (Article 274(5) and (7)) are rejected in an ordinary netting set unless declared, and their special treatment comes after v1.0.0 |
+| Open treatments | Decided 2026-10-09 (decision 10, #33), revised after the CRR check: climatic conditions take 18% (Articles 277a(1)(e)(v), 280e(5)); there is no unrated sub-class, and the user enters CQS3, CQS5 where Article 128 applies, or the step mapped from an internal rating (Article 280c(5)(a)); other risks keep one hedging set per identical primary risk driver (Article 277a(1)(f)); inflation is interest rate, entered as a currency followed by `-INFL` (such as `EUR-INFL`) in its own hedging set (Articles 277(4)(a), 277a(1)); the optional reductions for sold options and sold credit protection (Article 274(5) and (7)) are not applied, which gives a higher exposure value and is permitted; several margin agreements in one netting set and one agreement over several netting sets (Articles 274(4), 275(3)) move to #39 |
 
 <a id="open-decisions"></a>
 
@@ -143,27 +143,21 @@ CRE52.72 values, which equal the CRR values wherever both texts give one.
 | Equity, single name; index | 32%, correlation 50%, volatility 120%; 20%, 80%, 75% | BCBS | CRE52.72 | Params rows `EQ_SINGLE`, `EQ_INDEX` |
 | Commodity: electricity; oil/gas, metals, agricultural, other | 40%; 18%; correlation 40%; volatility 150%; 70% | BCBS | CRE52.72 | Params `CO_` rows |
 
-Points found in the CRR text that need a change or a decision (#33):
+How the points found in the CRR text are handled (#33):
 
 - Article 280a prints only the formula with offsets across maturity buckets.
-  `IRBucketOffset` = FALSE must therefore not apply to `CRR` netting sets
-  ([decision 9](#assumptions-and-scope)).
-- Article 277(4)(a) maps inflation to interest rate, and Article 277a(1) puts
-  inflation trades in their own hedging set per currency. The engine accepts
-  only a three-letter currency as an interest-rate risk factor, so inflation
-  trades cannot be entered yet.
-- Article 274(5) (a netting set of sold options set to zero) and 274(7) (a
-  credit derivative long the underlying, that is protection sold, capped at the
-  unpaid premium) are options: an institution *may* apply them. Not applying
-  them gives a higher exposure value and is permitted.
-- Article 274(4) (several margin agreements, or margined and unmargined trades,
-  in one netting set) and 275(3) (one margin agreement for several netting
-  sets) cannot be expressed in the input sheets.
+  With `IRBucketOffset` = FALSE, a `CRR` netting set with interest-rate trades
+  is `INVALID` and its EAD withheld; `BCBS` netting sets may use either
+  formula.
+- Inflation trades are entered as `EUR-INFL` and similar, each in its own
+  hedging set.
+- The optional reductions of Article 274(5) and (7) are not applied
+  ([decision 10](#assumptions-and-scope)).
+- Article 274(4) and 275(3) cannot be expressed in the input sheets and are
+  handled in #39.
 - Article 280c(5)(b)(ii) (an unlisted multi-name credit position takes the
-  notional-weighted factor of its constituents) is not automated.
-- Articles 279b and 279c express S, E, M and T in years "using the relevant
-  business day convention"; [decision 5](#assumptions-and-scope) uses 365
-  calendar days.
+  notional-weighted factor of its constituents) is not automated: the user
+  enters the resulting factor's credit quality step or a quoted index.
 
 <a id="traceability"></a>
 
