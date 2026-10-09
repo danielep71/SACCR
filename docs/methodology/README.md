@@ -69,6 +69,44 @@ before citing a new one.
 | Interest-rate aggregation | Decided 2026-10-09 (decision 9, #33): under `BCBS` both CRE52.57 formulas are supported, chosen with `IRBucketOffset`: the bucket formula that recognises offsets across maturity buckets, and the sum of absolute bucket values. Under `CRR` only what Article 280a allows is supported, once its text is checked. Each supported formula needs a value test |
 | Open treatments | Decided 2026-10-09 (decision 10, #33), revised after the CRR check: climatic conditions take 18% (Articles 277a(1)(e)(v), 280e(5)); there is no unrated sub-class, and the user enters CQS3, CQS5 where Article 128 applies, or the step mapped from an internal rating (Article 280c(5)(a)); other risks keep one hedging set per identical primary risk driver (Article 277a(1)(f)); inflation is interest rate, entered as a currency followed by `-INFL` (such as `EUR-INFL`) in its own hedging set (Articles 277(4)(a), 277a(1)); the optional reductions for sold options and sold credit protection (Article 274(5) and (7)) are not applied, which gives a higher exposure value and is permitted; several margin agreements in one netting set and one agreement over several netting sets (Articles 274(4), 275(3)) move to #39 |
 
+<a id="support-matrix"></a>
+
+## 🧾 Support matrix
+
+What v1.0.0 calculates, what the user must enter in a supported form, and what
+is outside it (#33). "Not supported" means the input sheets cannot express the
+case; nothing is calculated for it. Whether a supported rule is also validated
+is in the [traceability](#traceability) table.
+
+| Area | Item | Status | How it is entered or treated | Reference |
+| --- | --- | --- | --- | --- |
+| Methods | Full SA-CCR, CRR (default) and Basel CRE52, chosen per netting set | Supported | Regime on Params, override per netting set | Decisions 1–3 |
+| Methods | Simplified SA-CCR, original exposure method, CCP default-fund exposures, SFTs, CVA, RWA | Not supported | Cannot be entered; planned in #107 (v1.2.0) | Decision 3 |
+| Asset classes | Interest rate, foreign exchange, credit, equity, commodity | Supported | Asset class IR, FX, CR, EQ, CO | CRR Art. 277; CRE52.72 |
+| Asset classes | Other risks | Supported under CRR; rejected under BCBS | Asset class OT; one hedging set per identical primary risk driver | CRR Art. 277(1)(f), 277a(1)(f), 280f |
+| Asset classes | Inflation | Supported | IR with risk factor such as `EUR-INFL`, own hedging set per currency | CRR Art. 277(4)(a), 277a(1) |
+| Asset classes | Climatic conditions | Supported under CRR | CO sub-class `CLIMATIC`, own hedging set, factor 18% | CRR Art. 277a(1)(e)(v), 280e(5) |
+| Instruments | Linear derivatives (swaps, forwards, futures, single-name and index credit derivatives) | Supported | Instrument `Linear`; delta +1 long, -1 short | CRE52.39; CRR Art. 279a(1)(c) |
+| Instruments | Options (European; for several exercise dates the latest; for average-price options the average) | Supported | Instrument `Option` with price, strike and expiry; CRR lambda for IR and commodity options | CRE52.40; CRR Art. 279a(1)(a); `CRR-RTS` Art. 5 |
+| Instruments | Option combinations and digital options | Entered by the user | Enter the component options; a digital as its collar of two options at 0.95 K and 1.05 K under CRR | CRR Art. 274(6); CRE52.1 FAQ3 |
+| Instruments | CDO tranches and nth-to-default credit derivatives | Supported | Instrument `CDO` with attachment and detachment; nth-to-default as A = (n - 1)/k, D = n/k | CRE52.41; CRR Art. 279a(1)(b) |
+| Instruments | Basis and volatility transactions | Supported | Nature `Basis` or `Volatility` with a hedging-set label | CRE52.46–.47; CRR Art. 277a(2), 280 |
+| Instruments | Transactions with several material risk drivers | Entered by the user | One row per risk-category leg, mapped by the user (#38) | CRR Art. 277(3); `CRR-RTS` |
+| Instruments | Sold options and sold credit protection | Supported, without the optional reductions | Calculated as ordinary trades; the zero EAD and premium cap are not applied, which gives a higher EAD | CRR Art. 274(5), (7); CRE52.1 FAQ1–2 |
+| Credit factors | Rated single names; quoted IG and SG indices | Supported | Sub-class AAA–CCC (BCBS) or CQS1–CQS6 (CRR); `IG_INDEX`, `SG_INDEX` | CRE52.72; CRR Art. 280c(5) |
+| Credit factors | Unrated single names; unlisted multi-name positions | Entered by the user | CQS3, CQS5 where Art. 128 applies, or the mapped step; for an unlisted multi-name position, the step of its weighted factor | CRR Art. 280c(5) |
+| Netting sets | Unmargined netting set | Supported | Margined = N; collateral in NICA | CRE52.10; CRR Art. 275(1) |
+| Netting sets | Margined netting set with VM, NICA, threshold and MTA | Supported | Margined = Y; MPOR from floor, remargining frequency, large or illiquid flag, disputes and override | CRE52.18, .50–.53; CRR Art. 275(2), 279c, 285 |
+| Netting sets | Cap of a margined netting set | Supported; Basel collateral basis under review | CRR cap with NICA; BCBS cap currently with VM + NICA, which the CRE52 text does not support (#39) | CRR Art. 274(3); CRE52.2 |
+| Netting sets | One-way margin agreement where only the bank posts VM | Entered by the user; under review | Enter as unmargined with the posted VM; tests to add in #39 | CRE52.2, CRE52.10 footnote 2 |
+| Netting sets | Several margin agreements in one netting set; one agreement over several netting sets | Not supported | Cannot be expressed; a declaration or support is planned in #39 | CRR Art. 274(4), 275(3); CRE52.74–.76 |
+| Netting sets | Client clearing | Supported with a user declaration | Cleared = Y applies the 5-business-day MPOR floor; eligibility is the user's to check (#39) | CRR Art. 279c(1)(b) |
+| Collateral | Haircuts, eligibility, segregated initial margin | Entered by the user | Amounts after haircuts; segregated collateral posted by the bank excluded from NICA | CRE52.11, .17; CRR Art. 276 |
+| Parameters | IR aggregation without offsets across buckets | Supported under BCBS only | `IRBucketOffset` = FALSE; a CRR netting set with IR trades is then INVALID | CRE52.57(5); CRR Art. 280a(3) |
+| Parameters | Alpha override per netting set | Supported for what-if runs | Alpha column on NettingSets; regulatory runs use 1.4 (#41) | CRE52.1; CRR Art. 274(2) |
+| Currency and dates | Reporting currency and conversion | Supported | FX table on Params, rates supplied by the user | Decision 6 |
+| Currency and dates | Day count | Supported | 365 calendar days per year, 250 business days for floors and MPOR | Decision 5 |
+
 <a id="open-decisions"></a>
 
 ## ❓ Open decisions

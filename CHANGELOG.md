@@ -97,6 +97,10 @@ Use only the categories needed by a release.
 
 ### Added
 
+- A support matrix in `docs/methodology/README.md` lists, for v1.0.0, which
+  methods, asset classes, instruments, netting-set and collateral structures,
+  parameters and conventions are supported, which the user enters in a
+  supported form, and which cannot be entered (#33).
 - The traceability table in `docs/methodology/README.md` lists each
   implemented rule with its CRE52 and CRR references, its VBA procedures, its
   test cases and its status per regime (#44): Basel rules covered by a
