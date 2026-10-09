@@ -15,8 +15,9 @@ Attribute VB_Name = "M_Main"
 '   result line and raises errors instead of showing them.
 '   ResultsStatus: whether the results on the sheets match the current
 '   inputs (CURRENT, STALE or NONE).
-'   FlagStaleResults: mark the Results sheet when they do not; called when
-'   the Results sheet is activated.
+'   ResultsStatusText: the same as text, for the status formula in Results
+'   A3; Excel recalculates it when an input changes, without a macro
+'   writing to the workbook, so Undo keeps working.
 '   The sheet buttons call the first three by name. These macros are not
 '   listed in docs/PUBLIC_API.txt.
 '
@@ -270,19 +271,39 @@ Public Function ResultsStatus() As String
 End Function
 
 
-Public Sub FlagStaleResults()
+Public Function ResultsStatusText( _
+    ByVal storedInputs As Variant, _
+    ByVal nettingSetRows As Range, _
+    ByVal tradeRows As Range, _
+    ByVal paramRows As Range) _
+    As String
 '
 '==============================================================================
-'                               FlagStaleResults
+'                              ResultsStatusText
 '------------------------------------------------------------------------------
 ' PURPOSE
-'   Put an OUT OF DATE marker in front of the run summary in Results A2
-'   when the inputs changed after the last run (#36). The check runs when
-'   the Results sheet is activated rather than on every edit, because a
-'   macro that changes the workbook clears Excel's undo history.
+'   Worksheet function for the status cell in Results A3 (#36):
+'     =ResultsStatusText(SACCR_RunInputs, NettingSets!$A:$N, Trades!$A:$W,
+'                        Params!$A:$H)
+'   Its arguments are what Excel watches: a run changes the hidden name
+'   SACCR_RunInputs and an edit changes an input range, and either makes
+'   Excel recalculate the cell. A formula never clears Excel's undo
+'   history, as a macro writing to the sheet would.
+'
+' INPUTS
+'   storedInputs: the value of SACCR_RunInputs.
+'   nettingSetRows, tradeRows, paramRows: the input ranges, only so that
+'   Excel recalculates; the fingerprint is computed from the sheets as the
+'   engine reads them.
+'
+' RETURNS
+'   "Results current (inputs XXXXXXXX)", "OUT OF DATE - inputs changed
+'   since the last run; press Run SA-CCR." or "No results: press Run
+'   SA-CCR."
 '
 ' ERROR POLICY
-'   Contains every error: activating a sheet must never fail.
+'   Returns "Status unavailable" instead of raising: a worksheet function
+'   must not interrupt Excel.
 '
 ' UPDATED
 '   2026-10-07
@@ -292,23 +313,26 @@ Public Sub FlagStaleResults()
 '------------------------------------------------------------------------------
 ' DECLARE
 '------------------------------------------------------------------------------
-    Const STALE_MARK As String = "OUT OF DATE - inputs changed since this run. "
-    Dim summary   As Range    'Results A2
+    Dim stored   As String    'Fingerprint of the last completed run
 
 '------------------------------------------------------------------------------
-' MARK
+' COMPARE
 '------------------------------------------------------------------------------
         On Error GoTo Failed
-        If ResultsStatus() = "STALE" Then
-            Set summary = GetSheet(SH_RESULTS).Range(RUNINFO_CELL)
-            If Left$(SafeStr(summary.Value), Len(STALE_MARK)) <> STALE_MARK Then
-                summary.Value = STALE_MARK & SafeStr(summary.Value)
-            End If
+        stored = SafeStr(storedInputs)
+        If Len(stored) = 0 Then
+            ResultsStatusText = "No results: press Run SA-CCR."
+        ElseIf stored = CORE_Engine.InputFingerprint() Then
+            ResultsStatusText = "Results current (inputs " & stored & ")"
+        Else
+            ResultsStatusText = "OUT OF DATE - inputs changed since the last run; press Run SA-CCR."
         End If
+        Exit Function
 
 Failed:
+        ResultsStatusText = "Status unavailable"
 
-End Sub
+End Function
 
 
 '
