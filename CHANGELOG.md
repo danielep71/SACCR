@@ -97,6 +97,12 @@ Use only the categories needed by a release.
 
 ### Added
 
+- The traceability table in `docs/methodology/README.md` lists each
+  implemented rule with its CRE52 and CRR references, its VBA procedures, its
+  test cases and its status per regime (#44): Basel rules covered by a
+  published CRE99 output are validated, others are exercised by a published
+  EAD or not validated, and no CRR rule is validated in v1.0.0. Features that
+  are not implemented are listed below the table.
 - `TEST_CaseRunner.InjectFailure` proves that the case suites catch a wrong
   value (#44): the next suite moves the expected value of its first numeric
   check beyond its tolerance and must end with `RESULT=FAIL`, one failure and
