@@ -69,91 +69,92 @@ End Sub
 
 Private Sub Case01()
     'tests/expected/cre99-example-1.bcbs.json
-        TEST_CaseRunner.BeginCase "cre99-example-1", "BCBS", "2026-09-30", "EUR"
+        TEST_CaseRunner.BeginCase "cre99-example-1", "BCBS", "2026-09-30", "USD"
         TEST_CaseRunner.AddNettingSet "EX1", "N", "N", "", "N", "N", "", "0", "0", "0", "0", ""
-        TEST_CaseRunner.AddTrade "EX1-T1", "IR", "", "USD", "Linear", "Long", "", "Standard", "", "10000", "30", "", "2036-09-27", "2036-09-27", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX1-T2", "IR", "", "USD", "Linear", "Short", "", "Standard", "", "10000", "-20", "", "2030-09-29", "2030-09-29", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX1-T3", "IR", "", "EUR", "Option", "Long", "Put", "Standard", "", "5000", "50", "2027-09-30", "2037-09-27", "2037-09-27", "2027-09-30", "0.06", "0.05", "", "", ""
+        TEST_CaseRunner.AddTrade "EX1-T1", "IR", "", "USD", "Linear", "Long", "", "Standard", "", "10000000", "30000", "", "2036-09-27", "2036-09-27", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX1-T2", "IR", "", "USD", "Linear", "Short", "", "Standard", "", "10000000", "-20000", "", "2030-09-29", "2030-09-29", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX1-T3", "IR", "", "EUR", "Option", "Long", "Put", "Standard", "", "5000000", "50000", "2027-09-30", "2037-09-27", "2037-09-27", "2027-09-30", "0.06", "0.05", "", "", ""
         TEST_CaseRunner.RunCase
-        TEST_CaseRunner.ExpectNumber "T01", "EX1-T1", "adjusted_notional", "78694", "0.5", "0", "published"
+        TEST_CaseRunner.ExpectNumber "T01", "EX1-T1", "adjusted_notional", "78694000", "500", "0", "published"
         TEST_CaseRunner.ExpectNumber "T02", "EX1-T3", "supervisory_delta", "-0.27", "0.005", "0", "published"
-        TEST_CaseRunner.ExpectNumber "T03", "", "add_on.interest_rate", "347", "0.5", "0", "published"
-        TEST_CaseRunner.ExpectNumber "T04", "", "exposure_value", "569", "0.5", "0", "published"
+        TEST_CaseRunner.ExpectNumber "T03", "", "add_on.interest_rate", "347000", "500", "0", "published"
+        TEST_CaseRunner.ExpectNumber "T04", "", "exposure_value", "569000", "500", "0", "published"
 End Sub
 
 
 Private Sub Case02()
     'tests/expected/cre99-example-2.bcbs.json
-        TEST_CaseRunner.BeginCase "cre99-example-2", "BCBS", "2026-09-30", "EUR"
+        TEST_CaseRunner.BeginCase "cre99-example-2", "BCBS", "2026-09-30", "USD"
         TEST_CaseRunner.AddNettingSet "EX2", "N", "N", "", "N", "N", "", "0", "0", "0", "0", ""
-        TEST_CaseRunner.AddTrade "EX2-T1", "CR", "AA", "FIRM A", "Linear", "Long", "", "Standard", "", "10000", "20", "", "2029-09-29", "2029-09-29", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX2-T2", "CR", "BBB", "FIRM B", "Linear", "Short", "", "Standard", "", "10000", "-40", "", "2032-09-28", "2032-09-28", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX2-T3", "CR", "IG_INDEX", "CDX.IG", "Linear", "Long", "", "Standard", "", "10000", "0", "", "2031-09-29", "2031-09-29", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX2-T1", "CR", "AA", "FIRM A", "Linear", "Long", "", "Standard", "", "10000000", "20000", "", "2029-09-29", "2029-09-29", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX2-T2", "CR", "BBB", "FIRM B", "Linear", "Short", "", "Standard", "", "10000000", "-40000", "", "2032-09-28", "2032-09-28", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX2-T3", "CR", "IG_INDEX", "CDX.IG", "Linear", "Long", "", "Standard", "", "10000000", "0", "", "2031-09-29", "2031-09-29", "", "", "", "", "", ""
         TEST_CaseRunner.RunCase
         TEST_CaseRunner.ExpectNumber "T05", "", "multiplier", "0.965", "0.0005", "0", "published"
-        TEST_CaseRunner.ExpectNumber "T06", "", "exposure_value", "381", "0.5", "0", "published"
+        TEST_CaseRunner.ExpectNumber "T06", "", "exposure_value", "381000", "500", "0", "published"
 End Sub
 
 
 Private Sub Case03()
     'tests/expected/cre99-example-3.bcbs.json
-        TEST_CaseRunner.BeginCase "cre99-example-3", "BCBS", "2026-09-30", "EUR"
+        TEST_CaseRunner.BeginCase "cre99-example-3", "BCBS", "2026-09-30", "USD"
+        TEST_CaseRunner.SetParameter "DaysPerYear", "360"
         TEST_CaseRunner.AddNettingSet "EX3", "N", "N", "", "N", "N", "", "0", "0", "0", "0", ""
-        TEST_CaseRunner.AddTrade "EX3-T1", "CO", "OIL_GAS", "CRUDE OIL", "Linear", "Long", "", "Standard", "", "10000", "-50", "", "", "2027-07-01", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX3-T2", "CO", "OIL_GAS", "CRUDE OIL", "Linear", "Short", "", "Standard", "", "20000", "-30", "", "", "2028-09-29", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX3-T3", "CO", "METALS", "SILVER", "Linear", "Long", "", "Standard", "", "10000", "100", "", "", "2031-09-29", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX3-T1", "CO", "OIL_GAS", "CRUDE OIL", "Linear", "Long", "", "Standard", "", "10000000", "-50000", "", "", "2027-06-27", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX3-T2", "CO", "OIL_GAS", "CRUDE OIL", "Linear", "Short", "", "Standard", "", "20000000", "-30000", "", "", "2028-09-29", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX3-T3", "CO", "METALS", "SILVER", "Linear", "Long", "", "Standard", "", "10000000", "100000", "", "", "2031-09-29", "", "", "", "", "", ""
         TEST_CaseRunner.RunCase
-        TEST_CaseRunner.ExpectNumber "T07", "", "exposure_value", "5406", "2", "0", "published"
+        TEST_CaseRunner.ExpectNumber "T07", "", "exposure_value", "5406000", "500", "0", "published"
 End Sub
 
 
 Private Sub Case04()
     'tests/expected/cre99-example-4.bcbs.json
-        TEST_CaseRunner.BeginCase "cre99-example-4", "BCBS", "2026-09-30", "EUR"
+        TEST_CaseRunner.BeginCase "cre99-example-4", "BCBS", "2026-09-30", "USD"
         TEST_CaseRunner.AddNettingSet "EX4", "N", "N", "", "N", "N", "", "0", "0", "0", "0", ""
-        TEST_CaseRunner.AddTrade "EX4-IRT1", "IR", "", "USD", "Linear", "Long", "", "Standard", "", "10000", "30", "", "2036-09-27", "2036-09-27", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX4-IRT2", "IR", "", "USD", "Linear", "Short", "", "Standard", "", "10000", "-20", "", "2030-09-29", "2030-09-29", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX4-IRT3", "IR", "", "EUR", "Option", "Long", "Put", "Standard", "", "5000", "50", "2027-09-30", "2037-09-27", "2037-09-27", "2027-09-30", "0.06", "0.05", "", "", ""
-        TEST_CaseRunner.AddTrade "EX4-CRT1", "CR", "AA", "FIRM A", "Linear", "Long", "", "Standard", "", "10000", "20", "", "2029-09-29", "2029-09-29", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX4-CRT2", "CR", "BBB", "FIRM B", "Linear", "Short", "", "Standard", "", "10000", "-40", "", "2032-09-28", "2032-09-28", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX4-CRT3", "CR", "IG_INDEX", "CDX.IG", "Linear", "Long", "", "Standard", "", "10000", "0", "", "2031-09-29", "2031-09-29", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX4-IRT1", "IR", "", "USD", "Linear", "Long", "", "Standard", "", "10000000", "30000", "", "2036-09-27", "2036-09-27", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX4-IRT2", "IR", "", "USD", "Linear", "Short", "", "Standard", "", "10000000", "-20000", "", "2030-09-29", "2030-09-29", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX4-IRT3", "IR", "", "EUR", "Option", "Long", "Put", "Standard", "", "5000000", "50000", "2027-09-30", "2037-09-27", "2037-09-27", "2027-09-30", "0.06", "0.05", "", "", ""
+        TEST_CaseRunner.AddTrade "EX4-CRT1", "CR", "AA", "FIRM A", "Linear", "Long", "", "Standard", "", "10000000", "20000", "", "2029-09-29", "2029-09-29", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX4-CRT2", "CR", "BBB", "FIRM B", "Linear", "Short", "", "Standard", "", "10000000", "-40000", "", "2032-09-28", "2032-09-28", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX4-CRT3", "CR", "IG_INDEX", "CDX.IG", "Linear", "Long", "", "Standard", "", "10000000", "0", "", "2031-09-29", "2031-09-29", "", "", "", "", "", ""
         TEST_CaseRunner.RunCase
-        TEST_CaseRunner.ExpectNumber "T08", "", "replacement_cost", "40", "0.5", "0", "published"
-        TEST_CaseRunner.ExpectNumber "T09", "", "aggregate_add_on", "629", "0.5", "0", "published"
-        TEST_CaseRunner.ExpectNumber "T10", "", "exposure_value", "936", "0.6", "0", "published"
+        TEST_CaseRunner.ExpectNumber "T08", "", "replacement_cost", "40000", "500", "0", "published"
+        TEST_CaseRunner.ExpectNumber "T09", "", "aggregate_add_on", "629000", "500", "0", "published"
+        TEST_CaseRunner.ExpectNumber "T10", "", "exposure_value", "936000", "500", "0", "published"
 End Sub
 
 
 Private Sub Case05()
     'tests/expected/cre99-example-5.bcbs.json
-        TEST_CaseRunner.BeginCase "cre99-example-5", "BCBS", "2026-09-30", "EUR"
-        TEST_CaseRunner.AddNettingSet "EX5", "Y", "N", "5", "N", "N", "", "50", "150", "0", "5", ""
-        TEST_CaseRunner.AddTrade "EX5-IRT1", "IR", "", "USD", "Linear", "Long", "", "Standard", "", "10000", "30", "", "2036-09-27", "2036-09-27", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX5-IRT2", "IR", "", "USD", "Linear", "Short", "", "Standard", "", "10000", "-20", "", "2030-09-29", "2030-09-29", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX5-IRT3", "IR", "", "EUR", "Option", "Long", "Put", "Standard", "", "5000", "50", "2027-09-30", "2037-09-27", "2037-09-27", "2027-09-30", "0.06", "0.05", "", "", ""
-        TEST_CaseRunner.AddTrade "EX5-COT1", "CO", "OIL_GAS", "CRUDE OIL", "Linear", "Long", "", "Standard", "", "10000", "-50", "", "", "2027-07-01", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX5-COT2", "CO", "OIL_GAS", "CRUDE OIL", "Linear", "Short", "", "Standard", "", "20000", "-30", "", "", "2028-09-29", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX5-COT3", "CO", "METALS", "SILVER", "Linear", "Long", "", "Standard", "", "10000", "100", "", "", "2031-09-29", "", "", "", "", "", ""
+        TEST_CaseRunner.BeginCase "cre99-example-5", "BCBS", "2026-09-30", "USD"
+        TEST_CaseRunner.AddNettingSet "EX5", "Y", "N", "5", "N", "N", "", "50000", "150000", "0", "5000", ""
+        TEST_CaseRunner.AddTrade "EX5-IRT1", "IR", "", "USD", "Linear", "Long", "", "Standard", "", "10000000", "30000", "", "2036-09-27", "2036-09-27", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX5-IRT2", "IR", "", "USD", "Linear", "Short", "", "Standard", "", "10000000", "-20000", "", "2030-09-29", "2030-09-29", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX5-IRT3", "IR", "", "EUR", "Option", "Long", "Put", "Standard", "", "5000000", "50000", "2027-09-30", "2037-09-27", "2037-09-27", "2027-09-30", "0.06", "0.05", "", "", ""
+        TEST_CaseRunner.AddTrade "EX5-COT1", "CO", "OIL_GAS", "CRUDE OIL", "Linear", "Long", "", "Standard", "", "10000000", "-50000", "", "", "2027-07-01", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX5-COT2", "CO", "OIL_GAS", "CRUDE OIL", "Linear", "Short", "", "Standard", "", "20000000", "-30000", "", "", "2028-09-29", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX5-COT3", "CO", "METALS", "SILVER", "Linear", "Long", "", "Standard", "", "10000000", "100000", "", "", "2031-09-29", "", "", "", "", "", ""
         TEST_CaseRunner.RunCase
         TEST_CaseRunner.ExpectNumber "T11", "", "margin_period_of_risk", "14", "0", "0", "published"
-        TEST_CaseRunner.ExpectNumber "T12", "", "aggregate_add_on", "1401", "0.5", "0", "published"
+        TEST_CaseRunner.ExpectNumber "T12", "", "aggregate_add_on", "1401000", "500", "0", "published"
         TEST_CaseRunner.ExpectNumber "T13", "", "multiplier", "0.958", "0.0005", "0", "published"
-        TEST_CaseRunner.ExpectNumber "T14", "", "exposure_value", "1879", "0.5", "0", "published"
+        TEST_CaseRunner.ExpectNumber "T14", "", "exposure_value", "1879000", "500", "0", "published"
 End Sub
 
 
 Private Sub Case06()
     'tests/expected/cre99-example-5.crr.json
-        TEST_CaseRunner.BeginCase "cre99-example-5", "CRR", "2026-09-30", "EUR"
-        TEST_CaseRunner.AddNettingSet "EX5", "Y", "N", "5", "N", "N", "", "50", "150", "0", "5", ""
-        TEST_CaseRunner.AddTrade "EX5-IRT1", "IR", "", "USD", "Linear", "Long", "", "Standard", "", "10000", "30", "", "2036-09-27", "2036-09-27", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX5-IRT2", "IR", "", "USD", "Linear", "Short", "", "Standard", "", "10000", "-20", "", "2030-09-29", "2030-09-29", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX5-IRT3", "IR", "", "EUR", "Option", "Long", "Put", "Standard", "", "5000", "50", "2027-09-30", "2037-09-27", "2037-09-27", "2027-09-30", "0.06", "0.05", "", "", ""
-        TEST_CaseRunner.AddTrade "EX5-COT1", "CO", "OIL_GAS", "CRUDE OIL", "Linear", "Long", "", "Standard", "", "10000", "-50", "", "", "2027-07-01", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX5-COT2", "CO", "OIL_GAS", "CRUDE OIL", "Linear", "Short", "", "Standard", "", "20000", "-30", "", "", "2028-09-29", "", "", "", "", "", ""
-        TEST_CaseRunner.AddTrade "EX5-COT3", "CO", "METALS", "SILVER", "Linear", "Long", "", "Standard", "", "10000", "100", "", "", "2031-09-29", "", "", "", "", "", ""
+        TEST_CaseRunner.BeginCase "cre99-example-5", "CRR", "2026-09-30", "USD"
+        TEST_CaseRunner.AddNettingSet "EX5", "Y", "N", "5", "N", "N", "", "50000", "150000", "0", "5000", ""
+        TEST_CaseRunner.AddTrade "EX5-IRT1", "IR", "", "USD", "Linear", "Long", "", "Standard", "", "10000000", "30000", "", "2036-09-27", "2036-09-27", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX5-IRT2", "IR", "", "USD", "Linear", "Short", "", "Standard", "", "10000000", "-20000", "", "2030-09-29", "2030-09-29", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX5-IRT3", "IR", "", "EUR", "Option", "Long", "Put", "Standard", "", "5000000", "50000", "2027-09-30", "2037-09-27", "2037-09-27", "2027-09-30", "0.06", "0.05", "", "", ""
+        TEST_CaseRunner.AddTrade "EX5-COT1", "CO", "OIL_GAS", "CRUDE OIL", "Linear", "Long", "", "Standard", "", "10000000", "-50000", "", "", "2027-07-01", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX5-COT2", "CO", "OIL_GAS", "CRUDE OIL", "Linear", "Short", "", "Standard", "", "20000000", "-30000", "", "", "2028-09-29", "", "", "", "", "", ""
+        TEST_CaseRunner.AddTrade "EX5-COT3", "CO", "METALS", "SILVER", "Linear", "Long", "", "Standard", "", "10000000", "100000", "", "", "2031-09-29", "", "", "", "", "", ""
         TEST_CaseRunner.RunCase
-        TEST_CaseRunner.ExpectNumber "T15", "", "exposure_value", "1879", "0.5", "0", "illustrative"
+        TEST_CaseRunner.ExpectNumber "T15", "", "exposure_value", "1879000", "500", "0", "illustrative"
 End Sub
 
 

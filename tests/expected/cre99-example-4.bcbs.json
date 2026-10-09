@@ -7,60 +7,60 @@
     {
       "quantity": "replacement_cost",
       "rule": "CRE52.10",
-      "value": 40,
-      "unit": "EUR",
+      "value": 40000,
+      "unit": "USD",
       "tolerance": {
-        "absolute": 0.5,
+        "absolute": 500,
         "relative": 0
       },
       "reference": {
         "class": "published",
-        "source": "BCBS-279",
-        "locator": "Annex 4, example 4 (also Basel Framework CRE99)",
-        "derivation": "Prototype TestCatalogue T08 (Example 4: RC; CRE99 ex.4; official published value (rounded); workbook reference BCBS-EX4, RC). Printed figure, rounded; not yet re-checked against the registered text.",
+        "source": "CRE99",
+        "locator": "Example 4, from CRE99.77",
+        "derivation": "Printed in CRE99 Example 4 and in BCBS 279 Annex 4a, page 29, rounded to the printed digit; checked against the text on 2026-10-09. CRE99.20 keeps intermediate results unrounded and rounds the displayed results and the final EAD. The source prints USD thousands; the value here is that figure times 1,000. Ported from prototype TestCatalogue T08.",
         "derived_by": "Daniele Penza",
         "reviewed_by": null,
-        "date": "2026-10-06"
+        "date": "2026-10-09"
       },
       "catalogue": "T08"
     },
     {
       "quantity": "aggregate_add_on",
       "rule": "CRE52.25",
-      "value": 629,
-      "unit": "EUR",
+      "value": 629000,
+      "unit": "USD",
       "tolerance": {
-        "absolute": 0.5,
+        "absolute": 500,
         "relative": 0
       },
       "reference": {
         "class": "published",
-        "source": "BCBS-279",
-        "locator": "Annex 4, example 4 (also Basel Framework CRE99)",
-        "derivation": "Prototype TestCatalogue T09 (Example 4: aggregate add-on (no diversification across classes); CRE99 ex.4; official published value (rounded); workbook reference BCBS-EX4, AddOn aggregate). Printed figure, rounded; not yet re-checked against the registered text.",
+        "source": "CRE99",
+        "locator": "Example 4, from CRE99.77",
+        "derivation": "Printed in CRE99 Example 4 and in BCBS 279 Annex 4a, page 29, rounded to the printed digit; checked against the text on 2026-10-09. CRE99.20 keeps intermediate results unrounded and rounds the displayed results and the final EAD. The source prints USD thousands; the value here is that figure times 1,000. Ported from prototype TestCatalogue T09.",
         "derived_by": "Daniele Penza",
         "reviewed_by": null,
-        "date": "2026-10-06"
+        "date": "2026-10-09"
       },
       "catalogue": "T09"
     },
     {
       "quantity": "exposure_value",
       "rule": "CRE52.1",
-      "value": 936,
-      "unit": "EUR",
+      "value": 936000,
+      "unit": "USD",
       "tolerance": {
-        "absolute": 0.6,
+        "absolute": 500,
         "relative": 0
       },
       "reference": {
         "class": "published",
-        "source": "BCBS-279",
-        "locator": "Annex 4, example 4 (also Basel Framework CRE99)",
-        "derivation": "Prototype TestCatalogue T10 (Example 4: EAD; CRE99 ex.4; official published value (rounded); workbook reference BCBS-EX4, EAD). Catalogue note: Published 936 = 1.4 x (40 + 629) with rounded add-ons; unrounded 936.5. Printed figure, rounded; not yet re-checked against the registered text.",
+        "source": "CRE99",
+        "locator": "Example 4, from CRE99.77",
+        "derivation": "Printed in CRE99 Example 4 and in BCBS 279 Annex 4a, page 29, rounded to the printed digit; checked against the text on 2026-10-09. CRE99.20 keeps intermediate results unrounded and rounds the displayed results and the final EAD. The source prints USD thousands; the value here is that figure times 1,000. Ported from prototype TestCatalogue T10.",
         "derived_by": "Daniele Penza",
         "reviewed_by": null,
-        "date": "2026-10-06"
+        "date": "2026-10-09"
       },
       "catalogue": "T10"
     }
