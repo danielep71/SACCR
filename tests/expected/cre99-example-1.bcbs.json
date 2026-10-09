@@ -38,7 +38,7 @@
       "reference": {
         "class": "published",
         "source": "CRE99",
-        "locator": "Example 1, CRE99.31-32",
+        "locator": "Example 1, CRE99.32 (delta method in CRE99.31)",
         "derivation": "Printed in CRE99 Example 1, rounded to the printed digit; checked against the text, tables and equation images on 2026-10-09. CRE99.20 keeps intermediate results unrounded and rounds the displayed results and the final EAD. Printed to four decimals; the catalogue had rounded it to -0.27. Ported from prototype TestCatalogue T02.",
         "derived_by": "Daniele Penza",
         "reviewed_by": null,
