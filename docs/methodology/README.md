@@ -50,6 +50,9 @@ a later version is a new row, not an edit.
 Reference values may only be taken from a source in this register. Add a row
 before citing a new one.
 
+Copies of the checked versions, with their addresses and SHA-256 hashes, are in
+[`sources/`](sources/README.md).
+
 <a id="assumptions-and-scope"></a>
 
 ## 🧭 Assumptions and scope

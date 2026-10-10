@@ -97,6 +97,11 @@ Use only the categories needed by a release.
 
 ### Added
 
+- `docs/methodology/sources/` holds copies of the regulatory texts the
+  methodology was checked against: the SA-CCR articles of the consolidated CRR
+  (26.06.2026), Delegated Regulation 2021/931 as amended (25.05.2025), Basel
+  CRE52 and CRE99 (effective 1 January 2023) and EBA Q&A 2023_6962, each with
+  its address, retrieval date and SHA-256.
 - A support matrix in `docs/methodology/README.md` lists, for v1.0.0, which
   methods, asset classes, instruments, netting-set and collateral structures,
   parameters and conventions are supported, which the user enters in a
