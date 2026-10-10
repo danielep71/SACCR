@@ -313,6 +313,12 @@ Use only the categories needed by a release.
 
 ### Fixed
 
+- Methodology traceability: the MPOR row names the 5-business-day floor for
+  client clearing next to the 10-day bilateral floor; the dispute row says the
+  engine's doubling of F + N - 1 follows CRE52.50–.51 and exceeds the CRR text
+  (Art. 285(4)–(5)) only when remargining is not daily; Article 278(2) is listed
+  as not implemented; EBA Q&A 2023_6962 has its own source ID and SHA-256.
+
 - Installation instructions now show 35 input-validation cases and checks,
   matching the merged suite and recorded Excel result (#91), and describe
   the formula-based status from #89 as integrated rather than pending.
