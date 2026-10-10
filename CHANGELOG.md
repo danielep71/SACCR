@@ -97,6 +97,11 @@ Use only the categories needed by a release.
 
 ### Added
 
+- `docs/methodology/sources/` holds copies of the regulatory texts the
+  methodology was checked against: the SA-CCR articles of the consolidated CRR
+  (26.06.2026), Delegated Regulation 2021/931 as amended (25.05.2025), Basel
+  CRE52 and CRE99 (effective 1 January 2023) and EBA Q&A 2023_6962, each with
+  its address, retrieval date and SHA-256.
 - A support matrix in `docs/methodology/README.md` lists, for v1.0.0, which
   methods, asset classes, instruments, netting-set and collateral structures,
   parameters and conventions are supported, which the user enters in a
@@ -307,6 +312,12 @@ Use only the categories needed by a release.
   licenses.
 
 ### Fixed
+
+- Methodology traceability: the MPOR row names the 5-business-day floor for
+  client clearing next to the 10-day bilateral floor; the dispute row says the
+  engine's doubling of F + N - 1 follows CRE52.50–.51 and exceeds the CRR text
+  (Art. 285(4)–(5)) only when remargining is not daily; Article 278(2) is listed
+  as not implemented; EBA Q&A 2023_6962 has its own source ID and SHA-256.
 
 - Installation instructions now show 35 input-validation cases and checks,
   matching the merged suite and recorded Excel result (#91), and describe
